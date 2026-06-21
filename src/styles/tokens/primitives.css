@@ -1,0 +1,154 @@
+/* ============================================================
+   TIER 1 — PRIMITIVES
+   Raw palette ramps + non-color scales.
+   Theme- and mode-AGNOSTIC. Components must never read these
+   directly — they exist only to be mapped by the theme files
+   (tokens/themes/*.css) onto the semantic role tokens.
+   ============================================================ */
+:root {
+  /* ---------- Typeface ---------- */
+  --ev-font-sans: 'Fustat', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* ---------- Weights ---------- */
+  --ev-w-regular: 400;
+  --ev-w-medium: 500;
+  --ev-w-semibold: 600;
+  --ev-w-bold: 700;
+  --ev-w-extrabold: 800;
+
+  /* ---------- Type scale (px) ---------- */
+  --ev-text-display: 40px;
+  --ev-text-h1: 28px;
+  --ev-text-h2: 22px;
+  --ev-text-h3: 18px;
+  --ev-text-h4: 16px;
+  --ev-text-lg: 15px;
+  --ev-text-base: 14px;
+  --ev-text-sm: 13px;
+  --ev-text-xs: 12px;
+  --ev-text-2xs: 11px;
+
+  /* ---------- Line heights ---------- */
+  --ev-leading-tight: 1.15;
+  --ev-leading-snug: 1.35;
+  --ev-leading-normal: 1.5;
+  --ev-leading-relaxed: 1.6;
+
+  /* ---------- Tracking ---------- */
+  --ev-tracking-tight: -0.02em;
+  --ev-tracking-normal: 0;
+  --ev-tracking-label: 0.06em;
+
+  /* ---------- Spacing (4px base) ---------- */
+  --ev-space-1: 4px;
+  --ev-space-2: 8px;
+  --ev-space-3: 12px;
+  --ev-space-4: 16px;
+  --ev-space-5: 20px;
+  --ev-space-6: 24px;
+  --ev-space-7: 28px;
+  --ev-space-8: 32px;
+  --ev-space-10: 40px;
+  --ev-space-12: 48px;
+
+  /* ---------- Radius scale (XL house style) ---------- */
+  --ev-radius-xs: 7px;
+  --ev-radius-sm: 10px;
+  --ev-radius-md: 12px;
+  --ev-radius-lg: 18px;
+  --ev-radius-xl: 24px;
+  --ev-radius-2xl: 28px;
+  --ev-radius-pill: 999px;
+
+  /* ---------- Color ramps (hue families) ---------- */
+  /* Purple — brand accent */
+  --ev-purple-300: #b3a6ea;
+  --ev-purple-400: #9d8ee0;
+  --ev-purple-500: #8c7bd9;
+  --ev-purple-600: #7866cf;
+  --ev-purple-700: #5b4aa8;
+  --ev-purple-soft: #ece6f6;
+  --ev-purple-softer: #f3eefb;
+  --ev-purple-soft-dark: #322a5c;
+  --ev-purple-soft-dark-fg: #cfc4f2;
+
+  /* Green — success + brand spark */
+  --ev-success-500: #7bd9ab;
+  --ev-success-ink: #2f7d56;
+  --ev-success-soft: #e7f6ee;
+  --ev-success-soft-dark: #16301f;
+  --ev-success-soft-dark-fg: #8fe3b9;
+
+  /* Saturated sticky-note green */
+  --ev-note-500: #aef07f;
+  --ev-note-ink: #2f4a1f;
+  --ev-note-soft: #eaf3e6;
+  --ev-note-ink-soft: #3c5230;
+  --ev-note-dark: #2c3b1c;
+  --ev-note-dark-fg: #cbe9a6;
+
+  /* Info — blue */
+  --ev-info-500: #8ec9f9;
+  --ev-info-ink: #2e6bb0;
+  --ev-info-soft: #e4ecf8;
+  --ev-info-soft-dark: #142634;
+  --ev-info-soft-dark-fg: #9bcdf6;
+
+  /* Warning — amber */
+  --ev-warning-500: #ffcc61;
+  --ev-warning-ink: #a9772a;
+  --ev-warning-soft: #f6ecdc;
+  --ev-warning-soft-dark: #2f2611;
+  --ev-warning-soft-dark-fg: #f4c878;
+
+  /* Error — coral */
+  --ev-error-500: #f98e9e;
+  --ev-error-ink: #b8475a;
+  --ev-error-soft: #fde7ea;
+  --ev-error-soft-dark: #321a1f;
+  --ev-error-soft-dark-fg: #f49aa8;
+
+  /* ---------- Neutral ramp — LIGHT ---------- */
+  --ev-l-white: #ffffff;
+  --ev-l-25: #fcfcfc;
+  --ev-l-50: #f7f8f8;
+  --ev-l-75: #f4f6f5;
+  --ev-l-100: #f1f3f2;
+  --ev-l-150: #e6e9ea;
+  --ev-l-200: #e0e5e2;
+  --ev-l-line: #ececec;
+  --ev-l-border: #e6e6e6;
+  --ev-l-border-strong: #d8d8d8;
+  --ev-l-ink: #222222;
+  --ev-l-ink-soft: #6b6b6b;
+  --ev-l-ink-faint: #9a9a9a;
+  --ev-l-ink-ghost: #bcbcbc;
+
+  /* ---------- Neutral ramp — DARK ---------- */
+  --ev-d-page: #121513;
+  --ev-d-canvas: #0e100f;
+  --ev-d-card: #1c201e;
+  --ev-d-rail: #20241f;
+  --ev-d-inset: #262b28;
+  --ev-d-inset-raise: #2b302c;
+  --ev-d-line: #262b28;
+  --ev-d-border: #2c302d;
+  --ev-d-border-strong: #3a403c;
+  --ev-d-ink: #f1f3f0;
+  --ev-d-ink-soft: #b4b8b3;
+  --ev-d-ink-faint: #888d88;
+  --ev-d-ink-ghost: #6a6f6a;
+
+  /* ---------- Shadow primitives ---------- */
+  --ev-shadow-l-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --ev-shadow-l-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.05);
+  --ev-shadow-l-raised: 0 1px 2px rgba(0, 0, 0, 0.05), 0 16px 44px rgba(0, 0, 0, 0.07);
+  --ev-shadow-l-pop: 0 10px 34px rgba(0, 0, 0, 0.14);
+  --ev-shadow-l-chip: 0 1px 2px rgba(0, 0, 0, 0.06);
+
+  --ev-shadow-d-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ev-shadow-d-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --ev-shadow-d-raised: 0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 44px rgba(0, 0, 0, 0.55);
+  --ev-shadow-d-pop: 0 10px 34px rgba(0, 0, 0, 0.6);
+  --ev-shadow-d-chip: 0 1px 2px rgba(0, 0, 0, 0.5);
+}

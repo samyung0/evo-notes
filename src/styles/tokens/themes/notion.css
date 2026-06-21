@@ -1,0 +1,187 @@
+/* ============================================================
+   THEME: NOTION  (SCAFFOLD — draft values)
+   Implements the full semantic-role contract so the theme
+   switcher works end-to-end, but the palette is intentionally
+   minimal: sharp corners, visible dividers, more muted text —
+   the inverse of the Friendly house rules. Tune later.
+   ============================================================ */
+
+/* ---------------- NOTION · LIGHT ---------------- */
+[data-theme='notion'][data-mode='light'] {
+  color-scheme: light;
+
+  --surface-page: #ffffff;
+  --surface-canvas: #ffffff;
+  --surface-card-bg: #ffffff;
+  --surface-card-fg: #37352f;
+  --surface-card-fg-muted: #9b9a97;
+  --surface-card-border: #e9e9e7;
+  --surface-rail-bg: #fbfbfa;
+  --surface-rail-fg: #37352f;
+  --surface-rail-border: #e9e9e7;
+  --surface-inset-bg: #f7f7f5;
+  --surface-inset-fg: #37352f;
+  --surface-inset-border: #e9e9e7;
+  --surface-sidebar-bg: #f7f7f5;
+  --surface-sidebar-fg: #37352f;
+  --surface-topbar-bg: #f7f7f5;
+  --surface-topbar-fg: #37352f;
+
+  --text-primary: #37352f;
+  --text-secondary: #6b6a65;
+  --text-muted: #9b9a97;
+  --text-placeholder: #c2c1bd;
+  --text-link: #2e6bb0;
+  --text-link-hover: #1f4f87;
+
+  --border-default: #e9e9e7;
+  --border-strong: #d9d9d6;
+  --divider: #ededec;
+
+  --action-primary-bg: #37352f;
+  --action-primary-fg: #ffffff;
+  --action-primary-hover: #000000;
+  --action-accent-bg: #2383e2;
+  --action-accent-fg: #ffffff;
+  --action-accent-hover: #1a6fc4;
+  --action-outline-bg: #ffffff;
+  --action-outline-fg: #37352f;
+  --action-outline-border: #d9d9d6;
+  --action-ghost-fg: #6b6a65;
+
+  --tint-success-bg: #edf3ec;
+  --tint-success-fg: #448361;
+  --solid-success: #448361;
+  --tint-info-bg: #e7f3f8;
+  --tint-info-fg: #337ea9;
+  --solid-info: #337ea9;
+  --tint-warning-bg: #faf3dd;
+  --tint-warning-fg: #cb912f;
+  --solid-warning: #cb912f;
+  --tint-error-bg: #fbecec;
+  --tint-error-fg: #d44c47;
+  --solid-error: #d44c47;
+  --tint-purple-bg: #f4f0f7;
+  --tint-purple-fg: #6940a5;
+  --solid-purple: #9065b0;
+  --tint-green-bg: #edf3ec;
+  --tint-green-fg: #448361;
+  --solid-green: #448361;
+
+  --note-green-bg: #edf3ec;
+  --note-green-fg: #1c3b29;
+  --note-green-fg-muted: #448361;
+  --note-purple-bg: #f4f0f7;
+  --note-purple-fg: #46295f;
+  --note-purple-fg-muted: #6940a5;
+  --note-green-soft-bg: #edf3ec;
+  --note-green-soft-fg: #448361;
+  --note-purple-soft-bg: #f4f0f7;
+  --note-purple-soft-fg: #6940a5;
+
+  /* Sharp corners — Notion house style */
+  --radius-input: 4px;
+  --radius-button: 4px;
+  --radius-row: 4px;
+  --radius-card: 5px;
+  --radius-card-lg: 6px;
+  --radius-panel: 6px;
+  --radius-frame: 8px;
+  --radius-pill: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(15, 15, 15, 0.08);
+  --shadow-card: 0 1px 2px rgba(15, 15, 15, 0.1);
+  --shadow-raised: 0 2px 6px rgba(15, 15, 15, 0.12);
+  --shadow-pop: 0 4px 16px rgba(15, 15, 15, 0.18);
+  --shadow-chip: 0 1px 2px rgba(15, 15, 15, 0.08);
+}
+
+/* ---------------- NOTION · DARK ---------------- */
+[data-theme='notion'][data-mode='dark'] {
+  color-scheme: dark;
+
+  --surface-page: #191919;
+  --surface-canvas: #191919;
+  --surface-card-bg: #202020;
+  --surface-card-fg: #d4d4d2;
+  --surface-card-fg-muted: #797874;
+  --surface-card-border: #2f2f2f;
+  --surface-rail-bg: #1e1e1e;
+  --surface-rail-fg: #d4d4d2;
+  --surface-rail-border: #2f2f2f;
+  --surface-inset-bg: #262626;
+  --surface-inset-fg: #d4d4d2;
+  --surface-inset-border: #2f2f2f;
+  --surface-sidebar-bg: #1e1e1e;
+  --surface-sidebar-fg: #d4d4d2;
+  --surface-topbar-bg: #262626;
+  --surface-topbar-fg: #d4d4d2;
+
+  --text-primary: #d4d4d2;
+  --text-secondary: #9b9a97;
+  --text-muted: #797874;
+  --text-placeholder: #5a5a57;
+
+  --text-link: #5b9bd5;
+  --text-link-hover: #7db0e0;
+
+  --border-default: #2f2f2f;
+  --border-strong: #3d3d3d;
+  --divider: #2a2a2a;
+
+  --action-primary-bg: #d4d4d2;
+  --action-primary-fg: #202020;
+  --action-primary-hover: #ffffff;
+  --action-accent-bg: #2383e2;
+  --action-accent-fg: #ffffff;
+  --action-accent-hover: #4a9aea;
+  --action-outline-bg: transparent;
+  --action-outline-fg: #d4d4d2;
+  --action-outline-border: #3d3d3d;
+  --action-ghost-fg: #9b9a97;
+
+  --tint-success-bg: #1c2b21;
+  --tint-success-fg: #6cae8a;
+  --solid-success: #6cae8a;
+  --tint-info-bg: #18262f;
+  --tint-info-fg: #6aa6c8;
+  --solid-info: #6aa6c8;
+  --tint-warning-bg: #2c2515;
+  --tint-warning-fg: #d9ad5f;
+  --solid-warning: #d9ad5f;
+  --tint-error-bg: #2e1c1b;
+  --tint-error-fg: #df7773;
+  --solid-error: #df7773;
+  --tint-purple-bg: #261f30;
+  --tint-purple-fg: #b18ad0;
+  --solid-purple: #b18ad0;
+  --tint-green-bg: #1c2b21;
+  --tint-green-fg: #6cae8a;
+  --solid-green: #6cae8a;
+
+  --note-green-bg: #1c2b21;
+  --note-green-fg: #a9d4ba;
+  --note-green-fg-muted: #6cae8a;
+  --note-purple-bg: #261f30;
+  --note-purple-fg: #cdb4e3;
+  --note-purple-fg-muted: #b18ad0;
+  --note-green-soft-bg: #1c2b21;
+  --note-green-soft-fg: #6cae8a;
+  --note-purple-soft-bg: #261f30;
+  --note-purple-soft-fg: #b18ad0;
+
+  --radius-input: 4px;
+  --radius-button: 4px;
+  --radius-row: 4px;
+  --radius-card: 5px;
+  --radius-card-lg: 6px;
+  --radius-panel: 6px;
+  --radius-frame: 8px;
+  --radius-pill: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-raised: 0 2px 8px rgba(0, 0, 0, 0.55);
+  --shadow-pop: 0 4px 18px rgba(0, 0, 0, 0.65);
+  --shadow-chip: 0 1px 2px rgba(0, 0, 0, 0.5);
+}

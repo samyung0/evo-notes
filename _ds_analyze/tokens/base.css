@@ -1,0 +1,21 @@
+/* ============================================================
+   Evo Notes — light base resets / helpers.
+   Kept minimal: sets the brand font + page background.
+   ============================================================ */
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-family: var(--ev-font-sans);
+  color: var(--ev-ink);
+  background: var(--ev-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Utility: handwritten accent used for playful labels */
+.ev-hand {
+  font-family: var(--ev-font-hand);
+  font-weight: var(--ev-w-600, 600);
+}

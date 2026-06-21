@@ -1,0 +1,70 @@
+<!-- @dsCard group="Components" viewport="700x360" name="Data display & forms" subtitle="Card, NoteCard, Badge, Avatar, ProgressBar, Input, Checkbox, Switch" -->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body { margin:0; background:var(--ev-bg); font-family:var(--ev-font-sans); }
+  #root { padding:24px 26px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .lbl { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ev-ink-faint); margin:0 0 9px; }
+  .row { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .stack { display:flex; flex-direction:column; gap:12px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { Card, NoteCard, Badge, Avatar, ProgressBar, Input, Checkbox, Switch } = window.EvoNotesDesignSystem_aff30d;
+function Demo() {
+  const [c1, setC1] = React.useState(true);
+  const [c2, setC2] = React.useState(false);
+  const [sw, setSw] = React.useState(true);
+  return (
+    <div className="grid">
+      <div className="stack">
+        <NoteCard theme="green" title="Math conspect" body="A linear equation is an equation of the form ax + b = c." date="May 05, 2025" />
+      </div>
+      <div className="stack">
+        <NoteCard theme="purple" title="Biology conspect" body="A cell is the basic structural and functional unit of life." date="Apr 29, 2025" />
+      </div>
+      <Card padding={16}>
+        <p className="lbl">Workspace card</p>
+        <div className="row" style={{justifyContent:'space-between', marginBottom:10}}>
+          <strong style={{fontSize:15, color:'var(--ev-ink)'}}>Biology 101</strong>
+          <Badge tone="course">Course</Badge>
+        </div>
+        <div style={{fontSize:12.5, color:'var(--ev-ink-faint)'}}>6 chapters · 24 files</div>
+      </Card>
+      <Card padding={16}>
+        <p className="lbl">Badges</p>
+        <div className="row" style={{marginBottom:14}}>
+          <Badge tone="workspace">Workspace</Badge>
+          <Badge tone="success">8/10</Badge>
+          <Badge tone="purple">In progress</Badge>
+          <Badge tone="error">3/8</Badge>
+        </div>
+        <p className="lbl">Avatars · input · controls</p>
+        <div className="row">
+          <Avatar name="Kate Malone" size="md" />
+          <Avatar name="Mrs Goodman" size="sm" />
+          <Checkbox checked={c1} onChange={setC1} />
+          <Checkbox checked={c2} onChange={setC2} />
+          <Switch checked={sw} onChange={setSw} />
+        </div>
+        <div style={{marginTop:12}}>
+          <Input icon="search" placeholder="Search workspaces…" />
+        </div>
+      </Card>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+</script>
+</body>
+</html>

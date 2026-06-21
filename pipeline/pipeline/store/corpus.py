@@ -1,0 +1,75 @@
+"""The corpus access interface shared by both RAG engines and the indexer.
+
+Engines and `ingest.indexer` used to call `store.db` (psycopg + pgvector)
+directly, which made them impossible to run without a live Postgres. They now
+talk to a `Corpus` instead, which has two implementations:
+
+- `store.pg.PgCorpus` — wraps a psycopg connection and delegates to the existing
+  SQL in `store.db`; this is the production path (vectors via pgvector).
+- `store.memory.MemoryCorpus` — a dependency-free, in-process corpus (cosine in
+  plain Python). Lets the benchmark harness and the unit tests exercise the real
+  engine algorithms offline and deterministically.
+
+Both implement the same protocol, so a parsed corpus indexed by either backend is
+retrieved by the identical engine code — which is exactly what makes the
+parser/engine comparison fair.
+
+Query vectors cross this boundary as raw ``list[float]`` (not pgvector string
+literals); each backend formats them however it needs to.
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Protocol, Sequence, Tuple, runtime_checkable
+
+Vector = Sequence[float]
+PassageRow = Dict[str, Any]
+
+
+@runtime_checkable
+class Corpus(Protocol):
+    """Read + write surface for the RAG corpus.
+
+    Reads (used by engines) take a raw query vector; writes (used by the
+    indexer) take raw embedding vectors. Implementations decide storage."""
+
+    # ---- reads (engines) -------------------------------------------------
+    def dense_search(self, ws: str, qvec: Vector, k: int) -> List[PassageRow]: ...
+
+    def concept_search(self, ws: str, qvec: Vector, k: int) -> List[Tuple[str, str, float]]: ...
+
+    def bridged_concepts(self, ws: str, qvec: Vector, k: int) -> List[Tuple[str, float]]: ...
+
+    def passage_concept_edges(self, ws: str) -> List[Tuple[str, str, float]]: ...
+
+    def passages_info(self, ids: Sequence[str]) -> Dict[str, PassageRow]: ...
+
+    def keyword_search(self, ws: str, qvec: Vector, level: str, k: int) -> List[Tuple[str, str, float]]: ...
+
+    def passages_for_keywords(self, ws: str, keyword_ids: Sequence[str], limit: int) -> List[PassageRow]: ...
+
+    def relation_neighbors(self, ws: str, concept_ids: Sequence[str]) -> List[Tuple[str, float]]: ...
+
+    def passages_for_concepts(self, ws: str, concept_ids: Sequence[str], limit: int) -> List[PassageRow]: ...
+
+    # ---- writes (indexer) ------------------------------------------------
+    def reset_document(self, file_id: str) -> None: ...
+
+    def insert_document(self, file_id: str, ws: str, parser: str, pages: int) -> str: ...
+
+    def insert_passage(self, doc_id: str, ws: str, ordn: int, text: str, themes: List[str], emb: Vector) -> str: ...
+
+    def insert_sentence(self, passage_id: str, ws: str, ordn: int, text: str, emb: Vector) -> str: ...
+
+    def upsert_concept(self, ws: str, name: str, emb: Vector) -> str: ...
+
+    def link_sentence_concept(self, sentence_id: str, concept_id: str, weight: float = 1.0) -> None: ...
+
+    def link_passage_concept(self, passage_id: str, concept_id: str, weight: float = 1.0) -> None: ...
+
+    def upsert_keyword(self, ws: str, term: str, level: str, emb: Vector) -> str: ...
+
+    def link_passage_keyword(self, passage_id: str, keyword_id: str) -> None: ...
+
+    def set_passage_themes(self, passage_id: str, themes: List[str]) -> None: ...
+
+    def add_relation(self, ws: str, src: str, dst: str, weight: float = 1.0) -> None: ...

@@ -1,0 +1,47 @@
+/* ============================================================
+   Evo Notes — Spacing, radius & shadow tokens
+   Generous padding + XL rounded corners are the house style.
+   ============================================================ */
+:root {
+  /* ---- Spacing scale (4px base) ---- */
+  --ev-space-1: 4px;
+  --ev-space-2: 8px;
+  --ev-space-3: 12px;
+  --ev-space-4: 16px;
+  --ev-space-5: 20px;
+  --ev-space-6: 24px;
+  --ev-space-7: 28px;
+  --ev-space-8: 32px;
+  --ev-space-10: 40px;
+  --ev-space-12: 48px;
+
+  /* Comfortable defaults for the brand */
+  --ev-pad-card: 18px;       /* inner card padding */
+  --ev-pad-card-lg: 24px;
+  --ev-gap-grid: 16px;       /* gaps between cards */
+
+  /* ---- Radii (XL house style) ---- */
+  --ev-r-xs: 7px;            /* small chips / icon tiles */
+  --ev-r-sm: 10px;          /* inputs, small buttons */
+  --ev-r-md: 12px;          /* buttons, list rows */
+  --ev-r-lg: 18px;          /* cards */
+  --ev-r-xl: 24px;          /* large cards / panels */
+  --ev-r-2xl: 28px;         /* hero / inset container cards */
+  --ev-r-pill: 999px;       /* pills, badges, avatars */
+
+  /* ---- Shadows (soft, low-contrast) ---- */
+  --ev-shadow-xs: 0 1px 2px rgba(0,0,0,.05);
+  --ev-shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+  --ev-shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.05);
+  --ev-shadow-raised: 0 1px 2px rgba(0,0,0,.05), 0 16px 44px rgba(0,0,0,.07);
+  --ev-shadow-pop: 0 10px 34px rgba(0,0,0,.14);
+
+  /* ---- Active-row lift (selected nav / segmented) ---- */
+  --ev-shadow-chip: 0 1px 2px rgba(0,0,0,.06);
+
+  /* ---- Semantic aliases ---- */
+  --radius-card: var(--ev-r-lg);
+  --radius-button: var(--ev-r-md);
+  --radius-input: var(--ev-r-sm);
+  --shadow-card: var(--ev-shadow-card);
+}

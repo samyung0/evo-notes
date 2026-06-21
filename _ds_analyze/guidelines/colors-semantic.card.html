@@ -1,0 +1,25 @@
+<!-- @dsCard group="Colors" viewport="700x172" name="Semantic colors" subtitle="Success · info · warning · error, each with a soft tint" -->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body { margin:0; background:var(--ev-bg); font-family:var(--ev-font-sans); padding:20px; }
+  .row { display:flex; gap:12px; }
+  .sw { flex:1; }
+  .chip { height:40px; border-radius:var(--ev-r-md) var(--ev-r-md) 0 0; }
+  .tint { height:22px; border-radius:0 0 var(--ev-r-md) var(--ev-r-md); border:1px solid var(--ev-border); border-top:none; }
+  .n { font-size:12px; font-weight:700; color:var(--ev-ink); margin-top:8px; }
+  .h { font-size:11px; color:var(--ev-ink-faint); }
+</style>
+</head>
+<body>
+  <div class="row">
+    <div class="sw"><div class="chip" style="background:#7bd9ab"></div><div class="tint" style="background:#e7f6ee"></div><div class="n">Success</div><div class="h">#7BD9AB</div></div>
+    <div class="sw"><div class="chip" style="background:#8ec9f9"></div><div class="tint" style="background:#e4ecf8"></div><div class="n">Info</div><div class="h">#8EC9F9</div></div>
+    <div class="sw"><div class="chip" style="background:#ffcc61"></div><div class="tint" style="background:#f6ecdc"></div><div class="n">Warning</div><div class="h">#FFCC61</div></div>
+    <div class="sw"><div class="chip" style="background:#f98e9e"></div><div class="tint" style="background:#fde7ea"></div><div class="n">Error</div><div class="h">#F98E9E</div></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,83 @@
+/* ============================================================
+   Evo Notes — Color tokens
+   Light theme, dark-ink primary, friendly green + purple accents.
+   ============================================================ */
+:root {
+  /* ---- Base surfaces ---- */
+  --ev-white: #ffffff;
+  --ev-surface: #ffffff;          /* cards, panels */
+  --ev-surface-2: #fcfcfc;        /* right rail / inset panels */
+  --ev-bg: #f1f3f2;               /* app canvas (base-300) */
+  --ev-bg-soft: #f7f8f8;          /* lighter inset (schedule items, soft tiles) */
+  --ev-bg-deep: #e0e5e2;          /* deep-grey inset (navbar, search/profile bar) */
+  --ev-bg-page: #f4f6f5;          /* lighter page wash behind white inset cards */
+  --ev-bg-sage: #e6e9ea;          /* neutral grey wash, a touch darker than page */
+
+  /* ---- Ink (text) ---- */
+  --ev-ink: #222222;              /* primary text (base-content) */
+  --ev-ink-soft: #6b6b6b;         /* secondary text */
+  --ev-ink-faint: #9a9a9a;        /* tertiary / meta */
+  --ev-ink-ghost: #bcbcbc;        /* placeholder */
+
+  /* ---- Lines & hairlines ---- */
+  --ev-line: #ececec;             /* dividers */
+  --ev-border: #e6e6e6;           /* card / input borders */
+  --ev-border-strong: #d8d8d8;
+
+  /* ---- Primary (near-black) ---- */
+  --ev-primary: #222222;
+  --ev-primary-hover: #000000;
+  --ev-primary-content: #ffffff;
+
+  /* ---- Purple accent (secondary / accent) ---- */
+  --ev-purple: #8c7bd9;
+  --ev-purple-hover: #7866cf;
+  --ev-purple-content: #ffffff;  /* white text on the purple accent fill */
+  --ev-purple-soft: #ece6f6;      /* tint surface */
+  --ev-purple-softer: #f3eefb;
+  --ev-purple-ink: #5b4aa8;       /* text/icon on tint */
+
+  /* ---- Green (success / brand spark) ---- */
+  --ev-success: #7bd9ab;
+  --ev-success-ink: #2f7d56;
+  --ev-success-soft: #e7f6ee;
+  --ev-green-note: #aef07f;       /* saturated sticky-note green */
+  --ev-green-note-ink: #2f4a1f;
+  --ev-green-soft: #eaf3e6;       /* soft green surface */
+  --ev-green-ink: #3c5230;
+
+  /* ---- Info (blue) ---- */
+  --ev-info: #8ec9f9;
+  --ev-info-ink: #2e6bb0;
+  --ev-info-soft: #e4ecf8;
+
+  /* ---- Warning (amber) ---- */
+  --ev-warning: #ffcc61;
+  --ev-warning-ink: #a9772a;
+  --ev-warning-soft: #f6ecdc;
+
+  /* ---- Error (coral) ---- */
+  --ev-error: #f98e9e;
+  --ev-error-ink: #b8475a;
+  --ev-error-soft: #fde7ea;
+
+  /* ============================================================
+     Semantic aliases
+     ============================================================ */
+  --text-strong: var(--ev-ink);
+  --text-body: var(--ev-ink-soft);
+  --text-muted: var(--ev-ink-faint);
+  --text-placeholder: var(--ev-ink-ghost);
+
+  --surface-page: var(--ev-bg);
+  --surface-card: var(--ev-surface);
+  --surface-rail: var(--ev-surface-2);
+
+  --border-card: var(--ev-border);
+  --border-divider: var(--ev-line);
+
+  --action-primary-bg: var(--ev-primary);
+  --action-primary-fg: var(--ev-primary-content);
+  --action-accent-bg: var(--ev-purple);
+  --action-accent-fg: var(--ev-purple-content);
+}

@@ -1,0 +1,171 @@
+/* Fustat — keep the CDN import for dev; swap to self-hosted @font-face later. */
+@import url('https://fonts.googleapis.com/css2?family=Fustat:wght@300;400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+@import './tokens/primitives.css';
+@import './tokens/themes/friendly.css';
+@import './tokens/themes/notion.css';
+
+/* Drive dark variants off our [data-mode] attribute, not the class. */
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
+
+/* ============================================================
+   Tailwind bridge — semantic roles → utilities.
+   `inline` keeps the var() reference so utilities re-theme at
+   runtime when [data-theme]/[data-mode] change.
+   ============================================================ */
+@theme inline {
+  --font-sans: var(--ev-font-sans);
+
+  /* Surfaces → bg-* */
+  --color-page: var(--surface-page);
+  --color-canvas: var(--surface-canvas);
+  --color-surface: var(--surface-card-bg);
+  --color-rail: var(--surface-rail-bg);
+  --color-inset: var(--surface-inset-bg);
+  --color-sidebar: var(--surface-sidebar-bg);
+  --color-topbar: var(--surface-topbar-bg);
+
+  /* Text → text-* */
+  --color-fg: var(--text-primary);
+  --color-fg-soft: var(--text-secondary);
+  --color-fg-muted: var(--text-muted);
+  --color-placeholder: var(--text-placeholder);
+  --color-link: var(--text-link);
+  --color-link-hover: var(--text-link-hover);
+
+  /* Borders → border-* */
+  --color-line: var(--border-default);
+  --color-line-strong: var(--border-strong);
+  --color-divider: var(--divider);
+
+  /* Actions */
+  --color-action: var(--action-primary-bg);
+  --color-action-fg: var(--action-primary-fg);
+  --color-action-hover: var(--action-primary-hover);
+  --color-accent: var(--action-accent-bg);
+  --color-accent-fg: var(--action-accent-fg);
+  --color-accent-hover: var(--action-accent-hover);
+
+  /* Tints (container bg + fg) */
+  --color-tint-success: var(--tint-success-bg);
+  --color-tint-success-fg: var(--tint-success-fg);
+  --color-tint-info: var(--tint-info-bg);
+  --color-tint-info-fg: var(--tint-info-fg);
+  --color-tint-warning: var(--tint-warning-bg);
+  --color-tint-warning-fg: var(--tint-warning-fg);
+  --color-tint-error: var(--tint-error-bg);
+  --color-tint-error-fg: var(--tint-error-fg);
+  --color-tint-purple: var(--tint-purple-bg);
+  --color-tint-purple-fg: var(--tint-purple-fg);
+  --color-tint-green: var(--tint-green-bg);
+  --color-tint-green-fg: var(--tint-green-fg);
+
+  /* Solid signal colors (dots, bars, fills) */
+  --color-solid-success: var(--solid-success);
+  --color-solid-info: var(--solid-info);
+  --color-solid-warning: var(--solid-warning);
+  --color-solid-error: var(--solid-error);
+  --color-solid-purple: var(--solid-purple);
+  --color-solid-green: var(--solid-green);
+
+  /* Note surfaces */
+  --color-note-green: var(--note-green-bg);
+  --color-note-green-fg: var(--note-green-fg);
+  --color-note-purple: var(--note-purple-bg);
+  --color-note-purple-fg: var(--note-purple-fg);
+
+  /* Radii → rounded-* */
+  --radius-input: var(--radius-input);
+  --radius-button: var(--radius-button);
+  --radius-row: var(--radius-row);
+  --radius-card: var(--radius-card);
+  --radius-card-lg: var(--radius-card-lg);
+  --radius-panel: var(--radius-panel);
+  --radius-frame: var(--radius-frame);
+  --radius-pill: var(--radius-pill);
+
+  /* Shadows → shadow-* */
+  --shadow-xs: var(--shadow-xs);
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-chip: var(--shadow-chip);
+}
+
+/* ============================================================
+   Base layer
+   ============================================================ */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    font-family: var(--ev-font-sans);
+    color: var(--text-primary);
+    background: var(--surface-page);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  ::selection {
+    background: var(--tint-purple-bg);
+    color: var(--tint-purple-fg);
+  }
+}
+
+/* ============================================================
+   Typographic role classes — the single rendering path for text.
+   Use via the <Text>/<Heading> components to prevent size/color drift.
+   ============================================================ */
+@layer components {
+  .t-display {
+    font-size: var(--ev-text-display);
+    font-weight: var(--ev-w-extrabold);
+    line-height: var(--ev-leading-tight);
+    letter-spacing: var(--ev-tracking-tight);
+  }
+  .t-page-title {
+    font-size: var(--ev-text-h1);
+    font-weight: var(--ev-w-extrabold);
+    line-height: var(--ev-leading-tight);
+    letter-spacing: var(--ev-tracking-tight);
+  }
+  .t-section {
+    font-size: var(--ev-text-h2);
+    font-weight: var(--ev-w-extrabold);
+    line-height: var(--ev-leading-snug);
+    letter-spacing: var(--ev-tracking-tight);
+  }
+  .t-card-title {
+    font-size: var(--ev-text-h3);
+    font-weight: var(--ev-w-bold);
+    line-height: var(--ev-leading-snug);
+  }
+  .t-subtitle {
+    font-size: var(--ev-text-h4);
+    font-weight: var(--ev-w-bold);
+    line-height: var(--ev-leading-snug);
+  }
+  .t-body {
+    font-size: var(--ev-text-base);
+    font-weight: var(--ev-w-regular);
+    line-height: var(--ev-leading-normal);
+  }
+  .t-meta {
+    font-size: var(--ev-text-xs);
+    font-weight: var(--ev-w-medium);
+    line-height: var(--ev-leading-snug);
+  }
+  .t-label {
+    font-size: var(--ev-text-2xs);
+    font-weight: var(--ev-w-bold);
+    line-height: 1;
+    letter-spacing: var(--ev-tracking-label);
+    text-transform: uppercase;
+  }
+}

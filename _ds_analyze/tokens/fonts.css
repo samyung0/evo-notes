@@ -1,0 +1,9 @@
+/* ============================================================
+   Evo Notes — Webfonts
+   Fustat is the single brand typeface (UI + display).
+   Loaded from Google Fonts; the whole CSS closure (including this
+   @import) ships to consumers, so the font travels with the system.
+   To self-host, replace this @import with local @font-face rules
+   pointing at /assets/fonts.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Fustat:wght@300;400;500;600;700;800&display=swap');

@@ -1,0 +1,84 @@
+# Dev stack for the Evo Notes backend.
+#   docker compose -f deploy/docker-compose.yml up --build
+#
+# - db        : Postgres + pgvector (gateway applies migrations + seed on boot)
+# - server    : Go gateway (the frontend's /api), writes uploads to evo_blobs
+# - worker    : Python ingest worker (parses uploads -> RAG corpus)
+# - retrieval : Python FastAPI retrieval/chat service
+#
+# evo_blobs is shared between server (writer) and worker (reader).
+# EVO_PARSER/EVO_ENGINE default to the dependency-free dev pair; override in a
+# .env file to pin docling/mineru + linearrag/lightrag (and add the extras to
+# pipeline/Dockerfile).
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: evo
+      POSTGRES_PASSWORD: evo
+      POSTGRES_DB: evo
+    ports:
+      - "5432:5432"
+    volumes:
+      - evo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evo -d evo"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  server:
+    build:
+      context: ../server
+    environment:
+      DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
+      ADDR: ":8080"
+      MIGRATE: "true"
+      BLOB_DIR: /data/blobs
+      EVO_PARSER: ${EVO_PARSER:-simple}
+      EVO_ENGINE: ${EVO_ENGINE:-linearrag}
+      PIPELINE_URL: http://retrieval:8001
+    ports:
+      - "8080:8080"
+    volumes:
+      - evo_blobs:/data/blobs
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ../pipeline
+    environment:
+      DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
+      BLOB_DIR: /data/blobs
+      EVO_PARSER: ${EVO_PARSER:-simple}
+      EVO_ENGINE: ${EVO_ENGINE:-linearrag}
+      EVO_EMBEDDER: ${EVO_EMBEDDER:-hash}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - evo_blobs:/data/blobs
+    command: ["python", "-m", "pipeline.ingest.worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  retrieval:
+    build:
+      context: ../pipeline
+    environment:
+      DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
+      EVO_ENGINE: ${EVO_ENGINE:-linearrag}
+      EVO_EMBEDDER: ${EVO_EMBEDDER:-hash}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8001:8001"
+    command: ["uvicorn", "pipeline.retrieve.service:app", "--host", "0.0.0.0", "--port", "8001"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  evo_pgdata:
+  evo_blobs:

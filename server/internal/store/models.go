@@ -1,0 +1,161 @@
+package store
+
+import (
+	"encoding/json"
+	"time"
+)
+
+// JSON tags match src/api/types.ts exactly so responses are drop-in for the
+// existing frontend (camelCase, nullable fields as pointers).
+
+type User struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	AvatarURL  string `json:"avatarUrl,omitempty"`
+	ClassLabel string `json:"classLabel,omitempty"`
+	Streak     int    `json:"streak"`
+}
+
+type Workspace struct {
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	Color          string    `json:"color"`
+	Privacy        string    `json:"privacy"`
+	Tags           []string  `json:"tags"`
+	ChapterCount   int       `json:"chapterCount"`
+	FileCount      int       `json:"fileCount"`
+	CreatedAt      time.Time `json:"createdAt"`
+	LastAccessedAt time.Time `json:"lastAccessedAt"`
+}
+
+type Chapter struct {
+	ID          string   `json:"id"`
+	WorkspaceID string   `json:"workspaceId"`
+	Name        string   `json:"name"`
+	Order       int      `json:"order"`
+	FileIDs     []string `json:"fileIds"`
+}
+
+type File struct {
+	ID          string    `json:"id"`
+	WorkspaceID string    `json:"workspaceId"`
+	ChapterID   *string   `json:"chapterId"` // null = unfiled (not omitempty)
+	Name        string    `json:"name"`
+	Kind        string    `json:"kind"`
+	SizeKb      int       `json:"sizeKb"`
+	AddedAt     time.Time `json:"addedAt"`
+	Status      string    `json:"status,omitempty"`
+	URL         *string   `json:"url,omitempty"`
+	Content     *string   `json:"content,omitempty"`
+}
+
+type Quiz struct {
+	ID            string          `json:"id"`
+	Name          string          `json:"name"`
+	WorkspaceID   string          `json:"workspaceId"`
+	WorkspaceName string          `json:"workspaceName"`
+	Chapters      []string        `json:"chapters"`
+	Questions     json.RawMessage `json:"questions"`
+	CreatedAt     time.Time       `json:"createdAt"`
+	Privacy       string          `json:"privacy"`
+	TimeLimitMin  *int            `json:"timeLimitMin,omitempty"`
+}
+
+type Attempt struct {
+	ID            string    `json:"id"`
+	QuizID        string    `json:"quizId"`
+	QuizName      string    `json:"quizName"`
+	WorkspaceName string    `json:"workspaceName"`
+	Chapters      []string  `json:"chapters"`
+	Correct       int       `json:"correct"`
+	Total         int       `json:"total"`
+	Pct           int       `json:"pct"`
+	TakenAt       time.Time `json:"takenAt"`
+}
+
+type Deck struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	WorkspaceID   string `json:"workspaceId"`
+	WorkspaceName string `json:"workspaceName"`
+	Color         string `json:"color"`
+	CardCount     int    `json:"cardCount"`
+	KnownPct      int    `json:"knownPct"`
+}
+
+type Flashcard struct {
+	ID     string `json:"id"`
+	DeckID string `json:"deckId"`
+	Front  string `json:"front"`
+	Back   string `json:"back"`
+	Known  bool   `json:"known"`
+}
+
+type Label struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+type Event struct {
+	ID       string    `json:"id"`
+	Title    string    `json:"title"`
+	Start    time.Time `json:"start"`
+	End      time.Time `json:"end"`
+	LabelIDs []string  `json:"labelIds"`
+	Location *string   `json:"location,omitempty"`
+	Note     *string   `json:"note,omitempty"`
+}
+
+type Task struct {
+	ID      string    `json:"id"`
+	Title   string    `json:"title"`
+	Meta    *string   `json:"meta,omitempty"`
+	Done    bool      `json:"done"`
+	DueDate time.Time `json:"dueDate"`
+}
+
+type Notification struct {
+	ID    string    `json:"id"`
+	Kind  string    `json:"kind"`
+	Title string    `json:"title"`
+	Body  string    `json:"body"`
+	At    time.Time `json:"at"`
+	Read  bool      `json:"read"`
+}
+
+type Canvas struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	UpdatedAt time.Time       `json:"updatedAt"`
+	Scene     json.RawMessage `json:"scene,omitempty"`
+}
+
+type SearchResult struct {
+	ID       string `json:"id"`
+	Kind     string `json:"kind"`
+	Title    string `json:"title"`
+	Subtitle string `json:"subtitle,omitempty"`
+	Href     string `json:"href"`
+}
+
+type PublicWorkspace struct {
+	Workspace
+	Author string `json:"author"`
+	Clones int    `json:"clones"`
+}
+
+type PublicQuiz struct {
+	Quiz
+	Author string `json:"author"`
+	Clones int    `json:"clones"`
+}
+
+type WorkspaceStats struct {
+	Chapters int `json:"chapters"`
+	Files    int `json:"files"`
+	Quizzes  int `json:"quizzes"`
+	Attempts int `json:"attempts"`
+	AvgScore int `json:"avgScore"`
+}

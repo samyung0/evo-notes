@@ -1,0 +1,27 @@
+{
+  "name": "sample-bio-calc",
+  "documents": [
+    {
+      "id": "cells",
+      "text": "The cell is the basic unit of life. The nucleus stores DNA and directs cell activity. Mitochondria are the powerhouse of the cell, producing ATP through cellular respiration. Ribosomes carry out protein synthesis. The Golgi apparatus packages and ships proteins to their destinations."
+    },
+    {
+      "id": "membranes",
+      "text": "The cell membrane is a phospholipid bilayer that controls what enters and leaves the cell. Osmosis is the diffusion of water across a semi-permeable membrane from a region of low solute concentration to high solute concentration. Diffusion moves particles down a concentration gradient."
+    },
+    {
+      "id": "genetics",
+      "text": "A dominant allele is expressed in the phenotype even when only one copy is present. A cross between two heterozygous parents, Aa by Aa, gives a genotype ratio of one to two to one. Punnett squares predict the probability of offspring genotypes."
+    },
+    {
+      "id": "calculus",
+      "text": "Differentiation finds the derivative, the instantaneous rate of change of a function. The derivative of position with respect to time is velocity, and the derivative of velocity is acceleration. Integration by parts solves integrals of products such as x times e to the x."
+    }
+  ],
+  "queries": [
+    { "id": "q1", "query": "What organelle produces ATP?", "relevant": ["cells"] },
+    { "id": "q2", "query": "diffusion of water across a membrane", "relevant": ["membranes"] },
+    { "id": "q3", "query": "genotype ratio of a heterozygous cross", "relevant": ["genetics"] },
+    { "id": "q4", "query": "derive acceleration using differentiation", "relevant": ["calculus"] }
+  ]
+}

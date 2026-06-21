@@ -1,0 +1,201 @@
+/* ============================================================
+   THEME: FRIENDLY  (light + dark)
+   Maps the semantic role tokens (TIER 2) onto primitives.
+   Each container role ships as a contrast PAIR/bundle
+   (bg + fg + fg-muted + border) so legibility survives the
+   theme/mode switch. Components read ONLY these role tokens.
+   ============================================================ */
+
+/* ---------------- FRIENDLY · LIGHT ---------------- */
+[data-theme='friendly'][data-mode='light'] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --surface-page: var(--ev-l-150);          /* outer "device" sage wash */
+  --surface-canvas: var(--ev-l-75);         /* page wash behind inset cards */
+  --surface-card-bg: var(--ev-l-white);
+  --surface-card-fg: var(--ev-l-ink);
+  --surface-card-fg-muted: var(--ev-l-ink-faint);
+  --surface-card-border: var(--ev-l-border);
+  --surface-rail-bg: var(--ev-l-25);
+  --surface-rail-fg: var(--ev-l-ink);
+  --surface-rail-border: var(--ev-l-border);
+  --surface-inset-bg: var(--ev-l-50);       /* soft inset rows/tiles */
+  --surface-inset-fg: var(--ev-l-ink);
+  --surface-inset-border: transparent;
+  --surface-sidebar-bg: var(--ev-l-150);    /* navbar inset card */
+  --surface-sidebar-fg: var(--ev-l-ink);
+  --surface-topbar-bg: var(--ev-l-200);     /* search/notif/profile inset bar */
+  --surface-topbar-fg: var(--ev-l-ink);
+
+  /* Text roles */
+  --text-primary: var(--ev-l-ink);
+  --text-secondary: var(--ev-l-ink-soft);
+  --text-muted: var(--ev-l-ink-faint);
+  --text-placeholder: var(--ev-l-ink-ghost);
+  --text-link: var(--ev-purple-700);
+  --text-link-hover: var(--ev-purple-600);
+
+  /* Borders & lines */
+  --border-default: var(--ev-l-border);
+  --border-strong: var(--ev-l-border-strong);
+  --divider: var(--ev-l-line);
+
+  /* Actions (pairs) */
+  --action-primary-bg: var(--ev-l-ink);
+  --action-primary-fg: var(--ev-l-white);
+  --action-primary-hover: #000000;
+  --action-accent-bg: var(--ev-purple-500);
+  --action-accent-fg: #ffffff;
+  --action-accent-hover: var(--ev-purple-600);
+  --action-outline-bg: var(--ev-l-white);
+  --action-outline-fg: var(--ev-l-ink);
+  --action-outline-border: var(--ev-l-border);
+  --action-ghost-fg: var(--ev-l-ink-soft);
+
+  /* Tinted containers (bg + fg) + solid signal color */
+  --tint-success-bg: var(--ev-success-soft);
+  --tint-success-fg: var(--ev-success-ink);
+  --solid-success: var(--ev-success-500);
+  --tint-info-bg: var(--ev-info-soft);
+  --tint-info-fg: var(--ev-info-ink);
+  --solid-info: var(--ev-info-500);
+  --tint-warning-bg: var(--ev-warning-soft);
+  --tint-warning-fg: var(--ev-warning-ink);
+  --solid-warning: var(--ev-warning-500);
+  --tint-error-bg: var(--ev-error-soft);
+  --tint-error-fg: var(--ev-error-ink);
+  --solid-error: var(--ev-error-500);
+  --tint-purple-bg: var(--ev-purple-soft);
+  --tint-purple-fg: var(--ev-purple-700);
+  --solid-purple: var(--ev-purple-500);
+  --tint-green-bg: var(--ev-note-soft);
+  --tint-green-fg: var(--ev-note-ink-soft);
+  --solid-green: var(--ev-note-500);
+
+  /* Sticky-note surfaces (saturated + soft) */
+  --note-green-bg: var(--ev-note-500);
+  --note-green-fg: #222222;
+  --note-green-fg-muted: rgba(34, 34, 34, 0.6);
+  --note-purple-bg: var(--ev-purple-500);
+  --note-purple-fg: #ffffff;
+  --note-purple-fg-muted: rgba(255, 255, 255, 0.78);
+  --note-green-soft-bg: var(--ev-note-soft);
+  --note-green-soft-fg: var(--ev-note-ink-soft);
+  --note-purple-soft-bg: var(--ev-purple-soft);
+  --note-purple-soft-fg: var(--ev-purple-700);
+
+  /* Radii (semantic) */
+  --radius-input: var(--ev-radius-sm);
+  --radius-button: var(--ev-radius-md);
+  --radius-row: var(--ev-radius-md);
+  --radius-card: var(--ev-radius-lg);
+  --radius-card-lg: var(--ev-radius-xl);
+  --radius-panel: var(--ev-radius-xl);
+  --radius-frame: var(--ev-radius-2xl);
+  --radius-pill: var(--ev-radius-pill);
+
+  /* Shadows */
+  --shadow-xs: var(--ev-shadow-l-xs);
+  --shadow-card: var(--ev-shadow-l-card);
+  --shadow-raised: var(--ev-shadow-l-raised);
+  --shadow-pop: var(--ev-shadow-l-pop);
+  --shadow-chip: var(--ev-shadow-l-chip);
+}
+
+/* ---------------- FRIENDLY · DARK ---------------- */
+[data-theme='friendly'][data-mode='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --surface-page: var(--ev-d-page);
+  --surface-canvas: var(--ev-d-canvas);
+  --surface-card-bg: var(--ev-d-card);
+  --surface-card-fg: var(--ev-d-ink);
+  --surface-card-fg-muted: var(--ev-d-ink-faint);
+  --surface-card-border: var(--ev-d-border);
+  --surface-rail-bg: var(--ev-d-rail);
+  --surface-rail-fg: var(--ev-d-ink);
+  --surface-rail-border: var(--ev-d-border);
+  --surface-inset-bg: var(--ev-d-inset);
+  --surface-inset-fg: var(--ev-d-ink);
+  --surface-inset-border: transparent;
+  --surface-sidebar-bg: var(--ev-d-page);
+  --surface-sidebar-fg: var(--ev-d-ink);
+  --surface-topbar-bg: var(--ev-d-inset-raise);
+  --surface-topbar-fg: var(--ev-d-ink);
+
+  /* Text roles */
+  --text-primary: var(--ev-d-ink);
+  --text-secondary: var(--ev-d-ink-soft);
+  --text-muted: var(--ev-d-ink-faint);
+  --text-placeholder: var(--ev-d-ink-ghost);
+  --text-link: var(--ev-purple-300);
+  --text-link-hover: var(--ev-purple-400);
+
+  /* Borders & lines */
+  --border-default: var(--ev-d-border);
+  --border-strong: var(--ev-d-border-strong);
+  --divider: var(--ev-d-line);
+
+  /* Actions — near-black primary inverts to near-white */
+  --action-primary-bg: var(--ev-d-ink);
+  --action-primary-fg: var(--ev-d-card);
+  --action-primary-hover: #ffffff;
+  --action-accent-bg: var(--ev-purple-400);
+  --action-accent-fg: #1a1626;
+  --action-accent-hover: var(--ev-purple-300);
+  --action-outline-bg: transparent;
+  --action-outline-fg: var(--ev-d-ink);
+  --action-outline-border: var(--ev-d-border-strong);
+  --action-ghost-fg: var(--ev-d-ink-soft);
+
+  /* Tinted containers */
+  --tint-success-bg: var(--ev-success-soft-dark);
+  --tint-success-fg: var(--ev-success-soft-dark-fg);
+  --solid-success: var(--ev-success-500);
+  --tint-info-bg: var(--ev-info-soft-dark);
+  --tint-info-fg: var(--ev-info-soft-dark-fg);
+  --solid-info: var(--ev-info-500);
+  --tint-warning-bg: var(--ev-warning-soft-dark);
+  --tint-warning-fg: var(--ev-warning-soft-dark-fg);
+  --solid-warning: var(--ev-warning-500);
+  --tint-error-bg: var(--ev-error-soft-dark);
+  --tint-error-fg: var(--ev-error-soft-dark-fg);
+  --solid-error: var(--ev-error-500);
+  --tint-purple-bg: var(--ev-purple-soft-dark);
+  --tint-purple-fg: var(--ev-purple-soft-dark-fg);
+  --solid-purple: var(--ev-purple-400);
+  --tint-green-bg: var(--ev-note-dark);
+  --tint-green-fg: var(--ev-note-dark-fg);
+  --solid-green: var(--ev-note-500);
+
+  /* Sticky-note surfaces */
+  --note-green-bg: var(--ev-note-dark);
+  --note-green-fg: var(--ev-note-dark-fg);
+  --note-green-fg-muted: rgba(203, 233, 166, 0.66);
+  --note-purple-bg: var(--ev-purple-soft-dark);
+  --note-purple-fg: var(--ev-purple-soft-dark-fg);
+  --note-purple-fg-muted: rgba(207, 196, 242, 0.66);
+  --note-green-soft-bg: var(--ev-note-dark);
+  --note-green-soft-fg: var(--ev-note-dark-fg);
+  --note-purple-soft-bg: var(--ev-purple-soft-dark);
+  --note-purple-soft-fg: var(--ev-purple-soft-dark-fg);
+
+  /* Radii — identical across modes (theme-level, not mode-level) */
+  --radius-input: var(--ev-radius-sm);
+  --radius-button: var(--ev-radius-md);
+  --radius-row: var(--ev-radius-md);
+  --radius-card: var(--ev-radius-lg);
+  --radius-card-lg: var(--ev-radius-xl);
+  --radius-panel: var(--ev-radius-xl);
+  --radius-frame: var(--ev-radius-2xl);
+  --radius-pill: var(--ev-radius-pill);
+
+  /* Shadows */
+  --shadow-xs: var(--ev-shadow-d-xs);
+  --shadow-card: var(--ev-shadow-d-card);
+  --shadow-raised: var(--ev-shadow-d-raised);
+  --shadow-pop: var(--ev-shadow-d-pop);
+  --shadow-chip: var(--ev-shadow-d-chip);
+}

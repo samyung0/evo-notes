@@ -1,0 +1,70 @@
+package store
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io/fs"
+	"sort"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/evonotes/server/migrations"
+)
+
+// ErrNotFound is returned by Get-style methods when a row is absent.
+var ErrNotFound = errors.New("not found")
+
+type Store struct{ pool *pgxpool.Pool }
+
+func New(ctx context.Context, dsn string) (*Store, error) {
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		return nil, err
+	}
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("ping: %w", err)
+	}
+	return &Store{pool: pool}, nil
+}
+
+func (s *Store) Close() { s.pool.Close() }
+
+// Migrate applies every embedded *.sql migration in filename order. The files
+// are written idempotently (IF NOT EXISTS / ON CONFLICT) so re-running is safe.
+func (s *Store) Migrate(ctx context.Context) error {
+	entries, err := fs.ReadDir(migrations.FS, ".")
+	if err != nil {
+		return err
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() && len(e.Name()) > 4 && e.Name()[len(e.Name())-4:] == ".sql" {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		body, err := migrations.FS.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		if _, err := s.pool.Exec(ctx, string(body)); err != nil {
+			return fmt.Errorf("migration %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// uid mirrors the frontend's id scheme: a short prefixed random token.
+func uid(prefix string) string {
+	b := make([]byte, 5)
+	_, _ = rand.Read(b)
+	return prefix + "_" + hex.EncodeToString(b)
+}
+
+// isNoRows reports whether err is pgx's no-rows sentinel.
+func isNoRows(err error) bool { return errors.Is(err, pgx.ErrNoRows) }
