@@ -19,9 +19,25 @@
     }
   ],
   "queries": [
-    { "id": "q1", "query": "What organelle produces ATP?", "relevant": ["cells"] },
-    { "id": "q2", "query": "diffusion of water across a membrane", "relevant": ["membranes"] },
-    { "id": "q3", "query": "genotype ratio of a heterozygous cross", "relevant": ["genetics"] },
-    { "id": "q4", "query": "derive acceleration using differentiation", "relevant": ["calculus"] }
+    {
+      "id": "q1",
+      "query": "What organelle produces ATP?",
+      "relevant": ["cells"]
+    },
+    {
+      "id": "q2",
+      "query": "diffusion of water across a membrane",
+      "relevant": ["membranes"]
+    },
+    {
+      "id": "q3",
+      "query": "genotype ratio of a heterozygous cross",
+      "relevant": ["genetics"]
+    },
+    {
+      "id": "q4",
+      "query": "derive acceleration using differentiation",
+      "relevant": ["calculus"]
+    }
   ]
 }

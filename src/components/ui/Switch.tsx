@@ -16,7 +16,7 @@ export function Switch({ checked = false, onChange, className }: SwitchProps) {
       className={cn(
         'relative h-6 w-10 rounded-pill transition-colors',
         checked ? 'bg-action' : 'bg-line-strong',
-        className,
+        className
       )}
     >
       <span

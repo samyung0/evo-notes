@@ -35,13 +35,45 @@
     }
   ],
   "queries": [
-    { "id": "q1", "query": "rate of change of velocity over time", "relevant": ["kinematics", "derivatives"] },
-    { "id": "q2", "query": "derive acceleration using differentiation principles", "relevant": ["derivatives", "kinematics"] },
-    { "id": "q3", "query": "force equals mass times acceleration", "relevant": ["newton"] },
-    { "id": "q4", "query": "how cells release energy from glucose using oxygen", "relevant": ["respiration"] },
-    { "id": "q5", "query": "how plants make glucose from sunlight", "relevant": ["photosynthesis"] },
-    { "id": "q6", "query": "catalysts that lower activation energy in reactions", "relevant": ["enzymes"] },
-    { "id": "q7", "query": "conservation of energy and entropy", "relevant": ["thermodynamics"] },
-    { "id": "q8", "query": "quantities with magnitude and direction", "relevant": ["vectors"] }
+    {
+      "id": "q1",
+      "query": "rate of change of velocity over time",
+      "relevant": ["kinematics", "derivatives"]
+    },
+    {
+      "id": "q2",
+      "query": "derive acceleration using differentiation principles",
+      "relevant": ["derivatives", "kinematics"]
+    },
+    {
+      "id": "q3",
+      "query": "force equals mass times acceleration",
+      "relevant": ["newton"]
+    },
+    {
+      "id": "q4",
+      "query": "how cells release energy from glucose using oxygen",
+      "relevant": ["respiration"]
+    },
+    {
+      "id": "q5",
+      "query": "how plants make glucose from sunlight",
+      "relevant": ["photosynthesis"]
+    },
+    {
+      "id": "q6",
+      "query": "catalysts that lower activation energy in reactions",
+      "relevant": ["enzymes"]
+    },
+    {
+      "id": "q7",
+      "query": "conservation of energy and entropy",
+      "relevant": ["thermodynamics"]
+    },
+    {
+      "id": "q8",
+      "query": "quantities with magnitude and direction",
+      "relevant": ["vectors"]
+    }
   ]
 }

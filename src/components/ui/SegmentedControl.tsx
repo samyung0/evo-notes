@@ -10,11 +10,23 @@ export interface SegmentedControlProps {
   className?: string;
 }
 
-const norm = (o: Option) => (typeof o === 'string' ? { value: o, label: o } : o);
+const norm = (o: Option) =>
+  typeof o === 'string' ? { value: o, label: o } : o;
 
-export function SegmentedControl({ options, value, onChange, size = 'md', className }: SegmentedControlProps) {
+export function SegmentedControl({
+  options,
+  value,
+  onChange,
+  size = 'md',
+  className,
+}: SegmentedControlProps) {
   return (
-    <div className={cn('inline-flex rounded-pill border border-line bg-surface p-[3px]', className)}>
+    <div
+      className={cn(
+        'inline-flex rounded-pill border border-line bg-surface p-[3px]',
+        className
+      )}
+    >
       {options.map((opt) => {
         const o = norm(opt);
         const active = o.value === value;
@@ -24,8 +36,12 @@ export function SegmentedControl({ options, value, onChange, size = 'md', classN
             onClick={() => onChange?.(o.value)}
             className={cn(
               'rounded-pill font-semibold transition-colors',
-              size === 'sm' ? 'px-[15px] py-2 text-[12.5px]' : 'px-[19px] py-[11px] text-sm',
-              active ? 'bg-action text-action-fg shadow-chip' : 'bg-transparent text-fg-muted hover:text-fg',
+              size === 'sm'
+                ? 'px-[15px] py-2 text-[12.5px]'
+                : 'px-[19px] py-[11px] text-sm',
+              active
+                ? 'bg-action text-action-fg shadow-chip'
+                : 'bg-transparent text-fg-muted hover:text-fg'
             )}
           >
             {o.label}

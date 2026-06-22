@@ -1,6 +1,14 @@
 import { useState } from 'react';
 import { Panel, PageHeader } from '@/components/app/layout';
-import { Badge, Button, Card, Icon, Spinner, Tabs, Text } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Icon,
+  Spinner,
+  Tabs,
+  Text,
+} from '@/components/ui';
 import { colorPair } from '@/lib/workspaceColor';
 import { useExploreQuizzes, useExploreWorkspaces } from '@/api/hooks';
 import { m } from '@/i18n';
@@ -12,36 +20,87 @@ export default function Explore() {
 
   return (
     <Panel>
-      <PageHeader title={m.nav_explore()} subtitle="Discover public study sets from the community." />
+      <PageHeader
+        title={m.nav_explore()}
+        subtitle="Discover public study sets from the community."
+      />
       <div className="px-6">
-        <Tabs tabs={[{ value: 'workspaces', label: m.explore_tab_workspaces() }, { value: 'quizzes', label: m.explore_tab_quizzes() }]} value={tab} onChange={setTab} />
+        <Tabs
+          tabs={[
+            { value: 'workspaces', label: m.explore_tab_workspaces() },
+            { value: 'quizzes', label: m.explore_tab_quizzes() },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
       </div>
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {tab === 'workspaces' ? (
-          ws.isLoading ? <div className="grid place-items-center py-16"><Spinner /></div> : (
+          ws.isLoading ? (
+            <div className="grid place-items-center py-16">
+              <Spinner />
+            </div>
+          ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {ws.data?.map((w) => {
                 const c = colorPair(w.color);
                 return (
                   <Card key={w.id} padding={20} radius="card-lg">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-card" style={{ background: c.bg, color: c.fg }}><Icon name="workspaces" size={20} /></span>
-                    <Text variant="card-title" className="mt-3 truncate">{w.name}</Text>
-                    <Text variant="meta" tone="muted" className="mt-1">by {w.author} · {w.clones.toLocaleString()} clones</Text>
-                    <Button size="sm" variant="outline" className="mt-3" iconLeft="plus">Clone to my library</Button>
+                    <span
+                      className="flex h-11 w-11 items-center justify-center rounded-card"
+                      style={{ background: c.bg, color: c.fg }}
+                    >
+                      <Icon name="workspaces" size={20} />
+                    </span>
+                    <Text variant="card-title" className="mt-3 truncate">
+                      {w.name}
+                    </Text>
+                    <Text variant="meta" tone="muted" className="mt-1">
+                      by {w.author} · {w.clones.toLocaleString()} clones
+                    </Text>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3"
+                      iconLeft="plus"
+                    >
+                      Clone to my library
+                    </Button>
                   </Card>
                 );
               })}
             </div>
           )
-        ) : qz.isLoading ? <div className="grid place-items-center py-16"><Spinner /></div> : (
+        ) : qz.isLoading ? (
+          <div className="grid place-items-center py-16">
+            <Spinner />
+          </div>
+        ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {qz.data?.map((q) => (
               <Card key={q.id} padding={20} radius="card-lg">
-                <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-purple text-tint-purple-fg"><Icon name="quiz" size={20} /></span>
-                <Text variant="card-title" className="mt-3 truncate">{q.name}</Text>
-                <Text variant="meta" tone="muted" className="mt-1">by {q.author} · {q.clones.toLocaleString()} clones</Text>
-                <div className="mt-2"><Badge tone="neutral" size="sm">{q.questions.length} questions</Badge></div>
-                <Button size="sm" variant="outline" className="mt-3" iconLeft="plus">Clone to my library</Button>
+                <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-purple text-tint-purple-fg">
+                  <Icon name="quiz" size={20} />
+                </span>
+                <Text variant="card-title" className="mt-3 truncate">
+                  {q.name}
+                </Text>
+                <Text variant="meta" tone="muted" className="mt-1">
+                  by {q.author} · {q.clones.toLocaleString()} clones
+                </Text>
+                <div className="mt-2">
+                  <Badge tone="neutral" size="sm">
+                    {q.questions.length} questions
+                  </Badge>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  iconLeft="plus"
+                >
+                  Clone to my library
+                </Button>
               </Card>
             ))}
           </div>

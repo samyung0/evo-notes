@@ -1,7 +1,6 @@
 /* Fustat — keep the CDN import for dev; swap to self-hosted @font-face later. */
 @import url('https://fonts.googleapis.com/css2?family=Fustat:wght@300;400;500;600;700;800&display=swap');
 @import 'tailwindcss';
-@import './tokens/primitives.css';
 @import './tokens/themes/friendly.css';
 @import './tokens/themes/notion.css';
 
@@ -14,18 +13,26 @@
    runtime when [data-theme]/[data-mode] change.
    ============================================================ */
 @theme inline {
-  --font-sans: var(--ev-font-sans);
+  --font-sans: 'Fustat', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   /* Surfaces → bg-* */
   --color-page: var(--surface-page);
+
   --color-canvas: var(--surface-canvas);
+
   --color-surface: var(--surface-card-bg);
+  --color-surface-fg: var(--surface-card-fg);
+
+  --color-surface-dark-hover-bg: var(--surface-card-dark-hover-bg);
+  --color-surface-dark: var(--surface-card-dark-bg);
+
   --color-rail: var(--surface-rail-bg);
-  --color-inset: var(--surface-inset-bg);
   --color-sidebar: var(--surface-sidebar-bg);
   --color-topbar: var(--surface-topbar-bg);
 
   /* Text → text-* */
+  --color-surface-hover-bg: var(--surface-card-hover-bg);
+  --color-surface-dark-fg: var(--surface-card-dark-fg);
   --color-fg: var(--text-primary);
   --color-fg-soft: var(--text-secondary);
   --color-fg-muted: var(--text-muted);
@@ -80,8 +87,7 @@
   --radius-row: var(--radius-row);
   --radius-card: var(--radius-card);
   --radius-card-lg: var(--radius-card-lg);
-  --radius-panel: var(--radius-panel);
-  --radius-frame: var(--radius-frame);
+  --radius-card-xl: var(--radius-card-xl);
   --radius-pill: var(--radius-pill);
 
   /* Shadows → shadow-* */
@@ -102,19 +108,20 @@
     height: 100%;
   }
   body {
-    margin: 0;
-    font-family: var(--ev-font-sans);
+    font-family: var(--font-sans);
     color: var(--text-primary);
     background: var(--surface-page);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    font-size: 16px;
   }
   * {
     box-sizing: border-box;
+    margin: 0;
   }
   ::selection {
     background: var(--tint-purple-bg);
-    color: var(--tint-purple-fg);
+    color: var(--text-primary);
   }
 }
 
@@ -123,49 +130,45 @@
    Use via the <Text>/<Heading> components to prevent size/color drift.
    ============================================================ */
 @layer components {
-  .t-display {
-    font-size: var(--ev-text-display);
-    font-weight: var(--ev-w-extrabold);
-    line-height: var(--ev-leading-tight);
-    letter-spacing: var(--ev-tracking-tight);
-  }
-  .t-page-title {
-    font-size: var(--ev-text-h1);
-    font-weight: var(--ev-w-extrabold);
-    line-height: var(--ev-leading-tight);
-    letter-spacing: var(--ev-tracking-tight);
-  }
-  .t-section {
-    font-size: var(--ev-text-h2);
-    font-weight: var(--ev-w-extrabold);
-    line-height: var(--ev-leading-snug);
-    letter-spacing: var(--ev-tracking-tight);
-  }
-  .t-card-title {
-    font-size: var(--ev-text-h3);
-    font-weight: var(--ev-w-bold);
-    line-height: var(--ev-leading-snug);
-  }
-  .t-subtitle {
-    font-size: var(--ev-text-h4);
-    font-weight: var(--ev-w-bold);
-    line-height: var(--ev-leading-snug);
-  }
-  .t-body {
-    font-size: var(--ev-text-base);
-    font-weight: var(--ev-w-regular);
-    line-height: var(--ev-leading-normal);
-  }
-  .t-meta {
-    font-size: var(--ev-text-xs);
-    font-weight: var(--ev-w-medium);
-    line-height: var(--ev-leading-snug);
-  }
-  .t-label {
-    font-size: var(--ev-text-2xs);
-    font-weight: var(--ev-w-bold);
-    line-height: 1;
-    letter-spacing: var(--ev-tracking-label);
-    text-transform: uppercase;
+  [data-theme='friendly'] {
+    .t-display {
+      font-size: var(--font-display-size, 3.125rem);
+      font-weight: var(--font-display-weight, 800);
+      line-height: var(--font-display-line-height, 1.15);
+      letter-spacing: var(--font-display-letter-spacing, -0.02rem);
+    }
+    .t-page-title {
+      font-size: var(--font-page-title-size, 1.75rem);
+      font-weight: var(--font-page-title-weight, 800);
+      line-height: var(--font-page-title-line-height, 1.15);
+      letter-spacing: var(--font-page-title-letter-spacing, -0.02rem);
+    }
+    .t-section {
+      font-size: var(--font-section-size, 1.375rem);
+      font-weight: var(--font-section-weight, 800);
+      line-height: var(--font-section-line-height, 1.35);
+      letter-spacing: var(--font-section-letter-spacing, -0.03rem);
+    }
+    .t-card-title {
+      font-size: var(--font-card-title-size, 1.125rem);
+      font-weight: var(--font-card-title-weight, 700);
+      line-height: var(--font-card-title-line-height, 1.35);
+    }
+    .t-subtitle {
+      font-size: var(--font-subtitle-size, 1rem);
+      font-weight: var(--font-subtitle-weight, 700);
+      line-height: var(--font-subtitle-line-height, 1.35);
+    }
+    .t-body {
+      font-size: var(--font-body-size, 0.875rem);
+      font-weight: var(--font-body-weight, 600);
+      line-height: var(--font-body-line-height, 1.5);
+    }
+    .t-label {
+      font-size: var(--font-label-size, 0.75rem);
+      font-weight: var(--font-label-weight, 600);
+      line-height: var(--font-label-line-height, 1);
+      letter-spacing: var(--font-label-letter-spacing, 0.03rem);
+    }
   }
 }

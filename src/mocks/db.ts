@@ -21,7 +21,8 @@ import type {
   PublicQuiz,
 } from '@/api/types';
 
-export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
+export const uid = (p = 'id') =>
+  `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
 const now = Date.now();
 const days = (n: number) => new Date(now - n * 86_400_000).toISOString();
@@ -107,11 +108,41 @@ export const workspaces: Workspace[] = [
 ];
 
 export const chapters: Chapter[] = [
-  { id: 'ch_1', workspaceId: 'ws_bio', name: 'Cell structure', order: 0, fileIds: ['f_1', 'f_2'] },
-  { id: 'ch_2', workspaceId: 'ws_bio', name: 'Membranes & transport', order: 1, fileIds: ['f_3'] },
-  { id: 'ch_3', workspaceId: 'ws_bio', name: 'Genetics', order: 2, fileIds: ['f_4', 'f_5'] },
-  { id: 'ch_c1', workspaceId: 'ws_calc', name: 'Techniques of integration', order: 0, fileIds: ['f_6'] },
-  { id: 'ch_c2', workspaceId: 'ws_calc', name: 'Sequences & series', order: 1, fileIds: ['f_7'] },
+  {
+    id: 'ch_1',
+    workspaceId: 'ws_bio',
+    name: 'Cell structure',
+    order: 0,
+    fileIds: ['f_1', 'f_2'],
+  },
+  {
+    id: 'ch_2',
+    workspaceId: 'ws_bio',
+    name: 'Membranes & transport',
+    order: 1,
+    fileIds: ['f_3'],
+  },
+  {
+    id: 'ch_3',
+    workspaceId: 'ws_bio',
+    name: 'Genetics',
+    order: 2,
+    fileIds: ['f_4', 'f_5'],
+  },
+  {
+    id: 'ch_c1',
+    workspaceId: 'ws_calc',
+    name: 'Techniques of integration',
+    order: 0,
+    fileIds: ['f_6'],
+  },
+  {
+    id: 'ch_c2',
+    workspaceId: 'ws_calc',
+    name: 'Sequences & series',
+    order: 1,
+    fileIds: ['f_7'],
+  },
 ];
 
 export const files: SourceFile[] = [
@@ -136,11 +167,57 @@ export const files: SourceFile[] = [
     content:
       '# Organelles\n\n- **Nucleus** — stores DNA, controls the cell.\n- **Mitochondria** — the powerhouse; ATP via respiration.\n- **Ribosomes** — protein synthesis.\n- **Golgi apparatus** — packaging & shipping.\n\nThe cell membrane is a *phospholipid bilayer* that controls what enters and leaves.',
   },
-  { id: 'f_3', workspaceId: 'ws_bio', chapterId: 'ch_2', name: 'Osmosis notes.txt', kind: 'txt', sizeKb: 6, addedAt: days(18), content: 'Osmosis is the diffusion of water across a semi-permeable membrane from low to high solute concentration.' },
-  { id: 'f_4', workspaceId: 'ws_bio', chapterId: 'ch_3', name: 'Mendelian genetics.pdf', kind: 'pdf', sizeKb: 1890, addedAt: days(15), url: 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf' },
-  { id: 'f_5', workspaceId: 'ws_bio', chapterId: null, name: 'Punnett squares.png', kind: 'image', sizeKb: 420, addedAt: days(14) },
-  { id: 'f_6', workspaceId: 'ws_calc', chapterId: 'ch_c1', name: 'Integration by parts.pdf', kind: 'pdf', sizeKb: 980, addedAt: days(10), url: 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf' },
-  { id: 'f_7', workspaceId: 'ws_calc', chapterId: 'ch_c2', name: 'Taylor series.md', kind: 'md', sizeKb: 11, addedAt: days(9), content: '# Taylor series\n\nA function f(x) near a point a:\n\nf(x) = Σ fⁿ(a)/n! · (x − a)ⁿ' },
+  {
+    id: 'f_3',
+    workspaceId: 'ws_bio',
+    chapterId: 'ch_2',
+    name: 'Osmosis notes.txt',
+    kind: 'txt',
+    sizeKb: 6,
+    addedAt: days(18),
+    content:
+      'Osmosis is the diffusion of water across a semi-permeable membrane from low to high solute concentration.',
+  },
+  {
+    id: 'f_4',
+    workspaceId: 'ws_bio',
+    chapterId: 'ch_3',
+    name: 'Mendelian genetics.pdf',
+    kind: 'pdf',
+    sizeKb: 1890,
+    addedAt: days(15),
+    url: 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf',
+  },
+  {
+    id: 'f_5',
+    workspaceId: 'ws_bio',
+    chapterId: null,
+    name: 'Punnett squares.png',
+    kind: 'image',
+    sizeKb: 420,
+    addedAt: days(14),
+  },
+  {
+    id: 'f_6',
+    workspaceId: 'ws_calc',
+    chapterId: 'ch_c1',
+    name: 'Integration by parts.pdf',
+    kind: 'pdf',
+    sizeKb: 980,
+    addedAt: days(10),
+    url: 'https://raw.githubusercontent.com/mozilla/pdf.js/master/web/compressed.tracemonkey-pldi-09.pdf',
+  },
+  {
+    id: 'f_7',
+    workspaceId: 'ws_calc',
+    chapterId: 'ch_c2',
+    name: 'Taylor series.md',
+    kind: 'md',
+    sizeKb: 11,
+    addedAt: days(9),
+    content:
+      '# Taylor series\n\nA function f(x) near a point a:\n\nf(x) = Σ fⁿ(a)/n! · (x − a)ⁿ',
+  },
 ];
 
 export const quizzes: Quiz[] = [
@@ -153,12 +230,61 @@ export const quizzes: Quiz[] = [
     createdAt: days(4),
     privacy: 'private',
     questions: [
-      { id: 'q1', type: 'mcq', difficulty: 'easy', prompt: 'Which organelle is the powerhouse of the cell?', options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'], correct: [1], explanation: 'Mitochondria produce ATP through cellular respiration.' },
-      { id: 'q2', type: 'boolean', difficulty: 'easy', prompt: 'The cell membrane is a phospholipid bilayer.', correct: true },
-      { id: 'q3', type: 'multi', difficulty: 'medium', prompt: 'Select all that are membrane-bound organelles.', options: ['Ribosome', 'Nucleus', 'Mitochondria', 'Cytosol'], correct: [1, 2] },
-      { id: 'q4', type: 'fill', difficulty: 'medium', prompt: 'The diffusion of water across a membrane is called ____.', accepted: ['osmosis'] },
-      { id: 'q5', type: 'ordering', difficulty: 'hard', prompt: 'Order the path of protein secretion.', items: ['Ribosome', 'Rough ER', 'Golgi apparatus', 'Vesicle', 'Cell membrane'] },
-      { id: 'q6', type: 'matching', difficulty: 'medium', prompt: 'Match the organelle to its function.', pairs: [{ left: 'Nucleus', right: 'Stores DNA' }, { left: 'Mitochondria', right: 'Makes ATP' }, { left: 'Ribosome', right: 'Builds proteins' }] },
+      {
+        id: 'q1',
+        type: 'mcq',
+        difficulty: 'easy',
+        prompt: 'Which organelle is the powerhouse of the cell?',
+        options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'],
+        correct: [1],
+        explanation: 'Mitochondria produce ATP through cellular respiration.',
+      },
+      {
+        id: 'q2',
+        type: 'boolean',
+        difficulty: 'easy',
+        prompt: 'The cell membrane is a phospholipid bilayer.',
+        correct: true,
+      },
+      {
+        id: 'q3',
+        type: 'multi',
+        difficulty: 'medium',
+        prompt: 'Select all that are membrane-bound organelles.',
+        options: ['Ribosome', 'Nucleus', 'Mitochondria', 'Cytosol'],
+        correct: [1, 2],
+      },
+      {
+        id: 'q4',
+        type: 'fill',
+        difficulty: 'medium',
+        prompt: 'The diffusion of water across a membrane is called ____.',
+        accepted: ['osmosis'],
+      },
+      {
+        id: 'q5',
+        type: 'ordering',
+        difficulty: 'hard',
+        prompt: 'Order the path of protein secretion.',
+        items: [
+          'Ribosome',
+          'Rough ER',
+          'Golgi apparatus',
+          'Vesicle',
+          'Cell membrane',
+        ],
+      },
+      {
+        id: 'q6',
+        type: 'matching',
+        difficulty: 'medium',
+        prompt: 'Match the organelle to its function.',
+        pairs: [
+          { left: 'Nucleus', right: 'Stores DNA' },
+          { left: 'Mitochondria', right: 'Makes ATP' },
+          { left: 'Ribosome', right: 'Builds proteins' },
+        ],
+      },
     ],
   },
   {
@@ -170,8 +296,23 @@ export const quizzes: Quiz[] = [
     createdAt: days(2),
     privacy: 'private',
     questions: [
-      { id: 'q7', type: 'mcq', difficulty: 'medium', prompt: 'A cross between Aa × Aa gives what genotype ratio?', options: ['1:2:1', '3:1', '1:1', '9:3:3:1'], correct: [0] },
-      { id: 'q8', type: 'short', difficulty: 'hard', prompt: 'Define a dominant allele in one sentence.', accepted: ['an allele expressed in the phenotype even when only one copy is present'] },
+      {
+        id: 'q7',
+        type: 'mcq',
+        difficulty: 'medium',
+        prompt: 'A cross between Aa × Aa gives what genotype ratio?',
+        options: ['1:2:1', '3:1', '1:1', '9:3:3:1'],
+        correct: [0],
+      },
+      {
+        id: 'q8',
+        type: 'short',
+        difficulty: 'hard',
+        prompt: 'Define a dominant allele in one sentence.',
+        accepted: [
+          'an allele expressed in the phenotype even when only one copy is present',
+        ],
+      },
     ],
   },
   {
@@ -183,31 +324,133 @@ export const quizzes: Quiz[] = [
     createdAt: days(6),
     privacy: 'public',
     questions: [
-      { id: 'q9', type: 'mcq', difficulty: 'medium', prompt: '∫ x·eˣ dx is best solved by…', options: ['Substitution', 'Integration by parts', 'Partial fractions', 'Trig substitution'], correct: [1] },
-      { id: 'q10', type: 'boolean', difficulty: 'easy', prompt: '∫ 1/x dx = ln|x| + C', correct: true },
+      {
+        id: 'q9',
+        type: 'mcq',
+        difficulty: 'medium',
+        prompt: '∫ x·eˣ dx is best solved by…',
+        options: [
+          'Substitution',
+          'Integration by parts',
+          'Partial fractions',
+          'Trig substitution',
+        ],
+        correct: [1],
+      },
+      {
+        id: 'q10',
+        type: 'boolean',
+        difficulty: 'easy',
+        prompt: '∫ 1/x dx = ln|x| + C',
+        correct: true,
+      },
     ],
   },
 ];
 
 export const attempts: Attempt[] = [
-  { id: 'at_1', quizId: 'qz_1', quizName: 'Cell biology basics', workspaceName: 'Biology 101', chapters: ['Cell structure'], correct: 8, total: 10, pct: 80, takenAt: days(2) },
-  { id: 'at_2', quizId: 'qz_3', quizName: 'Integration techniques', workspaceName: 'Calculus II', chapters: ['Techniques of integration'], correct: 6, total: 10, pct: 60, takenAt: days(3) },
-  { id: 'at_3', quizId: 'qz_2', quizName: 'Genetics check-in', workspaceName: 'Biology 101', chapters: ['Genetics'], correct: 4, total: 10, pct: 40, takenAt: days(5) },
+  {
+    id: 'at_1',
+    quizId: 'qz_1',
+    quizName: 'Cell biology basics',
+    workspaceName: 'Biology 101',
+    chapters: ['Cell structure'],
+    correct: 8,
+    total: 10,
+    pct: 80,
+    takenAt: days(2),
+  },
+  {
+    id: 'at_2',
+    quizId: 'qz_3',
+    quizName: 'Integration techniques',
+    workspaceName: 'Calculus II',
+    chapters: ['Techniques of integration'],
+    correct: 6,
+    total: 10,
+    pct: 60,
+    takenAt: days(3),
+  },
+  {
+    id: 'at_3',
+    quizId: 'qz_2',
+    quizName: 'Genetics check-in',
+    workspaceName: 'Biology 101',
+    chapters: ['Genetics'],
+    correct: 4,
+    total: 10,
+    pct: 40,
+    takenAt: days(5),
+  },
 ];
 
 export const decks: Deck[] = [
-  { id: 'dk_1', name: 'Cell organelles', workspaceId: 'ws_bio', workspaceName: 'Biology 101', color: 'green', cardCount: 32, knownPct: 80 },
-  { id: 'dk_2', name: 'Integration rules', workspaceId: 'ws_calc', workspaceName: 'Calculus II', color: 'purple', cardCount: 24, knownPct: 55 },
-  { id: 'dk_3', name: 'History dates', workspaceId: 'ws_hist', workspaceName: 'World History', color: 'amber', cardCount: 40, knownPct: 30 },
+  {
+    id: 'dk_1',
+    name: 'Cell organelles',
+    workspaceId: 'ws_bio',
+    workspaceName: 'Biology 101',
+    color: 'green',
+    cardCount: 32,
+    knownPct: 80,
+  },
+  {
+    id: 'dk_2',
+    name: 'Integration rules',
+    workspaceId: 'ws_calc',
+    workspaceName: 'Calculus II',
+    color: 'purple',
+    cardCount: 24,
+    knownPct: 55,
+  },
+  {
+    id: 'dk_3',
+    name: 'History dates',
+    workspaceId: 'ws_hist',
+    workspaceName: 'World History',
+    color: 'amber',
+    cardCount: 40,
+    knownPct: 30,
+  },
 ];
 
 export const cards: Flashcard[] = [
-  { id: 'c_1', deckId: 'dk_1', front: 'Mitochondria', back: 'Powerhouse of the cell — produces ATP.', known: true },
-  { id: 'c_2', deckId: 'dk_1', front: 'Nucleus', back: 'Stores DNA and controls cell activity.', known: true },
-  { id: 'c_3', deckId: 'dk_1', front: 'Ribosome', back: 'Site of protein synthesis.', known: false },
-  { id: 'c_4', deckId: 'dk_1', front: 'Golgi apparatus', back: 'Packages and ships proteins.', known: false },
+  {
+    id: 'c_1',
+    deckId: 'dk_1',
+    front: 'Mitochondria',
+    back: 'Powerhouse of the cell — produces ATP.',
+    known: true,
+  },
+  {
+    id: 'c_2',
+    deckId: 'dk_1',
+    front: 'Nucleus',
+    back: 'Stores DNA and controls cell activity.',
+    known: true,
+  },
+  {
+    id: 'c_3',
+    deckId: 'dk_1',
+    front: 'Ribosome',
+    back: 'Site of protein synthesis.',
+    known: false,
+  },
+  {
+    id: 'c_4',
+    deckId: 'dk_1',
+    front: 'Golgi apparatus',
+    back: 'Packages and ships proteins.',
+    known: false,
+  },
   { id: 'c_5', deckId: 'dk_2', front: '∫ eˣ dx', back: 'eˣ + C', known: true },
-  { id: 'c_6', deckId: 'dk_2', front: '∫ 1/x dx', back: 'ln|x| + C', known: false },
+  {
+    id: 'c_6',
+    deckId: 'dk_2',
+    front: '∫ 1/x dx',
+    back: 'ln|x| + C',
+    known: false,
+  },
 ];
 
 export const labels: Label[] = [
@@ -219,25 +462,110 @@ export const labels: Label[] = [
 ];
 
 export const events: CalendarEvent[] = [
-  { id: 'ev_1', title: 'Biology lecture', start: todayAt(8), end: todayAt(9), labelIds: ['lb_bio'], location: 'Room B2 · 158' },
-  { id: 'ev_2', title: 'Calculus tutorial', start: todayAt(11), end: todayAt(12, 30), labelIds: ['lb_calc', 'lb_study'], location: 'Room 124' },
-  { id: 'ev_3', title: 'History essay due', start: todayAt(15), end: todayAt(16), labelIds: ['lb_hist', 'lb_exam'] },
-  { id: 'ev_4', title: 'Study group', start: dateAt(1, 13), end: dateAt(1, 15), labelIds: ['lb_study'], location: 'Library' },
-  { id: 'ev_5', title: 'Chem midterm', start: dateAt(2, 9), end: dateAt(2, 11), labelIds: ['lb_exam'], location: 'Hall A' },
-  { id: 'ev_6', title: 'Past revision', start: dateAt(-30, 10), end: dateAt(-30, 11), labelIds: ['lb_bio'] },
+  {
+    id: 'ev_1',
+    title: 'Biology lecture',
+    start: todayAt(8),
+    end: todayAt(9),
+    labelIds: ['lb_bio'],
+    location: 'Room B2 · 158',
+  },
+  {
+    id: 'ev_2',
+    title: 'Calculus tutorial',
+    start: todayAt(11),
+    end: todayAt(12, 30),
+    labelIds: ['lb_calc', 'lb_study'],
+    location: 'Room 124',
+  },
+  {
+    id: 'ev_3',
+    title: 'History essay due',
+    start: todayAt(15),
+    end: todayAt(16),
+    labelIds: ['lb_hist', 'lb_exam'],
+  },
+  {
+    id: 'ev_4',
+    title: 'Study group',
+    start: dateAt(1, 13),
+    end: dateAt(1, 15),
+    labelIds: ['lb_study'],
+    location: 'Library',
+  },
+  {
+    id: 'ev_5',
+    title: 'Chem midterm',
+    start: dateAt(2, 9),
+    end: dateAt(2, 11),
+    labelIds: ['lb_exam'],
+    location: 'Hall A',
+  },
+  {
+    id: 'ev_6',
+    title: 'Past revision',
+    start: dateAt(-30, 10),
+    end: dateAt(-30, 11),
+    labelIds: ['lb_bio'],
+  },
 ];
 
 export const tasks: Task[] = [
-  { id: 'tk_1', title: 'Read Chapter 3 — Genetics', meta: 'Biology 101', done: false, dueDate: todayAt(23) },
-  { id: 'tk_2', title: 'Finish integration worksheet', meta: 'Calculus II · 12 problems', done: false, dueDate: todayAt(23) },
-  { id: 'tk_3', title: 'Review flashcards', meta: 'Cell organelles', done: true, dueDate: todayAt(23) },
-  { id: 'tk_4', title: 'Outline history essay', meta: 'World History', done: false, dueDate: dateAt(1, 23) },
+  {
+    id: 'tk_1',
+    title: 'Read Chapter 3 — Genetics',
+    meta: 'Biology 101',
+    done: false,
+    dueDate: todayAt(23),
+  },
+  {
+    id: 'tk_2',
+    title: 'Finish integration worksheet',
+    meta: 'Calculus II · 12 problems',
+    done: false,
+    dueDate: todayAt(23),
+  },
+  {
+    id: 'tk_3',
+    title: 'Review flashcards',
+    meta: 'Cell organelles',
+    done: true,
+    dueDate: todayAt(23),
+  },
+  {
+    id: 'tk_4',
+    title: 'Outline history essay',
+    meta: 'World History',
+    done: false,
+    dueDate: dateAt(1, 23),
+  },
 ];
 
 export const notifications: AppNotification[] = [
-  { id: 'nt_1', kind: 'event', title: 'Calculus tutorial soon', body: 'Starts at 11:00 in Room 124.', at: hours(1), read: false },
-  { id: 'nt_2', kind: 'quiz', title: 'New attempt graded', body: 'Cell biology basics — 8/10.', at: hours(5), read: false },
-  { id: 'nt_3', kind: 'system', title: 'Welcome to Evo Notes', body: 'Upload your first source to get started.', at: days(1), read: true },
+  {
+    id: 'nt_1',
+    kind: 'event',
+    title: 'Calculus tutorial soon',
+    body: 'Starts at 11:00 in Room 124.',
+    at: hours(1),
+    read: false,
+  },
+  {
+    id: 'nt_2',
+    kind: 'quiz',
+    title: 'New attempt graded',
+    body: 'Cell biology basics — 8/10.',
+    at: hours(5),
+    read: false,
+  },
+  {
+    id: 'nt_3',
+    kind: 'system',
+    title: 'Welcome to Evo Notes',
+    body: 'Upload your first source to get started.',
+    at: days(1),
+    read: true,
+  },
 ];
 
 export const canvases: ThinkingCanvas[] = [
@@ -246,10 +574,38 @@ export const canvases: ThinkingCanvas[] = [
 ];
 
 export const publicWorkspaces: PublicWorkspace[] = [
-  { ...workspaces[0], id: 'pub_ws_1', name: 'AP Biology — full course', author: 'mrslee', privacy: 'public', clones: 1240 },
-  { ...workspaces[2], id: 'pub_ws_2', name: 'Modern World History', author: 'historyhub', privacy: 'public', clones: 860 },
+  {
+    ...workspaces[0],
+    id: 'pub_ws_1',
+    name: 'AP Biology — full course',
+    author: 'mrslee',
+    privacy: 'public',
+    clones: 1240,
+  },
+  {
+    ...workspaces[2],
+    id: 'pub_ws_2',
+    name: 'Modern World History',
+    author: 'historyhub',
+    privacy: 'public',
+    clones: 860,
+  },
 ];
 export const publicQuizzes: PublicQuiz[] = [
-  { ...quizzes[0], id: 'pub_qz_1', name: 'Cell biology — 50 questions', author: 'mrslee', privacy: 'public', clones: 540 },
-  { ...quizzes[2], id: 'pub_qz_2', name: 'Calculus II mega quiz', author: 'mathpro', privacy: 'public', clones: 410 },
+  {
+    ...quizzes[0],
+    id: 'pub_qz_1',
+    name: 'Cell biology — 50 questions',
+    author: 'mrslee',
+    privacy: 'public',
+    clones: 540,
+  },
+  {
+    ...quizzes[2],
+    id: 'pub_qz_2',
+    name: 'Calculus II mega quiz',
+    author: 'mathpro',
+    privacy: 'public',
+    clones: 410,
+  },
 ];

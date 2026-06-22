@@ -4,7 +4,12 @@ import { cn } from '@/lib/cn';
 import { useDebounced } from '@/lib/useDebounced';
 import { useOutsideClick } from '@/lib/useOutsideClick';
 import { Avatar, Icon, IconButton, Spinner } from '@/components/ui';
-import { useMe, useNotifications, useSearch, useMarkNotificationsRead } from '@/api/hooks';
+import {
+  useMe,
+  useNotifications,
+  useSearch,
+  useMarkNotificationsRead,
+} from '@/api/hooks';
 import type { SearchKind } from '@/api/types';
 import { m } from '@/i18n';
 
@@ -42,8 +47,12 @@ function SearchBox() {
         {isFetching && <Spinner size={14} />}
       </div>
       {open && debounced.trim() && (
-        <div className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-80 overflow-auto rounded-card border border-line bg-surface py-1 shadow-pop">
-          {!data?.length && <div className="px-3 py-3 text-sm text-fg-muted">No matches for “{debounced}”.</div>}
+        <div className="absolute top-full right-0 left-0 z-30 mt-1.5 max-h-80 overflow-auto rounded-card border border-line bg-surface py-1 shadow-pop">
+          {!data?.length && (
+            <div className="px-3 py-3 text-sm text-fg-muted">
+              No matches for “{debounced}”.
+            </div>
+          )}
           {data?.map((r) => (
             <button
               key={`${r.kind}-${r.id}`}
@@ -52,14 +61,20 @@ function SearchBox() {
                 setQ('');
                 navigate({ to: r.href });
               }}
-              className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-inset"
+              className="hover:bg-surface-hover-bg flex w-full items-center gap-3 px-3 py-2 text-left"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-row bg-inset text-fg-soft">
+              <span className="bg-surface-hover-bg flex h-8 w-8 items-center justify-center rounded-row text-fg-soft">
                 <Icon name={KIND_ICON[r.kind]} size={16} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-fg">{r.title}</span>
-                {r.subtitle && <span className="block truncate text-xs text-fg-muted">{r.subtitle}</span>}
+                <span className="block truncate text-sm font-medium text-fg">
+                  {r.title}
+                </span>
+                {r.subtitle && (
+                  <span className="block truncate text-xs text-fg-muted">
+                    {r.subtitle}
+                  </span>
+                )}
               </span>
             </button>
           ))}
@@ -91,14 +106,32 @@ function NotificationsBell() {
         }}
       />
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1.5 w-80 overflow-hidden rounded-card border border-line bg-surface shadow-pop">
-          <div className="t-label border-b border-divider px-4 py-3 text-fg-muted">{m.notifications_title()}</div>
+        <div className="absolute top-full right-0 z-30 mt-1.5 w-80 overflow-hidden rounded-card border border-line bg-surface shadow-pop">
+          <div className="t-label border-b border-divider px-4 py-3 text-fg-muted">
+            {m.notifications_title()}
+          </div>
           <div className="max-h-96 overflow-auto">
-            {!data?.length && <div className="px-4 py-6 text-center text-sm text-fg-muted">{m.notifications_empty()}</div>}
+            {!data?.length && (
+              <div className="px-4 py-6 text-center text-sm text-fg-muted">
+                {m.notifications_empty()}
+              </div>
+            )}
             {data?.map((n) => (
-              <div key={n.id} className="flex gap-3 border-b border-divider px-4 py-3 last:border-0">
+              <div
+                key={n.id}
+                className="flex gap-3 border-b border-divider px-4 py-3 last:border-0"
+              >
                 <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-row bg-tint-purple text-tint-purple-fg">
-                  <Icon name={n.kind === 'event' ? 'schedule' : n.kind === 'quiz' ? 'quiz' : 'bell'} size={14} />
+                  <Icon
+                    name={
+                      n.kind === 'event'
+                        ? 'schedule'
+                        : n.kind === 'quiz'
+                          ? 'quiz'
+                          : 'bell'
+                    }
+                    size={14}
+                  />
                 </span>
                 <div className="min-w-0">
                   <p className="m-0 text-sm font-semibold text-fg">{n.title}</p>
@@ -123,21 +156,33 @@ function ProfilePill() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2.5 rounded-pill bg-surface py-1 pl-1 pr-3 hover:bg-inset"
+        className="hover:bg-surface-hover-bg flex items-center gap-2.5 rounded-pill bg-surface py-1 pr-3 pl-1"
       >
         <Avatar name={me?.name} src={me?.avatarUrl} size="md" />
         <span className="hidden text-left sm:block">
-          <span className="block text-sm font-bold leading-tight text-fg">{me?.name ?? '—'}</span>
-          <span className="block text-[11px] leading-tight text-fg-muted">{me?.classLabel}</span>
+          <span className="block text-sm leading-tight font-bold text-fg">
+            {me?.name ?? '—'}
+          </span>
+          <span className="block text-[11px] leading-tight text-fg-muted">
+            {me?.classLabel}
+          </span>
         </span>
         <Icon name="chevronDown" size={16} className="text-fg-muted" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1.5 w-48 overflow-hidden rounded-card border border-line bg-surface py-1 shadow-pop">
-          <Link to="/profile" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-inset">
+        <div className="absolute top-full right-0 z-30 mt-1.5 w-48 overflow-hidden rounded-card border border-line bg-surface py-1 shadow-pop">
+          <Link
+            to="/profile"
+            onClick={() => setOpen(false)}
+            className="hover:bg-surface-hover-bg flex items-center gap-2.5 px-3 py-2 text-sm text-fg"
+          >
             <Icon name="profile" size={16} /> {m.profile_menu_profile()}
           </Link>
-          <Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-fg hover:bg-inset">
+          <Link
+            to="/settings"
+            onClick={() => setOpen(false)}
+            className="hover:bg-surface-hover-bg flex items-center gap-2.5 px-3 py-2 text-sm text-fg"
+          >
             <Icon name="settings" size={16} /> {m.profile_menu_settings()}
           </Link>
           <button className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-tint-error-fg hover:bg-tint-error">
@@ -151,7 +196,12 @@ function ProfilePill() {
 
 export function TopInsetBar({ className }: { className?: string }) {
   return (
-    <div className={cn('flex items-center gap-2.5 rounded-panel bg-topbar p-2.5', className)}>
+    <div
+      className={cn(
+        'flex items-center gap-2.5 rounded-card-lg bg-topbar p-2.5',
+        className
+      )}
+    >
       <SearchBox />
       <NotificationsBell />
       <ProfilePill />

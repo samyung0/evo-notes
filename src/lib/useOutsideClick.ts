@@ -3,7 +3,7 @@ import { useEffect, type RefObject } from 'react';
 export function useOutsideClick<T extends HTMLElement>(
   ref: RefObject<T | null>,
   onClose: () => void,
-  active = true,
+  active = true
 ) {
   useEffect(() => {
     if (!active) return;

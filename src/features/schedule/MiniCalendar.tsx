@@ -12,7 +12,13 @@ export interface MiniCalendarProps {
   eventDays?: Set<string>;
 }
 
-export function MiniCalendar({ month, onMonthChange, selected, onSelect, eventDays }: MiniCalendarProps) {
+export function MiniCalendar({
+  month,
+  onMonthChange,
+  selected,
+  onSelect,
+  eventDays,
+}: MiniCalendarProps) {
   const [picking, setPicking] = useState(false);
   const today = new Date();
   const grid = monthGrid(month);
@@ -22,15 +28,23 @@ export function MiniCalendar({ month, onMonthChange, selected, onSelect, eventDa
       <div className="mb-2 flex items-center justify-between">
         <button
           onClick={() => setPicking((p) => !p)}
-          className="rounded-row px-2 py-1 text-sm font-bold text-fg hover:bg-inset"
+          className="hover:bg-surface-hover-bg rounded-row px-2 py-1 text-sm font-bold text-fg"
         >
           {MONTHS[month.getMonth()]} {month.getFullYear()}
         </button>
         <div className="flex items-center gap-1">
-          <button onClick={() => onMonthChange(addMonths(month, -1))} className="rounded-row p-1 text-fg-muted hover:bg-inset" aria-label="Previous month">
+          <button
+            onClick={() => onMonthChange(addMonths(month, -1))}
+            className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
+            aria-label="Previous month"
+          >
             <Icon name="chevronLeft" size={16} />
           </button>
-          <button onClick={() => onMonthChange(addMonths(month, 1))} className="rounded-row p-1 text-fg-muted hover:bg-inset" aria-label="Next month">
+          <button
+            onClick={() => onMonthChange(addMonths(month, 1))}
+            className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
+            aria-label="Next month"
+          >
             <Icon name="chevronRight" size={16} />
           </button>
         </div>
@@ -39,11 +53,27 @@ export function MiniCalendar({ month, onMonthChange, selected, onSelect, eventDa
       {picking ? (
         <div className="py-1">
           <div className="mb-2 flex items-center justify-between">
-            <button onClick={() => onMonthChange(new Date(month.getFullYear() - 1, month.getMonth(), 1))} className="rounded-row p-1 text-fg-muted hover:bg-inset" aria-label="Previous year">
+            <button
+              onClick={() =>
+                onMonthChange(
+                  new Date(month.getFullYear() - 1, month.getMonth(), 1)
+                )
+              }
+              className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
+              aria-label="Previous year"
+            >
               <Icon name="chevronLeft" size={16} />
             </button>
             <span className="text-sm font-bold">{month.getFullYear()}</span>
-            <button onClick={() => onMonthChange(new Date(month.getFullYear() + 1, month.getMonth(), 1))} className="rounded-row p-1 text-fg-muted hover:bg-inset" aria-label="Next year">
+            <button
+              onClick={() =>
+                onMonthChange(
+                  new Date(month.getFullYear() + 1, month.getMonth(), 1)
+                )
+              }
+              className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
+              aria-label="Next year"
+            >
               <Icon name="chevronRight" size={16} />
             </button>
           </div>
@@ -55,7 +85,12 @@ export function MiniCalendar({ month, onMonthChange, selected, onSelect, eventDa
                   onMonthChange(new Date(month.getFullYear(), i, 1));
                   setPicking(false);
                 }}
-                className={cn('rounded-row py-1.5 text-xs font-medium hover:bg-inset', i === month.getMonth() ? 'bg-action text-action-fg' : 'text-fg')}
+                className={cn(
+                  'hover:bg-surface-hover-bg rounded-row py-1.5 text-xs font-medium',
+                  i === month.getMonth()
+                    ? 'bg-action text-action-fg'
+                    : 'text-fg'
+                )}
               >
                 {mo.slice(0, 3)}
               </button>
@@ -66,7 +101,10 @@ export function MiniCalendar({ month, onMonthChange, selected, onSelect, eventDa
         <>
           <div className="grid grid-cols-7 gap-0.5">
             {WEEKDAYS.map((w) => (
-              <div key={w} className="py-1 text-center text-[0.68rem] font-semibold text-fg-muted">
+              <div
+                key={w}
+                className="py-1 text-center text-[0.68rem] font-semibold text-fg-muted"
+              >
                 {w[0]}
               </div>
             ))}
@@ -85,11 +123,16 @@ export function MiniCalendar({ month, onMonthChange, selected, onSelect, eventDa
                     'relative mx-auto flex h-8 w-8 items-center justify-center rounded-row text-[0.8rem] transition-colors',
                     isToday && 'bg-action font-bold text-action-fg',
                     !isToday && isSel && 'ring-[1.5px] ring-action',
-                    !isToday && (inMonth ? 'text-fg hover:bg-inset' : 'text-fg-muted hover:bg-inset'),
+                    !isToday &&
+                      (inMonth
+                        ? 'hover:bg-surface-hover-bg text-fg'
+                        : 'hover:bg-surface-hover-bg text-fg-muted')
                   )}
                 >
                   {day.getDate()}
-                  {hasEvent && !isToday && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-solid-purple" />}
+                  {hasEvent && !isToday && (
+                    <span className="absolute bottom-1 h-1 w-1 rounded-full bg-solid-purple" />
+                  )}
                 </button>
               );
             })}

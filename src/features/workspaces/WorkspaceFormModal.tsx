@@ -25,7 +25,9 @@ export function WorkspaceFormModal({
   const [name, setName] = useState(initial?.name ?? '');
   const [color, setColor] = useState<WorkspaceColor>(initial?.color ?? 'green');
   const [tags, setTags] = useState(initial?.tags.join(', ') ?? '');
-  const [privacy, setPrivacy] = useState<Privacy>(initial?.privacy ?? 'private');
+  const [privacy, setPrivacy] = useState<Privacy>(
+    initial?.privacy ?? 'private'
+  );
 
   return (
     <Modal
@@ -34,14 +36,19 @@ export function WorkspaceFormModal({
       title={initial ? 'Edit workspace' : 'New workspace'}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
           <Button
             disabled={!name.trim()}
             onClick={() =>
               onSubmit({
                 name: name.trim(),
                 color,
-                tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+                tags: tags
+                  .split(',')
+                  .map((t) => t.trim())
+                  .filter(Boolean),
                 privacy,
               })
             }
@@ -53,12 +60,21 @@ export function WorkspaceFormModal({
     >
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
-          <Text variant="label" tone="muted">Name</Text>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Workspace name" autoFocus />
+          <Text variant="label" tone="muted">
+            Name
+          </Text>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Workspace name"
+            autoFocus
+          />
         </label>
 
         <div className="flex flex-col gap-1.5">
-          <Text variant="label" tone="muted">Color</Text>
+          <Text variant="label" tone="muted">
+            Color
+          </Text>
           <div className="flex gap-2">
             {WORKSPACE_COLORS.map((c) => {
               const p = colorPair(c);
@@ -67,7 +83,11 @@ export function WorkspaceFormModal({
                   key={c}
                   onClick={() => setColor(c)}
                   aria-label={c}
-                  className={cn('h-8 w-8 rounded-pill transition-transform', color === c && 'ring-2 ring-offset-2 ring-action ring-offset-surface')}
+                  className={cn(
+                    'h-8 w-8 rounded-pill transition-transform',
+                    color === c &&
+                      'ring-2 ring-action ring-offset-2 ring-offset-surface'
+                  )}
                   style={{ background: p.solid }}
                 />
               );
@@ -76,12 +96,20 @@ export function WorkspaceFormModal({
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <Text variant="label" tone="muted">Tags</Text>
-          <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Comma separated, e.g. Cells, Genetics" />
+          <Text variant="label" tone="muted">
+            Tags
+          </Text>
+          <Input
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="Comma separated, e.g. Cells, Genetics"
+          />
         </label>
 
         <div className="flex flex-col gap-1.5">
-          <Text variant="label" tone="muted">Visibility</Text>
+          <Text variant="label" tone="muted">
+            Visibility
+          </Text>
           <SegmentedControl
             size="sm"
             options={[

@@ -8,12 +8,21 @@ dependencies:
   '@excalidraw/excalidraw':
     specifier: ^0.17.6
     version: 0.17.6(react-dom@19.2.7)(react@19.2.7)
+  '@inlang/plugin-message-format':
+    specifier: ^4.4.0
+    version: 4.4.0
   '@tanstack/react-query':
     specifier: ^5.59.0
     version: 5.101.0(react@19.2.7)
   '@tanstack/react-router':
     specifier: ^1.58.0
     version: 1.170.16(react-dom@19.2.7)(react@19.2.7)
+  '@tanstack/react-router-devtools':
+    specifier: ^1.167.0
+    version: 1.167.0(@tanstack/react-router@1.170.16)(@tanstack/router-core@1.171.13)(csstype@3.2.3)(react-dom@19.2.7)(react@19.2.7)
+  clsx:
+    specifier: ^2.1.1
+    version: 2.1.1
   react:
     specifier: ^19.0.0
     version: 19.2.7
@@ -23,6 +32,9 @@ dependencies:
   react-pdf:
     specifier: ^9.1.1
     version: 9.2.1(@types/react@19.2.17)(react-dom@19.2.7)(react@19.2.7)
+  tailwind-merge:
+    specifier: ^3.6.0
+    version: 3.6.0
 
 devDependencies:
   '@inlang/paraglide-js':
@@ -49,6 +61,12 @@ devDependencies:
   msw:
     specifier: ^2.4.0
     version: 2.14.6(typescript@5.9.3)
+  prettier:
+    specifier: ^3.8.4
+    version: 3.8.4
+  prettier-plugin-tailwindcss:
+    specifier: ^0.8.0
+    version: 0.8.0(prettier@3.8.4)
   tailwindcss:
     specifier: ^4.0.0
     version: 4.3.1
@@ -501,6 +519,12 @@ packages:
     transitivePeerDependencies:
       - babel-plugin-macros
     dev: true
+
+  /@inlang/plugin-message-format@4.4.0:
+    resolution: {integrity: sha512-n4aXt6XVg5kxhKoLAhi9nMgZtCA9iS0QOaXte56VqxWHcfj9O4c4gOkyVQZH7H9D8h7OZufCrO1sZGYOypPwEA==}
+    dependencies:
+      flat: 6.0.1
+    dev: false
 
   /@inlang/recommend-sherlock@0.2.1:
     resolution: {integrity: sha512-ckv8HvHy/iTqaVAEKrr+gnl+p3XFNwe5D2+6w6wJk2ORV2XkcRkKOJ/XsTUJbPSiyi4PI+p+T3bqbmNx/rDUlg==}
@@ -1069,7 +1093,6 @@ packages:
       react-dom: 19.2.7(react@19.2.7)
     transitivePeerDependencies:
       - csstype
-    dev: true
 
   /@tanstack/react-router@1.170.16(react-dom@19.2.7)(react@19.2.7):
     resolution: {integrity: sha512-w6eq1IJklujs1tESazaK/FxH0+H2l8vm/QPuu1cD3oRW/ubgKneQpd7b64ti/8gUyEimzimJQZDmJr6YHfP5+g==}
@@ -1119,7 +1142,6 @@ packages:
       clsx: 2.1.1
       csstype: 3.2.3
       goober: 2.1.19(csstype@3.2.3)
-    dev: true
 
   /@tanstack/router-devtools@1.167.0(@tanstack/react-router@1.170.16)(@tanstack/router-core@1.171.13)(csstype@3.2.3)(react-dom@19.2.7)(react@19.2.7):
     resolution: {integrity: sha512-NwHy3SNoEgGraWtOstykkBPCTv7QRWBuPH49ww3prsyzQWXSSb7/2Jp7HHndpDrAIn0XNCCaxho90+6RFLSpUA==}
@@ -1523,6 +1545,12 @@ packages:
       picomatch: 4.0.4
     dev: true
 
+  /flat@6.0.1:
+    resolution: {integrity: sha512-/3FfIa8mbrg3xE7+wAhWeV+bd7L2Mof+xtZb5dRDKZ+wDvYJK4WDYeIOuOhre5Yv5aQObZrlbRmk3RTSiuQBtw==}
+    engines: {node: '>=18'}
+    hasBin: true
+    dev: false
+
   /fs-constants@1.0.0:
     resolution: {integrity: sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow==}
     requiresBuild: true
@@ -1559,7 +1587,6 @@ packages:
       csstype: ^3.0.10
     dependencies:
       csstype: 3.2.3
-    dev: true
 
   /graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
@@ -1963,6 +1990,70 @@ packages:
     dev: false
     optional: true
 
+  /prettier-plugin-tailwindcss@0.8.0(prettier@3.8.4):
+    resolution: {integrity: sha512-V8ITGH87yuBDF6JpEZTOVlUz/saAwqb8f3HRgUj8Lh+tGCcrmorhsLpYqzygwFwK0PE2Ib6Mv3M7T/uE2tZV1g==}
+    engines: {node: '>=20.19'}
+    peerDependencies:
+      '@ianvs/prettier-plugin-sort-imports': '*'
+      '@prettier/plugin-hermes': '*'
+      '@prettier/plugin-oxc': '*'
+      '@prettier/plugin-pug': '*'
+      '@shopify/prettier-plugin-liquid': '*'
+      '@trivago/prettier-plugin-sort-imports': '*'
+      '@zackad/prettier-plugin-twig': '*'
+      prettier: ^3.0
+      prettier-plugin-astro: '*'
+      prettier-plugin-css-order: '*'
+      prettier-plugin-jsdoc: '*'
+      prettier-plugin-marko: '*'
+      prettier-plugin-multiline-arrays: '*'
+      prettier-plugin-organize-attributes: '*'
+      prettier-plugin-organize-imports: '*'
+      prettier-plugin-sort-imports: '*'
+      prettier-plugin-svelte: '*'
+    peerDependenciesMeta:
+      '@ianvs/prettier-plugin-sort-imports':
+        optional: true
+      '@prettier/plugin-hermes':
+        optional: true
+      '@prettier/plugin-oxc':
+        optional: true
+      '@prettier/plugin-pug':
+        optional: true
+      '@shopify/prettier-plugin-liquid':
+        optional: true
+      '@trivago/prettier-plugin-sort-imports':
+        optional: true
+      '@zackad/prettier-plugin-twig':
+        optional: true
+      prettier-plugin-astro:
+        optional: true
+      prettier-plugin-css-order:
+        optional: true
+      prettier-plugin-jsdoc:
+        optional: true
+      prettier-plugin-marko:
+        optional: true
+      prettier-plugin-multiline-arrays:
+        optional: true
+      prettier-plugin-organize-attributes:
+        optional: true
+      prettier-plugin-organize-imports:
+        optional: true
+      prettier-plugin-sort-imports:
+        optional: true
+      prettier-plugin-svelte:
+        optional: true
+    dependencies:
+      prettier: 3.8.4
+    dev: true
+
+  /prettier@3.8.4:
+    resolution: {integrity: sha512-N2MylSdi48+5N/6S5j+maeHbUSIzzZ5uOcX5Hm4QpV8Dkb1HFjfAKTKX6yNPJQD9AhcT3ifHNB66tWTTJDi11Q==}
+    engines: {node: '>=14'}
+    hasBin: true
+    dev: true
+
   /pump@3.0.4:
     resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
     requiresBuild: true
@@ -2196,6 +2287,10 @@ packages:
     resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
     engines: {node: '>=20'}
     dev: true
+
+  /tailwind-merge@3.6.0:
+    resolution: {integrity: sha512-uxL7qAVQriqRQPAyK3pj66VqskWqoZ37PW94jwOTwNfq/z9oyu1V+eqrZqtR2+fCiXdYOZe/Modt8GtvqNzu+w==}
+    dev: false
 
   /tailwindcss@4.3.1:
     resolution: {integrity: sha512-hk+TB1m+K8CYNrP6rjQaq/Y+4Zylwpa87mLYBKCunwnnQ9p+fHb7kmSfGqyEJoxF/O6CDyABWVFEafNSYKll+Q==}

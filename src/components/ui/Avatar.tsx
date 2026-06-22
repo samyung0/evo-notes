@@ -19,19 +19,30 @@ function initials(name?: string): string {
     .join('');
 }
 
-export function Avatar({ src, name, size = 'md', className, style, ...rest }: AvatarProps) {
+export function Avatar({
+  src,
+  name,
+  size = 'md',
+  className,
+  style,
+  ...rest
+}: AvatarProps) {
   const px = typeof size === 'number' ? size : SIZES[size];
   return (
     <span
       className={cn(
         'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-pill bg-tint-purple font-bold text-tint-purple-fg',
-        className,
+        className
       )}
       style={{ width: px, height: px, fontSize: px * 0.4, ...style }}
       {...rest}
     >
       {src ? (
-        <img src={src} alt={name ?? ''} className="h-full w-full object-cover" />
+        <img
+          src={src}
+          alt={name ?? ''}
+          className="h-full w-full object-cover"
+        />
       ) : (
         initials(name)
       )}

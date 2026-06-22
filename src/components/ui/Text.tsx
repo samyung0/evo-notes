@@ -48,10 +48,20 @@ export interface TextProps extends HTMLAttributes<HTMLElement> {
   as?: ElementType;
 }
 
-export function Text({ variant = 'body', tone = 'primary', as, className, children, ...rest }: TextProps) {
+export function Text({
+  variant = 'body',
+  tone = 'primary',
+  as,
+  className,
+  children,
+  ...rest
+}: TextProps) {
   const Tag = (as ?? DEFAULT_TAG[variant]) as ElementType;
   return (
-    <Tag className={cn(VARIANT_CLASS[variant], TONE_CLASS[tone], 'm-0', className)} {...rest}>
+    <Tag
+      className={cn(VARIANT_CLASS[variant], TONE_CLASS[tone], 'm-0', className)}
+      {...rest}
+    >
       {children}
     </Tag>
   );

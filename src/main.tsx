@@ -8,8 +8,9 @@ import './styles/tailwind.css';
 
 // Mocks are on by default; set VITE_USE_MSW=false to hit the real Go gateway
 // (Vite proxies /api → http://localhost:8080).
-const USE_MOCKS = import.meta.env.VITE_USE_MSW !== 'false';
-
+const USE_MOCKS =
+  import.meta.env.VITE_USE_MSW !== 'false' &&
+  import.meta.env.MODE === 'development';
 async function enableMocks() {
   if (!USE_MOCKS) return;
   const { startMockServer } = await import('./mocks/browser');
@@ -18,7 +19,7 @@ async function enableMocks() {
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 },
+    queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 2 },
   },
 });
 
@@ -30,6 +31,6 @@ enableMocks().finally(() => {
           <RouterProvider router={router} />
         </QueryClientProvider>
       </ThemeProvider>
-    </StrictMode>,
+    </StrictMode>
   );
 });

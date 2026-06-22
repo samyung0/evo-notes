@@ -17,7 +17,13 @@ export interface CheckboxProps {
   className?: string;
 }
 
-export function Checkbox({ checked = false, onChange, size = 20, tone = 'dark', className }: CheckboxProps) {
+export function Checkbox({
+  checked = false,
+  onChange,
+  size = 20,
+  tone = 'dark',
+  className,
+}: CheckboxProps) {
   return (
     <button
       type="button"
@@ -27,7 +33,7 @@ export function Checkbox({ checked = false, onChange, size = 20, tone = 'dark', 
       className={cn(
         'inline-flex items-center justify-center rounded-[7px] border transition-colors',
         checked ? TONE[tone] : 'border-line-strong bg-surface',
-        className,
+        className
       )}
       style={{ width: size, height: size }}
     >

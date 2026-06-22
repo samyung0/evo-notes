@@ -22,8 +22,10 @@ export function Tabs({ tabs, value, onChange, className }: TabsProps) {
             key={t.value}
             onClick={() => onChange?.(t.value)}
             className={cn(
-              'border-b-2 px-3 py-2 text-[0.85rem] transition-colors -mb-px',
-              active ? 'border-action font-bold text-fg' : 'border-transparent font-medium text-fg-muted hover:text-fg',
+              '-mb-px border-b-2 px-3 py-2 text-[0.85rem] transition-colors',
+              active
+                ? 'border-action font-bold text-fg'
+                : 'border-transparent font-medium text-fg-muted hover:text-fg'
             )}
           >
             {t.label}

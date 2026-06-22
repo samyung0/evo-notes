@@ -1,66 +1,8 @@
-/* ============================================================
-   TIER 1 — PRIMITIVES
-   Raw palette ramps + non-color scales.
-   Theme- and mode-AGNOSTIC. Components must never read these
-   directly — they exist only to be mapped by the theme files
-   (tokens/themes/*.css) onto the semantic role tokens.
-   ============================================================ */
+/* primitive tokens for color palettes
+TOKENS ARE NOT USED DIRECTLY, IT IS A JUST A REFERENCE FOR THE COLOR GRADIENT VALUES */
 :root {
-  /* ---------- Typeface ---------- */
-  --ev-font-sans: 'Fustat', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-  /* ---------- Weights ---------- */
-  --ev-w-regular: 400;
-  --ev-w-medium: 500;
-  --ev-w-semibold: 600;
-  --ev-w-bold: 700;
-  --ev-w-extrabold: 800;
-
-  /* ---------- Type scale (px) ---------- */
-  --ev-text-display: 40px;
-  --ev-text-h1: 28px;
-  --ev-text-h2: 22px;
-  --ev-text-h3: 18px;
-  --ev-text-h4: 16px;
-  --ev-text-lg: 15px;
-  --ev-text-base: 14px;
-  --ev-text-sm: 13px;
-  --ev-text-xs: 12px;
-  --ev-text-2xs: 11px;
-
-  /* ---------- Line heights ---------- */
-  --ev-leading-tight: 1.15;
-  --ev-leading-snug: 1.35;
-  --ev-leading-normal: 1.5;
-  --ev-leading-relaxed: 1.6;
-
-  /* ---------- Tracking ---------- */
-  --ev-tracking-tight: -0.02em;
-  --ev-tracking-normal: 0;
-  --ev-tracking-label: 0.06em;
-
-  /* ---------- Spacing (4px base) ---------- */
-  --ev-space-1: 4px;
-  --ev-space-2: 8px;
-  --ev-space-3: 12px;
-  --ev-space-4: 16px;
-  --ev-space-5: 20px;
-  --ev-space-6: 24px;
-  --ev-space-7: 28px;
-  --ev-space-8: 32px;
-  --ev-space-10: 40px;
-  --ev-space-12: 48px;
-
-  /* ---------- Radius scale (XL house style) ---------- */
-  --ev-radius-xs: 7px;
-  --ev-radius-sm: 10px;
-  --ev-radius-md: 12px;
-  --ev-radius-lg: 18px;
-  --ev-radius-xl: 24px;
-  --ev-radius-2xl: 28px;
-  --ev-radius-pill: 999px;
-
-  /* ---------- Color ramps (hue families) ---------- */
+  /* ---------- Color ramps (friendly theme) ---------- */
   /* Purple — brand accent */
   --ev-purple-300: #b3a6ea;
   --ev-purple-400: #9d8ee0;
@@ -138,17 +80,4 @@
   --ev-d-ink-soft: #b4b8b3;
   --ev-d-ink-faint: #888d88;
   --ev-d-ink-ghost: #6a6f6a;
-
-  /* ---------- Shadow primitives ---------- */
-  --ev-shadow-l-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --ev-shadow-l-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.05);
-  --ev-shadow-l-raised: 0 1px 2px rgba(0, 0, 0, 0.05), 0 16px 44px rgba(0, 0, 0, 0.07);
-  --ev-shadow-l-pop: 0 10px 34px rgba(0, 0, 0, 0.14);
-  --ev-shadow-l-chip: 0 1px 2px rgba(0, 0, 0, 0.06);
-
-  --ev-shadow-d-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --ev-shadow-d-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
-  --ev-shadow-d-raised: 0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 44px rgba(0, 0, 0, 0.55);
-  --ev-shadow-d-pop: 0 10px 34px rgba(0, 0, 0, 0.6);
-  --ev-shadow-d-chip: 0 1px 2px rgba(0, 0, 0, 0.5);
 }

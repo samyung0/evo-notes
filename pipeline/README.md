@@ -16,14 +16,14 @@ three roles: ingest worker, retrieval API, and a benchmark CLI.
 
 ## Config (env)
 
-| var | default | meaning |
-|---|---|---|
-| `DATABASE_URL` | `postgres://evo:evo@localhost:5432/evo` | shared Postgres |
-| `BLOB_DIR` | `./data/blobs` | shared upload volume (gateway writes, worker reads) |
-| `EVO_PARSER` | `simple` | `simple` \| `docling` \| `mineru` |
-| `EVO_ENGINE` | `linearrag` | `dense` \| `linearrag` \| `lightrag` |
-| `EVO_EMBEDDER` | `hash` | `hash` (offline dev) \| `st` (sentence-transformers) |
-| `ANTHROPIC_API_KEY` | – | enables Claude chat + VLM image captions |
+| var                 | default                                 | meaning                                              |
+| ------------------- | --------------------------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`      | `postgres://evo:evo@localhost:5432/evo` | shared Postgres                                      |
+| `BLOB_DIR`          | `./data/blobs`                          | shared upload volume (gateway writes, worker reads)  |
+| `EVO_PARSER`        | `simple`                                | `simple` \| `docling` \| `mineru`                    |
+| `EVO_ENGINE`        | `linearrag`                             | `dense` \| `linearrag` \| `lightrag`                 |
+| `EVO_EMBEDDER`      | `hash`                                  | `hash` (offline dev) \| `st` (sentence-transformers) |
+| `ANTHROPIC_API_KEY` | –                                       | enables Claude chat + VLM image captions             |
 
 `simple` + `hash` need **no ML deps**, so the whole flow runs offline. Pin a
 real pair with extras:

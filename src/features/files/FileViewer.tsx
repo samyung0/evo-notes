@@ -10,7 +10,9 @@ export function FileViewer({ file }: { file: SourceFile | null }) {
       <div className="grid h-full place-items-center text-fg-muted">
         <div className="flex flex-col items-center gap-2">
           <Icon name="files" size={32} />
-          <Text variant="body" tone="muted">Select a file to read it here.</Text>
+          <Text variant="body" tone="muted">
+            Select a file to read it here.
+          </Text>
         </div>
       </div>
     );
@@ -18,19 +20,31 @@ export function FileViewer({ file }: { file: SourceFile | null }) {
 
   if (file.kind === 'pdf' && file.url) {
     return (
-      <Suspense fallback={<div className="grid h-full place-items-center"><Spinner /></div>}>
+      <Suspense
+        fallback={
+          <div className="grid h-full place-items-center">
+            <Spinner />
+          </div>
+        }
+      >
         <PdfView url={file.url} />
       </Suspense>
     );
   }
 
   if (file.kind === 'image' && file.url) {
-    return <img src={file.url} alt={file.name} className="mx-auto max-w-full rounded-card" />;
+    return (
+      <img
+        src={file.url}
+        alt={file.name}
+        className="mx-auto max-w-full rounded-card"
+      />
+    );
   }
 
   // md / txt / fallback — render the text content
   return (
-    <article className="mx-auto max-w-[700px] whitespace-pre-wrap text-[0.95rem] leading-relaxed text-fg">
+    <article className="mx-auto max-w-[700px] text-[0.95rem] leading-relaxed whitespace-pre-wrap text-fg">
       {file.content ?? 'No preview available for this file type yet.'}
     </article>
   );

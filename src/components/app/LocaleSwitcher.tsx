@@ -10,7 +10,9 @@ export function LocaleSwitcher() {
       return 'en';
     }
   })();
-  const available: readonly string[] = (locales as readonly string[] | undefined) ?? ['en', 'zh'];
+  const available: readonly string[] = (locales as
+    | readonly string[]
+    | undefined) ?? ['en', 'zh'];
 
   return (
     <Menu

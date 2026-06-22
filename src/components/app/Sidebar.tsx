@@ -1,8 +1,11 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { Text } from '@/components/ui/Text';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { m } from '@/i18n';
+import { Card } from '../ui';
+import LogoMark from '../ui/Logo';
 
 interface NavItem {
   to: string;
@@ -29,29 +32,20 @@ function items(): { general: NavItem[]; tools: NavItem[] } {
   };
 }
 
-function LogoMark({ size = 36 }: { size?: number }) {
-  const u = size / 36;
-  return (
-    <span
-      className="flex items-center justify-center"
-      style={{ width: size, height: size, flex: `0 0 ${size}px`, borderRadius: 10 * u, background: 'var(--action-primary-bg)' }}
-    >
-      <svg width={size * 0.62} height={size * 0.62} viewBox="0 0 36 36" fill="none">
-        <rect x="9" y="9" width="14" height="3.6" rx="1.8" fill="var(--action-primary-fg)" />
-        <rect x="9" y="16.2" width="10" height="3.6" rx="1.8" fill="#aef07f" />
-        <rect x="9" y="23.4" width="14" height="3.6" rx="1.8" fill="var(--action-primary-fg)" />
-        <circle cx="25.5" cy="18" r="2.1" fill="#8c7bd9" />
-      </svg>
-    </span>
-  );
-}
-
 function isActive(pathname: string, item: NavItem): boolean {
   if (item.exact) return pathname === item.to;
   return pathname === item.to || pathname.startsWith(item.to + '/');
 }
 
-function Row({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
+function Row({
+  item,
+  active,
+  collapsed,
+}: {
+  item: NavItem;
+  active: boolean;
+  collapsed: boolean;
+}) {
   return (
     <Link
       to={item.to}
@@ -59,18 +53,24 @@ function Row({ item, active, collapsed }: { item: NavItem; active: boolean; coll
       title={collapsed ? item.label : undefined}
       className={cn(
         'flex items-center rounded-button transition-colors',
-        collapsed ? 'h-10 w-10 justify-center' : 'w-full gap-3 px-3 py-2.5 text-[0.95rem]',
-        active ? 'bg-action font-bold text-action-fg' : 'font-medium text-fg hover:bg-inset',
+        collapsed ? 'h-10 w-10 justify-center' : 'w-full gap-3 px-3 py-2',
+        active
+          ? 'bg-action font-bold text-action-fg'
+          : 'font-medium text-fg hover:bg-surface-dark-hover-bg'
       )}
     >
-      <Icon name={item.icon} size={collapsed ? 19 : 21} />
-      {!collapsed && <span>{item.label}</span>}
+      <Icon name={item.icon} size={19} />
+      {!collapsed && (
+        <span className={cn('t-body translate-y-px')}>{item.label}</span>
+      )}
     </Link>
   );
 }
 
 function SectionLabel({ children }: { children: string }) {
-  return <div className="t-label px-3 pb-1.5 pt-0 text-fg-muted">{children}</div>;
+  return (
+    <div className="t-label px-3 pt-0 pb-1.5 text-fg-muted">{children}</div>
+  );
 }
 
 export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
@@ -79,7 +79,12 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
 
   if (collapsed) {
     return (
-      <nav className="m-2.5 mr-0 flex w-[60px] shrink-0 flex-col items-center gap-1.5 rounded-frame bg-sidebar py-4">
+      <Card
+        as="nav"
+        backgroundColor="gray"
+        radius="card-xl"
+        className="m-2.5 mr-0 flex w-15 shrink-0 gap-1.5 px-0 py-4"
+      >
         <LogoMark size={36} />
         <div className="h-2" />
         {nav.general.map((i) => (
@@ -91,32 +96,58 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
         ))}
         <div className="mt-auto" />
         <ThemeSwitcher collapsed />
-        <Link to="/support" preload="intent" title={m.nav_support()} className="flex h-10 w-10 items-center justify-center rounded-button text-fg hover:bg-inset">
+        <Link
+          to="/support"
+          preload="intent"
+          title={m.nav_support()}
+          className="flex h-10 w-10 items-center justify-center rounded-button text-fg hover:bg-surface-hover-bg"
+        >
           <Icon name="help" size={19} />
         </Link>
-      </nav>
+      </Card>
     );
   }
 
   return (
-    <nav className="m-2.5 mr-0 flex w-[222px] shrink-0 flex-col rounded-frame bg-sidebar px-2.5 py-4">
-      <div className="flex items-center gap-3 px-2 pb-4 pt-1">
+    <Card
+      as="nav"
+      backgroundColor="gray"
+      radius="card-xl"
+      className="m-2.5 mr-0 flex w-52 shrink-0 items-stretch gap-0 px-2.5 py-4"
+    >
+      <div className="flex items-center gap-3 px-2 pt-1 pb-6">
         <LogoMark size={36} />
-        <span className="text-lg font-extrabold tracking-[-0.01em] text-fg">{m.app_name()}</span>
+        <span
+          className={cn(
+            'card-title translate-y-px font-extrabold tracking-[-0.02rem]'
+          )}
+        >
+          {m.app_name()}
+        </span>
       </div>
 
       <SectionLabel>{m.nav_section_general()}</SectionLabel>
-      <div className="flex flex-col gap-[3px]">
+      <div className="flex flex-col gap-1">
         {nav.general.map((i) => (
-          <Row key={i.to} item={i} active={isActive(pathname, i)} collapsed={false} />
+          <Row
+            key={i.to}
+            item={i}
+            active={isActive(pathname, i)}
+            collapsed={false}
+          />
         ))}
       </div>
 
       <div className="h-4" />
       <SectionLabel>{m.nav_section_tools()}</SectionLabel>
-      <div className="flex flex-col gap-[3px]">
+      <div className="flex flex-col gap-1">
         {nav.tools.map((i) => (
-          <Row key={i.to} item={i} active={isActive(pathname, i)} collapsed={false} />
+          <Row
+            key={i.to}
+            item={i}
+            active={isActive(pathname, i)}
+            collapsed={false}
+          />
         ))}
       </div>
 
@@ -128,13 +159,15 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           preload="intent"
           className={cn(
             'flex items-center gap-3 rounded-button px-3 py-2.5 text-[0.95rem] font-medium transition-colors',
-            isActive(pathname, { to: '/support', label: '', icon: 'help' }) ? 'bg-action text-action-fg' : 'text-fg hover:bg-inset',
+            isActive(pathname, { to: '/support', label: '', icon: 'help' })
+              ? 'bg-action text-action-fg'
+              : 'text-fg hover:bg-surface-hover-bg'
           )}
         >
           <Icon name="help" size={21} />
           <span>{m.nav_support()}</span>
         </Link>
       </div>
-    </nav>
+    </Card>
   );
 }

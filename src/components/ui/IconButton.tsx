@@ -8,8 +8,9 @@ type Size = 'sm' | 'md' | 'lg';
 const VARIANT: Record<Variant, string> = {
   dark: 'bg-action text-action-fg hover:bg-action-hover',
   accent: 'bg-accent text-accent-fg hover:bg-accent-hover',
-  outline: 'bg-surface text-fg-soft border border-line hover:bg-inset',
-  ghost: 'bg-transparent text-fg-soft hover:bg-inset',
+  outline:
+    'bg-surface text-fg-soft border border-line hover:bg-surface-hover-bg',
+  ghost: 'bg-transparent text-fg-soft hover:bg-surface-hover-bg',
 };
 
 const SIZE: Record<Size, { box: string; icon: number }> = {
@@ -45,13 +46,13 @@ export function IconButton({
         'relative inline-flex items-center justify-center transition-colors',
         VARIANT[variant],
         s.box,
-        className,
+        className
       )}
       {...rest}
     >
       <Icon name={icon} size={s.icon} strokeWidth={strokeWidth} />
       {dot && (
-        <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-solid-error ring-2 ring-surface" />
+        <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-solid-error ring-2 ring-surface" />
       )}
     </button>
   );

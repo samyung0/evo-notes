@@ -36,7 +36,13 @@ export function Menu({ items, trigger, align = 'end', className }: MenuProps) {
         }}
       >
         {trigger ?? (
-          <IconButton icon="moreVertical" variant="ghost" size="sm" strokeWidth={2.6} label="Open menu" />
+          <IconButton
+            icon="moreVertical"
+            variant="ghost"
+            size="sm"
+            strokeWidth={2.6}
+            label="Open menu"
+          />
         )}
       </span>
       {open && (
@@ -44,7 +50,7 @@ export function Menu({ items, trigger, align = 'end', className }: MenuProps) {
           role="menu"
           className={cn(
             'absolute top-full z-30 mt-1 min-w-[180px] overflow-hidden rounded-card border border-line bg-surface py-1 shadow-pop',
-            align === 'end' ? 'right-0' : 'left-0',
+            align === 'end' ? 'right-0' : 'left-0'
           )}
         >
           {items.map((it, i) => (
@@ -59,7 +65,9 @@ export function Menu({ items, trigger, align = 'end', className }: MenuProps) {
               }}
               className={cn(
                 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors disabled:opacity-40',
-                it.danger ? 'text-tint-error-fg hover:bg-tint-error' : 'text-fg hover:bg-inset',
+                it.danger
+                  ? 'text-tint-error-fg hover:bg-tint-error'
+                  : 'hover:bg-surface-hover-bg text-fg'
               )}
             >
               {it.icon && <Icon name={it.icon} size={16} />}

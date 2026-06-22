@@ -6,10 +6,13 @@ type Variant = 'primary' | 'accent' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg';
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-action text-action-fg hover:bg-action-hover border border-transparent',
-  accent: 'bg-accent text-accent-fg hover:bg-accent-hover border border-transparent',
-  outline: 'bg-surface text-fg border border-line hover:bg-inset',
-  ghost: 'bg-transparent text-fg-soft border border-transparent hover:bg-inset',
+  primary:
+    'bg-action text-action-fg hover:bg-action-hover border border-transparent',
+  accent:
+    'bg-accent text-accent-fg hover:bg-accent-hover border border-transparent',
+  outline: 'bg-surface text-fg border border-line hover:bg-surface-hover-bg',
+  ghost:
+    'bg-transparent text-fg-soft border border-transparent hover:bg-surface-hover-bg',
 };
 
 const SIZE: Record<Size, string> = {
@@ -43,13 +46,13 @@ export function Button({
     <button
       disabled={disabled}
       className={cn(
-        'inline-flex items-center justify-center font-semibold leading-none whitespace-nowrap',
+        'inline-flex items-center justify-center leading-none font-semibold whitespace-nowrap',
         'transition-[filter,background-color,transform] duration-150 active:scale-[0.98]',
         VARIANT[variant],
         SIZE[size],
         fullWidth && 'w-full',
-        disabled && 'opacity-50 cursor-not-allowed',
-        className,
+        disabled && 'cursor-not-allowed opacity-50',
+        className
       )}
       {...rest}
     >

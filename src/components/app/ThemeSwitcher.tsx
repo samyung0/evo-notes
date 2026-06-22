@@ -11,7 +11,7 @@ export function ThemeSwitcher({ collapsed = false }: { collapsed?: boolean }) {
       <button
         onClick={toggleMode}
         aria-label="Toggle light/dark"
-        className="flex h-10 w-10 items-center justify-center rounded-button text-fg hover:bg-inset"
+        className="hover:bg-surface-hover-bg flex h-10 w-10 items-center justify-center rounded-button text-fg"
       >
         <Icon name={mode === 'dark' ? 'sun' : 'moon'} size={19} />
       </button>
@@ -27,7 +27,9 @@ export function ThemeSwitcher({ collapsed = false }: { collapsed?: boolean }) {
             onClick={() => setTheme(t.value)}
             className={cn(
               'flex-1 rounded-pill py-1.5 text-[12px] font-semibold transition-colors',
-              theme === t.value ? 'bg-action text-action-fg' : 'text-fg-muted hover:text-fg',
+              theme === t.value
+                ? 'bg-action text-action-fg'
+                : 'text-fg-muted hover:text-fg'
             )}
           >
             {t.label}
@@ -36,7 +38,7 @@ export function ThemeSwitcher({ collapsed = false }: { collapsed?: boolean }) {
       </div>
       <button
         onClick={toggleMode}
-        className="flex items-center justify-center gap-2 rounded-button py-2 text-[13px] font-medium text-fg hover:bg-inset"
+        className="hover:bg-surface-hover-bg flex items-center justify-center gap-2 rounded-button py-2 text-[13px] font-medium text-fg"
       >
         <Icon name={mode === 'dark' ? 'sun' : 'moon'} size={16} />
         {mode === 'dark' ? 'Light mode' : 'Dark mode'}

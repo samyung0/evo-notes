@@ -3,10 +3,19 @@ import { cn } from '@/lib/cn';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 
-export function Spinner({ size = 18, className }: { size?: number; className?: string }) {
+export function Spinner({
+  size = 18,
+  className,
+}: {
+  size?: number;
+  className?: string;
+}) {
   return (
     <span
-      className={cn('inline-block animate-spin rounded-full border-2 border-line border-t-fg', className)}
+      className={cn(
+        'inline-block animate-spin rounded-full border-2 border-line border-t-fg',
+        className
+      )}
       style={{ width: size, height: size }}
       role="status"
       aria-label="Loading"
@@ -14,8 +23,19 @@ export function Spinner({ size = 18, className }: { size?: number; className?: s
   );
 }
 
-export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
-  return <div className={cn('animate-pulse rounded-row bg-inset', className)} style={style} />;
+export function Skeleton({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      className={cn('bg-surface-hover-bg animate-pulse rounded-row', className)}
+      style={style}
+    />
+  );
 }
 
 export function EmptyState({
@@ -32,7 +52,12 @@ export function EmptyState({
   className?: string;
 }) {
   return (
-    <div className={cn('flex flex-col items-center justify-center gap-3 px-6 py-12 text-center', className)}>
+    <div
+      className={cn(
+        'flex flex-col items-center justify-center gap-3 px-6 py-12 text-center',
+        className
+      )}
+    >
       <span className="flex h-12 w-12 items-center justify-center rounded-card bg-tint-purple text-tint-purple-fg">
         <Icon name={icon} size={22} />
       </span>
