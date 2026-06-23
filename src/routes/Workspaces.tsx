@@ -33,15 +33,7 @@ const SORTS = [
   { value: 'files', label: m.workspaces_sort_files },
 ];
 
-function StatsModal({
-  id,
-  open,
-  onClose,
-}: {
-  id: string;
-  open: boolean;
-  onClose: () => void;
-}) {
+function StatsModal({ id, open, onClose }: { id: string; open: boolean; onClose: () => void }) {
   const { data } = useWorkspaceStats(id);
   const rows = [
     ['Chapters', data?.chapters],
@@ -51,12 +43,7 @@ function StatsModal({
     ['Average score', data ? `${data.avgScore}%` : undefined],
   ] as const;
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Workspace statistics"
-      width={420}
-    >
+    <Modal open={open} onClose={onClose} title="Workspace statistics" width={420}>
       <div className="grid grid-cols-2 gap-3">
         {rows.map(([label, val]) => (
           <div
@@ -96,10 +83,7 @@ export default function Workspaces() {
   const [stats, setStats] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Workspace | null>(null);
 
-  const sortLabel = useMemo(
-    () => SORTS.find((s) => s.value === sort)?.label() ?? '',
-    [sort]
-  );
+  const sortLabel = useMemo(() => SORTS.find((s) => s.value === sort)?.label() ?? '', [sort]);
 
   return (
     <Panel>
@@ -120,12 +104,7 @@ export default function Workspaces() {
           <Menu
             align="start"
             trigger={
-              <Button
-                variant="outline"
-                size="sm"
-                iconLeft="filter"
-                iconRight="chevronDown"
-              >
+              <Button variant="outline" size="sm" iconLeft="filter" iconRight="chevronDown">
                 Sort: {sortLabel}
               </Button>
             }
@@ -138,9 +117,7 @@ export default function Workspaces() {
             align="start"
             trigger={
               <Button variant="outline" size="sm" iconRight="chevronDown">
-                {colorFilter
-                  ? `Color: ${colorFilter}`
-                  : m.workspaces_filter_color()}
+                {colorFilter ? `Color: ${colorFilter}` : m.workspaces_filter_color()}
               </Button>
             }
             items={[
@@ -186,12 +163,7 @@ export default function Workspaces() {
             {data?.map((w) => {
               const c = colorPair(w.color);
               return (
-                <Card
-                  key={w.id}
-                  padding={20}
-                  radius="card-lg"
-                  className="group relative"
-                >
+                <Card key={w.id} padding={20} radius="card-lg" className="group relative">
                   <Link
                     to="/workspaces/$workspaceId"
                     params={{ workspaceId: w.id }}
@@ -219,10 +191,7 @@ export default function Workspaces() {
                         </Badge>
                       ))}
                       {w.privacy !== 'private' && (
-                        <Badge
-                          tone={w.privacy === 'public' ? 'success' : 'info'}
-                          size="sm"
-                        >
+                        <Badge tone={w.privacy === 'public' ? 'success' : 'info'} size="sm">
                           {w.privacy === 'public' ? 'Public' : 'Shared'}
                         </Badge>
                       )}

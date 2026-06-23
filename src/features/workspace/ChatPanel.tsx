@@ -78,17 +78,9 @@ export function ChatPanel({ workspaceId }: { workspaceId: string }) {
             placeholder={m.chat_placeholder()}
             className="min-w-0 flex-1 border-none bg-transparent text-sm text-fg outline-none placeholder:text-placeholder"
           />
-          <IconButton
-            icon="send"
-            variant="dark"
-            size="sm"
-            onClick={send}
-            label="Send"
-          />
+          <IconButton icon="send" variant="dark" size="sm" onClick={send} label="Send" />
         </div>
-        <p className="mt-2 text-center text-[11px] text-fg-muted">
-          {m.chat_grounded()}
-        </p>
+        <p className="mt-2 text-center text-[11px] text-fg-muted">{m.chat_grounded()}</p>
       </div>
     </div>
   );

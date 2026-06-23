@@ -61,11 +61,11 @@
   --tint-error-bg: #fbecec;
   --tint-error-fg: #d44c47;
   --solid-error: #d44c47;
-  --tint-purple-bg: #f4f0f7;
-  --tint-purple-fg: #6940a5;
+  --tint-accent-1-bg: #f4f0f7;
+  --tint-accent-1-fg: #6940a5;
   --solid-purple: #9065b0;
-  --tint-green-bg: #edf3ec;
-  --tint-green-fg: #448361;
+  --tint-accent-2-bg: #edf3ec;
+  --tint-accent-2-fg: #448361;
   --solid-green: #448361;
 
   --note-green-bg: #edf3ec;
@@ -152,11 +152,11 @@
   --tint-error-bg: #2e1c1b;
   --tint-error-fg: #df7773;
   --solid-error: #df7773;
-  --tint-purple-bg: #261f30;
-  --tint-purple-fg: #b18ad0;
+  --tint-accent-1-bg: #261f30;
+  --tint-accent-1-fg: #b18ad0;
   --solid-purple: #b18ad0;
-  --tint-green-bg: #1c2b21;
-  --tint-green-fg: #6cae8a;
+  --tint-accent-2-bg: #1c2b21;
+  --tint-accent-2-fg: #6cae8a;
   --solid-green: #6cae8a;
 
   --note-green-bg: #1c2b21;

@@ -21,14 +21,12 @@ import type {
 } from './types';
 
 /* ---------------- account / shell ---------------- */
-export const useMe = () =>
-  useQuery({ queryKey: qk.me, queryFn: () => api.get<User>('/me') });
+export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.get<User>('/me') });
 
 export const useSearch = (q: string) =>
   useQuery({
     queryKey: qk.search(q),
-    queryFn: () =>
-      api.get<SearchResult[]>(`/search?q=${encodeURIComponent(q)}`),
+    queryFn: () => api.get<SearchResult[]>(`/search?q=${encodeURIComponent(q)}`),
     enabled: q.trim().length > 0,
   });
 
@@ -90,8 +88,7 @@ export const useWorkspaceStats = (id: string) =>
 export function useCreateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Partial<Workspace>) =>
-      api.post<Workspace>('/workspaces', body),
+    mutationFn: (body: Partial<Workspace>) => api.post<Workspace>('/workspaces', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['workspaces'] }),
   });
 }
@@ -142,8 +139,7 @@ export const useAllFiles = () =>
 export function useAddChapter(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      api.post<Chapter>(`/workspaces/${wsId}/chapters`, { name }),
+    mutationFn: (name: string) => api.post<Chapter>(`/workspaces/${wsId}/chapters`, { name }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.chapters(wsId) }),
   });
 }
@@ -158,8 +154,7 @@ export function useUpdateChapter(wsId: string) {
 export function useReorderChapters(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (ids: string[]) =>
-      api.post<void>(`/workspaces/${wsId}/chapters/reorder`, { ids }),
+    mutationFn: (ids: string[]) => api.post<void>(`/workspaces/${wsId}/chapters/reorder`, { ids }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.chapters(wsId) }),
   });
 }
@@ -176,11 +171,8 @@ export function useDeleteChapter(wsId: string) {
 export function useAddSource(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: {
-      name: string;
-      kind: SourceFile['kind'];
-      chapterId?: string | null;
-    }) => api.post<SourceFile>(`/workspaces/${wsId}/sources`, body),
+    mutationFn: (body: { name: string; kind: SourceFile['kind']; chapterId?: string | null }) =>
+      api.post<SourceFile>(`/workspaces/${wsId}/sources`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.files(wsId) });
       qc.invalidateQueries({ queryKey: qk.chapters(wsId) });
@@ -200,8 +192,7 @@ export function useChat(wsId: string) {
 export function useGenerate(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (opts: GenerateOptions) =>
-      api.post<unknown>(`/workspaces/${wsId}/generate`, opts),
+    mutationFn: (opts: GenerateOptions) => api.post<unknown>(`/workspaces/${wsId}/generate`, opts),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.quizzes }),
   });
 }
@@ -244,15 +235,8 @@ export function useDeleteQuiz() {
 export function useSubmitAttempt() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      quizId,
-      correct,
-      total,
-    }: {
-      quizId: string;
-      correct: number;
-      total: number;
-    }) => api.post<Attempt>(`/quizzes/${quizId}/attempts`, { correct, total }),
+    mutationFn: ({ quizId, correct, total }: { quizId: string; correct: number; total: number }) =>
+      api.post<Attempt>(`/quizzes/${quizId}/attempts`, { correct, total }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.attempts }),
   });
 }
@@ -292,8 +276,7 @@ export const useLabels = () =>
 export function useCreateEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Omit<CalendarEvent, 'id'>) =>
-      api.post<CalendarEvent>('/events', body),
+    mutationFn: (body: Omit<CalendarEvent, 'id'>) => api.post<CalendarEvent>('/events', body),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.events }),
   });
 }
@@ -325,8 +308,7 @@ export const useCanvas = (id: string) =>
 export function useCreateCanvas() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) =>
-      api.post<ThinkingCanvas>('/thinking', { name }),
+    mutationFn: (name: string) => api.post<ThinkingCanvas>('/thinking', { name }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.thinking }),
   });
 }

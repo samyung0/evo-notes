@@ -1,31 +1,41 @@
 import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 import { Icon, type IconName } from './Icon';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { Slot } from 'radix-ui';
 
-type Variant = 'primary' | 'accent' | 'outline' | 'ghost';
-type Size = 'sm' | 'md' | 'lg';
+const buttonVariants = cva(
+  'inline-flex items-center justify-center leading-none font-semibold whitespace-nowrap transition-all duration-150 active:scale-[0.98]',
+  {
+    variants: {
+      variant: {
+        primary: 'border border-transparent bg-action text-action-fg hover:bg-action-hover',
+        accent: 'border border-transparent bg-accent text-accent-fg hover:bg-accent-hover',
+        outline: 'border border-line bg-surface text-fg hover:bg-surface-hover-bg',
+        ghost:
+          'border border-transparent bg-transparent text-fg-secondary hover:bg-surface-hover-bg',
+        'ghost-link': 'border border-transparent bg-transparent text-link hover:text-link-hover',
+      },
+      size: {
+        sm: 'gap-1.875 py-2.125 rounded-button px-4 text-[0.8125rem]',
+        md: 'gap-2 rounded-button px-5 py-3 text-sm',
+        lg: 'gap-2.125 py-4.875 rounded-card px-6.5 text-[0.9375rem]',
+      },
+    },
+    defaultVariants: {
+      variant: 'primary',
+      size: 'md',
+    },
+  }
+);
 
-const VARIANT: Record<Variant, string> = {
-  primary:
-    'bg-action text-action-fg hover:bg-action-hover border border-transparent',
-  accent:
-    'bg-accent text-accent-fg hover:bg-accent-hover border border-transparent',
-  outline: 'bg-surface text-fg border border-line hover:bg-surface-hover-bg',
-  ghost:
-    'bg-transparent text-fg-soft border border-transparent hover:bg-surface-hover-bg',
-};
+export type ButtonVariantProps = VariantProps<typeof buttonVariants>;
 
-const SIZE: Record<Size, string> = {
-  sm: 'text-[0.8125rem] px-4 py-[9px] gap-[7px] rounded-button',
-  md: 'text-sm px-5 py-3 gap-2 rounded-button',
-  lg: 'text-[0.9375rem] px-[26px] py-[15px] gap-[9px] rounded-card',
-};
+const ICON_SIZE: Record<string, number> = { sm: 15, md: 16, lg: 18 };
 
-const ICON_SIZE: Record<Size, number> = { sm: 15, md: 16, lg: 18 };
-
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
-  size?: Size;
+export interface ButtonProps
+  extends React.ComponentProps<'button'>, VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
   iconLeft?: IconName;
   iconRight?: IconName;
   fullWidth?: boolean;
@@ -40,25 +50,43 @@ export function Button({
   fullWidth,
   className,
   disabled,
+  asChild = false,
   ...rest
 }: ButtonProps) {
+  if (asChild) {
+    return (
+      <Slot.Root
+        data-slot="button"
+        data-variant={variant}
+        data-size={size}
+        children={children}
+        className={cn(
+          cn(buttonVariants({ variant, size })),
+          fullWidth && 'w-full',
+          disabled && 'cursor-not-allowed opacity-50',
+          className
+        )}
+        {...rest}
+      />
+    );
+  }
   return (
     <button
+      data-slot="button"
+      data-variant={variant}
+      data-size={size}
       disabled={disabled}
       className={cn(
-        'inline-flex items-center justify-center leading-none font-semibold whitespace-nowrap',
-        'transition-[filter,background-color,transform] duration-150 active:scale-[0.98]',
-        VARIANT[variant],
-        SIZE[size],
+        cn(buttonVariants({ variant, size })),
         fullWidth && 'w-full',
         disabled && 'cursor-not-allowed opacity-50',
         className
       )}
       {...rest}
     >
-      {iconLeft && <Icon name={iconLeft} size={ICON_SIZE[size]} />}
+      {iconLeft && <Icon name={iconLeft} size={ICON_SIZE[size ?? 'md']} />}
       {children}
-      {iconRight && <Icon name={iconRight} size={ICON_SIZE[size]} />}
+      {iconRight && <Icon name={iconRight} size={ICON_SIZE[size ?? 'md']} />}
     </button>
   );
 }

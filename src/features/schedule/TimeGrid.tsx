@@ -85,35 +85,24 @@ export function TimeGrid({
             >
               {/* gridlines */}
               {Array.from({ length: 24 }, (_, h) => (
-                <div
-                  key={h}
-                  className="border-b border-divider"
-                  style={{ height: HOUR_H }}
-                />
+                <div key={h} className="border-b border-divider" style={{ height: HOUR_H }} />
               ))}
               {/* events */}
               {dayEvents.map((ev) => {
                 const c = colorFor(ev);
                 const top = hourOf(ev.start) * HOUR_H;
-                const height = Math.max(
-                  24,
-                  (hourOf(ev.end) - hourOf(ev.start)) * HOUR_H
-                );
+                const height = Math.max(24, (hourOf(ev.end) - hourOf(ev.start)) * HOUR_H);
                 return (
                   <button
                     key={ev.id}
-                    onClick={(e) =>
-                      onSelectEvent(ev, { x: e.clientX, y: e.clientY })
-                    }
+                    onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
                     className={cn(
                       'absolute right-1 left-1 overflow-hidden rounded-row px-2 py-1 text-left',
                       selectedId === ev.id && 'ring-2 ring-fg'
                     )}
                     style={{ top, height, background: c.bg, color: c.fg }}
                   >
-                    <span className="block truncate text-[0.72rem] font-bold">
-                      {ev.title}
-                    </span>
+                    <span className="block truncate text-[0.72rem] font-bold">{ev.title}</span>
                     <span className="block truncate text-[0.62rem] opacity-80">
                       {fmtTime(ev.start)}
                     </span>

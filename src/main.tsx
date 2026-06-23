@@ -9,8 +9,7 @@ import './styles/tailwind.css';
 // Mocks are on by default; set VITE_USE_MSW=false to hit the real Go gateway
 // (Vite proxies /api → http://localhost:8080).
 const USE_MOCKS =
-  import.meta.env.VITE_USE_MSW !== 'false' &&
-  import.meta.env.MODE === 'development';
+  import.meta.env.VITE_USE_MSW !== 'false' && import.meta.env.MODE === 'development';
 async function enableMocks() {
   if (!USE_MOCKS) return;
   const { startMockServer } = await import('./mocks/browser');

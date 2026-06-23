@@ -8,9 +8,8 @@ type Size = 'sm' | 'md' | 'lg';
 const VARIANT: Record<Variant, string> = {
   dark: 'bg-action text-action-fg hover:bg-action-hover',
   accent: 'bg-accent text-accent-fg hover:bg-accent-hover',
-  outline:
-    'bg-surface text-fg-soft border border-line hover:bg-surface-hover-bg',
-  ghost: 'bg-transparent text-fg-soft hover:bg-surface-hover-bg',
+  outline: 'bg-surface text-fg-secondary border border-line hover:bg-surface-hover-bg',
+  ghost: 'bg-transparent text-fg-secondary hover:bg-surface-hover-bg',
 };
 
 const SIZE: Record<Size, { box: string; icon: number }> = {

@@ -3,13 +3,7 @@ import { cn } from '@/lib/cn';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 
-export function Spinner({
-  size = 18,
-  className,
-}: {
-  size?: number;
-  className?: string;
-}) {
+export function Spinner({ size = 18, className }: { size?: number; className?: string }) {
   return (
     <span
       className={cn(
@@ -31,10 +25,7 @@ export function Skeleton({
   style?: React.CSSProperties;
 }) {
   return (
-    <div
-      className={cn('bg-surface-hover-bg animate-pulse rounded-row', className)}
-      style={style}
-    />
+    <div className={cn('animate-pulse rounded-row bg-surface-hover-bg', className)} style={style} />
   );
 }
 
@@ -58,7 +49,7 @@ export function EmptyState({
         className
       )}
     >
-      <span className="flex h-12 w-12 items-center justify-center rounded-card bg-tint-purple text-tint-purple-fg">
+      <span className="bg-tint-accent-1 text-tint-accent-1-fg flex h-12 w-12 items-center justify-center rounded-card">
         <Icon name={icon} size={22} />
       </span>
       <Text variant="card-title">{title}</Text>

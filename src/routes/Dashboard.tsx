@@ -3,15 +3,9 @@ import { Link } from '@tanstack/react-router';
 import { Panel, RightRail } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
 import { MiniCalendar } from '@/features/schedule/MiniCalendar';
-import { Badge, Card, Checkbox, Icon, Text, Spinner } from '@/components/ui';
-import { colorPair } from '@/lib/workspaceColor';
-import {
-  useCanvases,
-  useMe,
-  useTasks,
-  useToggleTask,
-  useWorkspaces,
-} from '@/api/hooks';
+import { Badge, Card, Checkbox, Icon, Text, Spinner, Button } from '@/components/ui';
+import { userColorPair } from '@/lib/workspaceColor';
+import { useCanvases, useMe, useTasks, useToggleTask, useWorkspaces } from '@/api/hooks';
 import { m } from '@/i18n';
 import DashboardDefaultBanner from '@/components/banners/DashboardDefaultBanner';
 
@@ -20,40 +14,37 @@ function StreakHeading() {
   const streak = me?.streak ?? 0;
   return (
     <div>
-      <Text variant="page-title">
-        {streak > 0
-          ? m.dashboard_streak_days({ count: streak })
-          : m.dashboard_streak_none()}
-      </Text>
-      <Text variant="subtitle" tone="secondary" className="mt-1 font-medium">
-        Take a look around — your workspaces, notes and itinerary will show up
-        here.
-      </Text>
+      <p className="t-page-title">
+        {streak > 0 ? m.dashboard_streak_days({ count: streak }) : m.dashboard_streak_none()}
+      </p>
+      <p className="t-subtitle mt-1 font-medium text-fg-muted">
+        Take a look around — your workspaces, notes and itinerary will show up here.
+      </p>
     </div>
   );
 }
 
 function WorkspacesSection() {
   const { data, isLoading } = useWorkspaces({ sort: 'accessed' });
-  const recent = data?.slice(0, 4);
+  // const recent = data;
+  const recent = data?.slice(0, 2);
+  // TODO: do a UI design to let user know there are more data, possible bottom shadows
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <Text variant="section">{m.dashboard_workspaces()}</Text>
-        <Link
-          to="/workspaces"
-          preload="intent"
-          className="text-sm font-semibold text-link hover:text-link-hover"
-        >
-          {m.action_see_all()}
-        </Link>
+        <h2 className="t-section">{m.dashboard_workspaces()}</h2>
+        <Button variant="ghost-link" size="md" asChild className="p-0">
+          <Link to="/workspaces" preload="intent">
+            {m.action_go_workspaces()}
+          </Link>
+        </Button>
       </div>
       {isLoading ? (
         <Spinner />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(256px,1fr))] gap-4">
           {recent?.map((w) => {
-            const c = colorPair(w.color);
+            const c = userColorPair(w.color);
             return (
               <Link
                 key={w.id}
@@ -61,28 +52,22 @@ function WorkspacesSection() {
                 params={{ workspaceId: w.id }}
                 preload="intent"
               >
-                <Card
-                  interactive
-                  padding={16}
-                  className="flex h-full items-start gap-3"
-                >
+                <Card interactive border="solid" className="flex items-start gap-3">
                   <span
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-card"
                     style={{ background: c.bg, color: c.fg }}
                   >
                     <Icon name="workspaces" size={22} />
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <Text variant="card-title" className="truncate">
-                      {w.name}
-                    </Text>
-                    <Text variant="meta" tone="muted" className="mt-0.5">
+                  <div className="flex-1">
+                    <h3 className="t-card-title truncate">{w.name}</h3>
+                    <p className="t-meta mt-1.5 text-fg-muted">
                       {w.chapterCount} chapters · {w.fileCount} files
-                    </Text>
-                    <div className="mt-2 flex flex-wrap gap-1">
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-1">
                       {w.tags.slice(0, 2).map((t) => (
                         <Badge key={t} tone="neutral" size="sm">
-                          #{t}
+                          # {t}
                         </Badge>
                       ))}
                     </div>
@@ -99,10 +84,12 @@ function WorkspacesSection() {
 
 function ThinkingSection() {
   const { data } = useCanvases();
+  // TODO excess data hint
+  const recent = data;
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <Text variant="section">{m.dashboard_thinking()}</Text>
+        <h2 className="t-section">{m.dashboard_thinking()}</h2>
         <Link
           to="/thinking"
           preload="intent"
@@ -111,28 +98,20 @@ function ThinkingSection() {
           {m.action_see_all()}
         </Link>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {data?.slice(0, 2).map((c, i) => (
-          <Link
-            key={c.id}
-            to="/thinking/$canvasId"
-            params={{ canvasId: c.id }}
-            preload="intent"
-          >
+      <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
+        {recent?.map((c, i) => (
+          <Link key={c.id} to="/thinking/$canvasId" params={{ canvasId: c.id }} preload="intent">
+            {/* TODO fix notes in thinking space */}
             <div
-              className="flex min-h-[120px] flex-col justify-between rounded-card-lg p-5"
+              className="flex min-h-28 flex-col justify-between rounded-card-lg p-5"
               style={{
-                background:
-                  i % 2 ? 'var(--note-purple-bg)' : 'var(--note-green-bg)',
+                background: i % 2 ? 'var(--note-purple-bg)' : 'var(--note-green-bg)',
                 color: i % 2 ? 'var(--note-purple-fg)' : 'var(--note-green-fg)',
               }}
             >
-              <Text variant="subtitle" className="text-inherit">
-                {c.name}
-              </Text>
+              <h4 className="t-subtitle text-inherit">{c.name}</h4>
               <span className="flex items-center gap-1.5 text-[0.72rem] opacity-70">
-                <Icon name="notes" size={13} /> Updated{' '}
-                {new Date(c.updatedAt).toLocaleDateString()}
+                <Icon name="notes" size={13} /> Updated {new Date(c.updatedAt).toLocaleDateString()}
               </span>
             </div>
           </Link>
@@ -181,9 +160,7 @@ function TasksCard() {
               >
                 {t.title}
               </span>
-              {t.meta && (
-                <span className="block text-xs text-fg-muted">{t.meta}</span>
-              )}
+              {t.meta && <span className="block text-xs text-fg-muted">{t.meta}</span>}
             </span>
           </button>
         ))}
@@ -207,7 +184,7 @@ export default function Dashboard() {
         </div>
       </Panel>
 
-      <RightRail>
+      <RightRail className="w-200">
         <TopInsetBar />
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto">
           <TasksCard />

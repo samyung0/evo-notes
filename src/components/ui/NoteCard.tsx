@@ -49,10 +49,7 @@ export function NoteCard({
   const t = THEME[theme];
   return (
     <div
-      className={cn(
-        'flex min-h-[150px] flex-col gap-3 rounded-card-lg p-5',
-        className
-      )}
+      className={cn('flex min-h-[150px] flex-col gap-3 rounded-card-lg p-5', className)}
       style={{ background: t.bg, color: t.fg, ...style }}
       {...rest}
     >
@@ -72,10 +69,7 @@ export function NoteCard({
         )}
       </div>
       {body && (
-        <p
-          className="m-0 text-[0.84rem] leading-normal"
-          style={{ opacity: 0.92 }}
-        >
+        <p className="m-0 text-[0.84rem] leading-normal" style={{ opacity: 0.92 }}>
           {body}
         </p>
       )}

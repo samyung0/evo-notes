@@ -44,11 +44,7 @@ export default function DeckStudy() {
     <Panel>
       <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-6 py-6">
         <div className="mb-4 flex items-center gap-3">
-          <Link
-            to="/flashcards"
-            preload="intent"
-            className="text-fg-muted hover:text-fg"
-          >
+          <Link to="/flashcards" preload="intent" className="text-fg-muted hover:text-fg">
             <Icon name="chevronLeft" size={20} />
           </Link>
           <Text variant="subtitle" className="flex-1">
@@ -72,30 +68,16 @@ export default function DeckStudy() {
           <Text variant="section" className="mt-3">
             {flipped ? card.back : card.front}
           </Text>
-          <Text
-            variant="meta"
-            tone="muted"
-            className="mt-6 flex items-center gap-1"
-          >
+          <Text variant="meta" tone="muted" className="mt-6 flex items-center gap-1">
             <Icon name="message" size={13} /> Tap to flip
           </Text>
         </button>
 
         <div className="mt-5 flex gap-3">
-          <Button
-            variant="outline"
-            fullWidth
-            onClick={() => next(false)}
-            iconLeft="x"
-          >
+          <Button variant="outline" fullWidth onClick={() => next(false)} iconLeft="x">
             Still learning
           </Button>
-          <Button
-            variant="accent"
-            fullWidth
-            onClick={() => next(true)}
-            iconLeft="check"
-          >
+          <Button variant="accent" fullWidth onClick={() => next(true)} iconLeft="check">
             Know it
           </Button>
         </div>

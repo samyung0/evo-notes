@@ -16,9 +16,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* ignore */
     }
-    throw new Error(
-      `${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`
-    );
+    throw new Error(`${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

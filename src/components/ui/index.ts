@@ -15,3 +15,4 @@ export { Tabs } from './Tabs';
 export { Menu, type MenuItem } from './Menu';
 export { Modal, ConfirmDialog } from './Modal';
 export { Spinner, Skeleton, EmptyState } from './feedback';
+export { LogoMark } from './Logo';

@@ -42,29 +42,22 @@ export function QuestionRunner({
                 onClick={() => {
                   const cur = answer as number[];
                   if (question.type === 'mcq') onChange([i]);
-                  else
-                    onChange(
-                      selected ? cur.filter((x) => x !== i) : [...cur, i]
-                    );
+                  else onChange(selected ? cur.filter((x) => x !== i) : [...cur, i]);
                 }}
                 className={cn(
                   'flex items-center gap-3 rounded-card border px-4 py-3 text-left text-sm transition-colors',
                   selected
-                    ? 'border-accent bg-tint-purple text-fg'
-                    : 'hover:bg-surface-hover-bg border-line bg-surface text-fg'
+                    ? 'bg-tint-accent-1 border-accent text-fg'
+                    : 'border-line bg-surface text-fg hover:bg-surface-hover-bg'
                 )}
               >
                 <span
                   className={cn(
                     'flex h-5 w-5 items-center justify-center rounded-pill border',
-                    selected
-                      ? 'border-accent bg-accent text-accent-fg'
-                      : 'border-line-strong'
+                    selected ? 'border-accent bg-accent text-accent-fg' : 'border-line-strong'
                   )}
                 >
-                  {selected && (
-                    <Icon name="check" size={13} strokeWidth={2.5} />
-                  )}
+                  {selected && <Icon name="check" size={13} strokeWidth={2.5} />}
                 </span>
                 {opt}
               </button>
@@ -82,8 +75,8 @@ export function QuestionRunner({
               className={cn(
                 'flex-1 rounded-card border px-4 py-3 text-sm font-semibold transition-colors',
                 answer === v
-                  ? 'border-accent bg-tint-purple'
-                  : 'hover:bg-surface-hover-bg border-line bg-surface'
+                  ? 'bg-tint-accent-1 border-accent'
+                  : 'border-line bg-surface hover:bg-surface-hover-bg'
               )}
             >
               {v ? 'True' : 'False'}
@@ -108,7 +101,7 @@ export function QuestionRunner({
               key={item}
               className="flex items-center gap-2 rounded-card border border-line bg-surface px-3 py-2 text-sm"
             >
-              <span className="bg-surface-hover-bg flex h-6 w-6 items-center justify-center rounded-pill text-xs font-bold text-fg-soft">
+              <span className="flex h-6 w-6 items-center justify-center rounded-pill bg-surface-hover-bg text-xs font-bold text-fg-secondary">
                 {i + 1}
               </span>
               <span className="flex-1">{item}</span>
@@ -121,11 +114,7 @@ export function QuestionRunner({
                 }}
                 className="text-fg-muted disabled:opacity-30"
               >
-                <Icon
-                  name="chevronLeft"
-                  size={16}
-                  style={{ transform: 'rotate(90deg)' }}
-                />
+                <Icon name="chevronLeft" size={16} style={{ transform: 'rotate(90deg)' }} />
               </button>
               <button
                 disabled={i === (answer as string[]).length - 1}
@@ -136,11 +125,7 @@ export function QuestionRunner({
                 }}
                 className="text-fg-muted disabled:opacity-30"
               >
-                <Icon
-                  name="chevronRight"
-                  size={16}
-                  style={{ transform: 'rotate(90deg)' }}
-                />
+                <Icon name="chevronRight" size={16} style={{ transform: 'rotate(90deg)' }} />
               </button>
             </div>
           ))}
@@ -151,9 +136,7 @@ export function QuestionRunner({
         <div className="flex flex-col gap-2">
           {question.pairs.map((p) => (
             <div key={p.left} className="flex items-center gap-3">
-              <span className="w-1/2 text-sm font-medium text-fg">
-                {p.left}
-              </span>
+              <span className="w-1/2 text-sm font-medium text-fg">{p.left}</span>
               <select
                 value={(answer as Record<string, string>)[p.left] ?? ''}
                 onChange={(e) =>

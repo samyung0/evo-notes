@@ -25,7 +25,7 @@ const VARIANT_CLASS: Record<Variant, string> = {
 
 const TONE_CLASS: Record<Tone, string> = {
   primary: 'text-fg',
-  secondary: 'text-fg-soft',
+  secondary: 'text-fg-secondary',
   muted: 'text-fg-muted',
   link: 'text-link',
   inherit: '',
@@ -58,10 +58,7 @@ export function Text({
 }: TextProps) {
   const Tag = (as ?? DEFAULT_TAG[variant]) as ElementType;
   return (
-    <Tag
-      className={cn(VARIANT_CLASS[variant], TONE_CLASS[tone], 'm-0', className)}
-      {...rest}
-    >
+    <Tag className={cn(VARIANT_CLASS[variant], TONE_CLASS[tone], 'm-0', className)} {...rest}>
       {children}
     </Tag>
   );

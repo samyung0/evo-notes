@@ -1,0 +1,1 @@
+use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc)

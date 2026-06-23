@@ -42,20 +42,12 @@ export function Modal({
         {title && (
           <div className="flex items-center justify-between border-b border-divider px-5 py-4">
             <Text variant="card-title">{title}</Text>
-            <IconButton
-              icon="x"
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              label="Close"
-            />
+            <IconButton icon="x" variant="ghost" size="sm" onClick={onClose} label="Close" />
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-auto px-5 py-4">{children}</div>
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-divider px-5 py-3">
-            {footer}
-          </div>
+          <div className="flex justify-end gap-2 border-t border-divider px-5 py-3">{footer}</div>
         )}
       </div>
     </div>
@@ -94,11 +86,7 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={danger ? 'primary' : 'accent'}
-            className={
-              danger
-                ? 'bg-solid-error text-white hover:brightness-95'
-                : undefined
-            }
+            className={danger ? 'bg-solid-error text-white hover:brightness-95' : undefined}
             onClick={() => {
               onConfirm();
               onClose();

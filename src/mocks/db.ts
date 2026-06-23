@@ -21,8 +21,7 @@ import type {
   PublicQuiz,
 } from '@/api/types';
 
-export const uid = (p = 'id') =>
-  `${p}_${Math.random().toString(36).slice(2, 9)}`;
+export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
 const now = Date.now();
 const days = (n: number) => new Date(now - n * 86_400_000).toISOString();
@@ -215,8 +214,7 @@ export const files: SourceFile[] = [
     kind: 'md',
     sizeKb: 11,
     addedAt: days(9),
-    content:
-      '# Taylor series\n\nA function f(x) near a point a:\n\nf(x) = Σ fⁿ(a)/n! · (x − a)ⁿ',
+    content: '# Taylor series\n\nA function f(x) near a point a:\n\nf(x) = Σ fⁿ(a)/n! · (x − a)ⁿ',
   },
 ];
 
@@ -266,13 +264,7 @@ export const quizzes: Quiz[] = [
         type: 'ordering',
         difficulty: 'hard',
         prompt: 'Order the path of protein secretion.',
-        items: [
-          'Ribosome',
-          'Rough ER',
-          'Golgi apparatus',
-          'Vesicle',
-          'Cell membrane',
-        ],
+        items: ['Ribosome', 'Rough ER', 'Golgi apparatus', 'Vesicle', 'Cell membrane'],
       },
       {
         id: 'q6',
@@ -309,9 +301,7 @@ export const quizzes: Quiz[] = [
         type: 'short',
         difficulty: 'hard',
         prompt: 'Define a dominant allele in one sentence.',
-        accepted: [
-          'an allele expressed in the phenotype even when only one copy is present',
-        ],
+        accepted: ['an allele expressed in the phenotype even when only one copy is present'],
       },
     ],
   },
@@ -329,12 +319,7 @@ export const quizzes: Quiz[] = [
         type: 'mcq',
         difficulty: 'medium',
         prompt: '∫ x·eˣ dx is best solved by…',
-        options: [
-          'Substitution',
-          'Integration by parts',
-          'Partial fractions',
-          'Trig substitution',
-        ],
+        options: ['Substitution', 'Integration by parts', 'Partial fractions', 'Trig substitution'],
         correct: [1],
       },
       {

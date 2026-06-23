@@ -1,21 +1,12 @@
 import type { Question } from '@/api/types';
 
-export type Answer =
-  | number[]
-  | boolean
-  | string
-  | string[]
-  | Record<string, string>;
+export type Answer = number[] | boolean | string | string[] | Record<string, string>;
 
 const norm = (s: string) => s.trim().toLowerCase();
 const setEq = (a: number[], b: number[]) =>
-  a.length === b.length &&
-  [...a].sort().every((v, i) => v === [...b].sort()[i]);
+  a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i]);
 
-export function gradeQuestion(
-  q: Question,
-  answer: Answer | undefined
-): boolean {
+export function gradeQuestion(q: Question, answer: Answer | undefined): boolean {
   if (answer == null) return false;
   switch (q.type) {
     case 'mcq':
@@ -29,20 +20,12 @@ export function gradeQuestion(
       return answer === q.correct;
     case 'fill':
     case 'short':
-      return (
-        typeof answer === 'string' &&
-        q.accepted.some((a) => norm(a) === norm(answer))
-      );
+      return typeof answer === 'string' && q.accepted.some((a) => norm(a) === norm(answer));
     case 'ordering':
-      return (
-        Array.isArray(answer) &&
-        (answer as string[]).join('|') === q.items.join('|')
-      );
+      return Array.isArray(answer) && (answer as string[]).join('|') === q.items.join('|');
     case 'matching': {
       if (typeof answer !== 'object' || Array.isArray(answer)) return false;
-      return q.pairs.every(
-        (p) => (answer as Record<string, string>)[p.left] === p.right
-      );
+      return q.pairs.every((p) => (answer as Record<string, string>)[p.left] === p.right);
     }
     default:
       return false;

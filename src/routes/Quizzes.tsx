@@ -14,12 +14,7 @@ import {
   Tabs,
   Text,
 } from '@/components/ui';
-import {
-  useAttempts,
-  useDeleteQuiz,
-  useQuizzes,
-  useUpdateQuiz,
-} from '@/api/hooks';
+import { useAttempts, useDeleteQuiz, useQuizzes, useUpdateQuiz } from '@/api/hooks';
 import { QuizEditModal } from '@/features/quizzes/QuizEditModal';
 import type { Attempt, Quiz } from '@/api/types';
 import { m } from '@/i18n';
@@ -56,7 +51,7 @@ function AllQuizzes() {
             className="relative"
             onClick={() => setInfo(q)}
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-purple text-tint-purple-fg">
+            <span className="bg-tint-accent-1 text-tint-accent-1-fg flex h-11 w-11 items-center justify-center rounded-card">
               <Icon name="quiz" size={20} />
             </span>
             <Text variant="card-title" className="mt-3 truncate">
@@ -66,13 +61,9 @@ function AllQuizzes() {
               <Icon name="book" size={13} /> {q.workspaceName}
             </span>
             <Text variant="meta" tone="muted" className="mt-1">
-              {q.questions.length} questions ·{' '}
-              {q.chapters.join(', ') || 'All chapters'}
+              {q.questions.length} questions · {q.chapters.join(', ') || 'All chapters'}
             </Text>
-            <div
-              className="absolute top-3 right-3"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
               <Menu
                 items={[
                   {
@@ -140,8 +131,8 @@ function AllQuizzes() {
         {info && (
           <div className="flex flex-col gap-2">
             <Text variant="body">
-              <b>{info.questions.length}</b> questions across{' '}
-              {info.chapters.length || 'all'} chapters.
+              <b>{info.questions.length}</b> questions across {info.chapters.length || 'all'}{' '}
+              chapters.
             </Text>
             <Text variant="body" tone="secondary">
               Workspace: {info.workspaceName}
@@ -191,7 +182,7 @@ function PastAttempts() {
   return (
     <div className="overflow-hidden rounded-card border border-line">
       {/* desktop header */}
-      <div className="bg-surface-hover-bg hidden px-4 py-3 text-xs font-bold tracking-wide text-fg-muted uppercase md:flex">
+      <div className="hidden bg-surface-hover-bg px-4 py-3 text-xs font-bold tracking-wide text-fg-muted uppercase md:flex">
         <div className="flex-[2.2]">{m.quiz_col_quiz()}</div>
         <div className="flex-[1.8]">{m.quiz_col_workspace()}</div>
         <div className="flex-1 text-center">{m.quiz_col_score()}</div>
@@ -204,9 +195,7 @@ function PastAttempts() {
           className="flex flex-col gap-2 border-t border-divider px-4 py-3 first:border-t-0 md:flex-row md:items-center"
         >
           <div className="flex-[2.2] font-semibold text-fg">{a.quizName}</div>
-          <div className="flex-[1.8] text-sm text-fg-soft">
-            {a.workspaceName}
-          </div>
+          <div className="flex-[1.8] text-sm text-fg-secondary">{a.workspaceName}</div>
           <div className="flex-1 md:text-center">
             <Badge tone={scoreTone(a.pct)}>
               {a.correct}/{a.total} · {a.pct}%
@@ -232,9 +221,7 @@ export default function Quizzes() {
     <Panel>
       <PageHeader
         title={m.nav_quizzes()}
-        actions={
-          <IconButton icon="plus" variant="dark" label={m.action_new_quiz()} />
-        }
+        actions={<IconButton icon="plus" variant="dark" label={m.action_new_quiz()} />}
       />
       <div className="px-6">
         <Tabs

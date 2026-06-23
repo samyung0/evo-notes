@@ -10,8 +10,7 @@ export interface SegmentedControlProps {
   className?: string;
 }
 
-const norm = (o: Option) =>
-  typeof o === 'string' ? { value: o, label: o } : o;
+const norm = (o: Option) => (typeof o === 'string' ? { value: o, label: o } : o);
 
 export function SegmentedControl({
   options,
@@ -22,10 +21,7 @@ export function SegmentedControl({
 }: SegmentedControlProps) {
   return (
     <div
-      className={cn(
-        'inline-flex rounded-pill border border-line bg-surface p-[3px]',
-        className
-      )}
+      className={cn('inline-flex rounded-pill border border-line bg-surface p-[3px]', className)}
     >
       {options.map((opt) => {
         const o = norm(opt);
@@ -36,9 +32,7 @@ export function SegmentedControl({
             onClick={() => onChange?.(o.value)}
             className={cn(
               'rounded-pill font-semibold transition-colors',
-              size === 'sm'
-                ? 'px-[15px] py-2 text-[12.5px]'
-                : 'px-[19px] py-[11px] text-sm',
+              size === 'sm' ? 'px-[15px] py-2 text-[12.5px]' : 'px-[19px] py-[11px] text-sm',
               active
                 ? 'bg-action text-action-fg shadow-chip'
                 : 'bg-transparent text-fg-muted hover:text-fg'

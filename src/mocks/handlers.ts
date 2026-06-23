@@ -19,18 +19,14 @@ function sortWorkspaces(list: Workspace[], sort: string | null): Workspace[] {
   const copy = [...list];
   switch (sort) {
     case 'created':
-      return copy.sort(
-        (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
-      );
+      return copy.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     case 'chapters':
       return copy.sort((a, b) => b.chapterCount - a.chapterCount);
     case 'files':
       return copy.sort((a, b) => b.fileCount - a.fileCount);
     case 'accessed':
     default:
-      return copy.sort(
-        (a, b) => +new Date(b.lastAccessedAt) - +new Date(a.lastAccessedAt)
-      );
+      return copy.sort((a, b) => +new Date(b.lastAccessedAt) - +new Date(a.lastAccessedAt));
   }
 }
 
@@ -44,16 +40,11 @@ export const handlers = [
   /* ---------------- global search ---------------- */
   http.get('/api/search', async ({ request }) => {
     await latency();
-    const q = (new URL(request.url).searchParams.get('q') ?? '')
-      .toLowerCase()
-      .trim();
+    const q = (new URL(request.url).searchParams.get('q') ?? '').toLowerCase().trim();
     if (!q) return HttpResponse.json([] as SearchResult[]);
     const results: SearchResult[] = [];
     for (const w of db.workspaces)
-      if (
-        w.name.toLowerCase().includes(q) ||
-        w.tags.some((t) => t.toLowerCase().includes(q))
-      )
+      if (w.name.toLowerCase().includes(q) || w.tags.some((t) => t.toLowerCase().includes(q)))
         results.push({
           id: w.id,
           kind: 'workspace',
@@ -120,9 +111,7 @@ export const handlers = [
     let list = [...db.workspaces];
     if (q)
       list = list.filter(
-        (w) =>
-          w.name.toLowerCase().includes(q) ||
-          w.tags.some((t) => t.toLowerCase().includes(q))
+        (w) => w.name.toLowerCase().includes(q) || w.tags.some((t) => t.toLowerCase().includes(q))
       );
     if (color) list = list.filter((w) => w.color === color);
     if (tag) list = list.filter((w) => w.tags.includes(tag));
@@ -143,9 +132,7 @@ export const handlers = [
     const att = db.attempts.filter(
       (a) => db.quizzes.find((q) => q.id === a.quizId)?.workspaceId === ws.id
     );
-    const avg = att.length
-      ? Math.round(att.reduce((s, a) => s + a.pct, 0) / att.length)
-      : 0;
+    const avg = att.length ? Math.round(att.reduce((s, a) => s + a.pct, 0) / att.length) : 0;
     return HttpResponse.json({
       chapters: ws.chapterCount,
       files: ws.fileCount,
@@ -186,9 +173,7 @@ export const handlers = [
   http.get('/api/workspaces/:id/chapters', async ({ params }) => {
     await latency();
     return HttpResponse.json(
-      db.chapters
-        .filter((c) => c.workspaceId === params.id)
-        .sort((a, b) => a.order - b.order)
+      db.chapters.filter((c) => c.workspaceId === params.id).sort((a, b) => a.order - b.order)
     );
   }),
   http.post('/api/workspaces/:id/chapters', async ({ params, request }) => {
@@ -237,9 +222,7 @@ export const handlers = [
   }),
   http.get('/api/workspaces/:id/files', async ({ params }) => {
     await latency();
-    return HttpResponse.json(
-      db.files.filter((f) => f.workspaceId === params.id)
-    );
+    return HttpResponse.json(db.files.filter((f) => f.workspaceId === params.id));
   }),
   http.get('/api/files/:id', async ({ params }) => {
     await latency();
@@ -265,8 +248,7 @@ export const handlers = [
     db.files.push(f);
     const ws = db.workspaces.find((w) => w.id === params.id);
     if (ws) ws.fileCount += 1;
-    if (f.chapterId)
-      db.chapters.find((c) => c.id === f.chapterId)?.fileIds.push(f.id);
+    if (f.chapterId) db.chapters.find((c) => c.id === f.chapterId)?.fileIds.push(f.id);
     return HttpResponse.json(f, { status: 201 });
   }),
 
@@ -289,8 +271,7 @@ export const handlers = [
   http.post('/api/workspaces/:id/generate', async ({ params, request }) => {
     await delay(900);
     const opts = (await request.json()) as GenerateOptions;
-    const wsName =
-      db.workspaces.find((w) => w.id === params.id)?.name ?? 'Workspace';
+    const wsName = db.workspaces.find((w) => w.id === params.id)?.name ?? 'Workspace';
     if (opts.kind === 'summary') {
       return HttpResponse.json({
         kind: 'summary',
@@ -311,8 +292,7 @@ export const handlers = [
     // quiz
     const qs: Question[] = Array.from({ length: opts.count }, (_, i) => {
       const type = opts.types[i % opts.types.length] ?? 'mcq';
-      const difficulty =
-        opts.difficulty[i % opts.difficulty.length] ?? 'medium';
+      const difficulty = opts.difficulty[i % opts.difficulty.length] ?? 'medium';
       const base = {
         id: uid('q'),
         difficulty,
@@ -394,9 +374,7 @@ export const handlers = [
   http.get('/api/attempts', async () => {
     await latency();
     return HttpResponse.json(
-      [...db.attempts].sort(
-        (a, b) => +new Date(b.takenAt) - +new Date(a.takenAt)
-      )
+      [...db.attempts].sort((a, b) => +new Date(b.takenAt) - +new Date(a.takenAt))
     );
   }),
   http.post('/api/quizzes/:id/attempts', async ({ params, request }) => {
@@ -444,10 +422,7 @@ export const handlers = [
     return HttpResponse.json(db.events);
   }),
   http.post('/api/events', async ({ request }) => {
-    const body = (await request.json()) as Omit<
-      (typeof db.events)[number],
-      'id'
-    >;
+    const body = (await request.json()) as Omit<(typeof db.events)[number], 'id'>;
     const ev = { ...body, id: uid('ev') };
     db.events.push(ev);
     return HttpResponse.json(ev, { status: 201 });
@@ -474,9 +449,7 @@ export const handlers = [
     // simulate day-end cleanup: drop tasks completed before today
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    const visible = db.tasks.filter(
-      (t) => !(t.done && +new Date(t.dueDate) < +startOfToday)
-    );
+    const visible = db.tasks.filter((t) => !(t.done && +new Date(t.dueDate) < +startOfToday));
     return HttpResponse.json(visible);
   }),
   http.patch('/api/tasks/:id', async ({ params, request }) => {

@@ -13,8 +13,8 @@ const CHANNELS: {
 }[] = [
   {
     icon: 'message',
-    tint: 'var(--tint-purple-bg)',
-    tintFg: 'var(--tint-purple-fg)',
+    tint: 'var(--tint-accent-1-bg)',
+    tintFg: 'var(--tint-accent-1-fg)',
     title: 'Chat with us',
     body: 'Questions about a workspace, an import, or a quiz? Send a message and the team replies within a day.',
     action: 'Start a chat',
@@ -29,8 +29,8 @@ const CHANNELS: {
   },
   {
     icon: 'book',
-    tint: 'var(--tint-green-bg)',
-    tintFg: 'var(--tint-green-fg)',
+    tint: 'var(--tint-accent-2-bg)',
+    tintFg: 'var(--tint-accent-2-fg)',
     title: 'Guides & docs',
     body: 'Step-by-step walkthroughs for building workspaces, generating study sets, and tracking progress.',
     action: 'Browse guides',
@@ -95,12 +95,7 @@ export default function Support() {
         <div className="mx-auto flex max-w-4xl flex-col gap-8">
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {CHANNELS.map((c) => (
-              <Card
-                key={c.title}
-                padding={20}
-                radius="card-lg"
-                className="flex flex-col"
-              >
+              <Card key={c.title} padding={20} radius="card-lg" className="flex flex-col">
                 <span
                   className="flex h-11 w-11 items-center justify-center rounded-card"
                   style={{ background: c.tint, color: c.tintFg }}
@@ -136,12 +131,12 @@ export default function Support() {
             </div>
           </section>
 
-          <section className="flex flex-col items-start gap-3 rounded-card-lg bg-tint-purple px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <section className="flex flex-col items-start gap-3 rounded-card-lg bg-tint-accent-1 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <Text variant="subtitle" className="text-tint-purple-fg">
+              <Text variant="subtitle" className="text-tint-accent-1-fg">
                 Still stuck?
               </Text>
-              <Text variant="meta" className="mt-1 text-tint-purple-fg/80">
+              <Text variant="meta" className="mt-1 text-tint-accent-1-fg/80">
                 Send the team a note and we’ll get you unblocked.
               </Text>
             </div>

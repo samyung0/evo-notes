@@ -54,11 +54,7 @@ export function MiniCalendar({
         <div className="py-1">
           <div className="mb-2 flex items-center justify-between">
             <button
-              onClick={() =>
-                onMonthChange(
-                  new Date(month.getFullYear() - 1, month.getMonth(), 1)
-                )
-              }
+              onClick={() => onMonthChange(new Date(month.getFullYear() - 1, month.getMonth(), 1))}
               className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
               aria-label="Previous year"
             >
@@ -66,11 +62,7 @@ export function MiniCalendar({
             </button>
             <span className="text-sm font-bold">{month.getFullYear()}</span>
             <button
-              onClick={() =>
-                onMonthChange(
-                  new Date(month.getFullYear() + 1, month.getMonth(), 1)
-                )
-              }
+              onClick={() => onMonthChange(new Date(month.getFullYear() + 1, month.getMonth(), 1))}
               className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
               aria-label="Next year"
             >
@@ -87,9 +79,7 @@ export function MiniCalendar({
                 }}
                 className={cn(
                   'hover:bg-surface-hover-bg rounded-row py-1.5 text-xs font-medium',
-                  i === month.getMonth()
-                    ? 'bg-action text-action-fg'
-                    : 'text-fg'
+                  i === month.getMonth() ? 'bg-action text-action-fg' : 'text-fg'
                 )}
               >
                 {mo.slice(0, 3)}
@@ -101,10 +91,7 @@ export function MiniCalendar({
         <>
           <div className="grid grid-cols-7 gap-0.5">
             {WEEKDAYS.map((w) => (
-              <div
-                key={w}
-                className="py-1 text-center text-[0.68rem] font-semibold text-fg-muted"
-              >
+              <div key={w} className="py-1 text-center text-[0.68rem] font-semibold text-fg-muted">
                 {w[0]}
               </div>
             ))}

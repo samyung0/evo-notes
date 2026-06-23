@@ -14,9 +14,7 @@ export function QuizEditModal({
   onSave: (patch: Partial<Quiz>) => void;
 }) {
   const [name, setName] = useState(quiz.name);
-  const [questions, setQuestions] = useState<Question[]>(
-    structuredClone(quiz.questions)
-  );
+  const [questions, setQuestions] = useState<Question[]>(structuredClone(quiz.questions));
 
   function update(i: number, next: Question) {
     setQuestions((qs) => qs.map((q, idx) => (idx === i ? next : q)));
@@ -53,10 +51,7 @@ export function QuizEditModal({
         </label>
 
         {questions.map((q, i) => (
-          <div
-            key={q.id}
-            className="bg-surface-hover-bg rounded-card border border-line p-4"
-          >
+          <div key={q.id} className="bg-surface-hover-bg rounded-card border border-line p-4">
             <div className="mb-2 flex items-center gap-2">
               <span className="t-label text-fg-muted">
                 Q{i + 1} · {q.type} · {q.difficulty}
@@ -77,9 +72,7 @@ export function QuizEditModal({
                       tone="green"
                       size={20}
                       onChange={(c) => {
-                        const correct = c
-                          ? [...q.correct, oi]
-                          : q.correct.filter((x) => x !== oi);
+                        const correct = c ? [...q.correct, oi] : q.correct.filter((x) => x !== oi);
                         update(i, {
                           ...q,
                           correct: q.type === 'mcq' ? (c ? [oi] : []) : correct,
@@ -140,13 +133,8 @@ export function QuizEditModal({
             )}
 
             {(q.type === 'ordering' || q.type === 'matching') && (
-              <Text
-                variant="meta"
-                tone="muted"
-                className="mt-2 flex items-center gap-1"
-              >
-                <Icon name="settings" size={12} /> Edit items in the full
-                editor.
+              <Text variant="meta" tone="muted" className="mt-2 flex items-center gap-1">
+                <Icon name="settings" size={12} /> Edit items in the full editor.
               </Text>
             )}
           </div>

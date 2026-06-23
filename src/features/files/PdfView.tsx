@@ -27,12 +27,7 @@ export default function PdfView({ url }: { url: string }) {
           </Text>
         }
       >
-        <Page
-          pageNumber={page}
-          width={680}
-          renderTextLayer
-          renderAnnotationLayer={false}
-        />
+        <Page pageNumber={page} width={680} renderTextLayer renderAnnotationLayer={false} />
       </Document>
       {numPages > 1 && (
         <div className="sticky bottom-2 mt-3 flex items-center gap-3 rounded-pill border border-line bg-surface px-2 py-1 shadow-card">

@@ -1,55 +1,41 @@
-import type { WorkspaceColor } from '@/api/types';
+import type { UserColor } from '@/api/types';
 
 /** Resolves a workspace/label color to themed CSS-var pairs (bg + fg + solid). */
 export interface ColorPair {
   bg: string;
   fg: string;
-  fgMuted: string;
-  solid: string;
 }
 
-const MAP: Record<WorkspaceColor, ColorPair> = {
+const USER_COLOR_MAP: Record<UserColor, ColorPair> = {
   green: {
-    bg: 'var(--tint-green-bg)',
-    fg: 'var(--tint-green-fg)',
-    fgMuted: 'var(--tint-green-fg)',
-    solid: 'var(--solid-green)',
+    bg: 'var(--solid-green)',
+    fg: 'var(--solid-green-fg)',
   },
   purple: {
-    bg: 'var(--tint-purple-bg)',
-    fg: 'var(--tint-purple-fg)',
-    fgMuted: 'var(--tint-purple-fg)',
-    solid: 'var(--solid-purple)',
+    bg: 'var(--solid-purple)',
+    fg: 'var(--solid-purple-fg)'
   },
   blue: {
-    bg: 'var(--tint-info-bg)',
-    fg: 'var(--tint-info-fg)',
-    fgMuted: 'var(--tint-info-fg)',
-    solid: 'var(--solid-info)',
+    bg: 'var(--solid-blue)',
+    fg: 'var(--solid-blue-fg)',
   },
   amber: {
-    bg: 'var(--tint-warning-bg)',
-    fg: 'var(--tint-warning-fg)',
-    fgMuted: 'var(--tint-warning-fg)',
-    solid: 'var(--solid-warning)',
+    bg: 'var(--solid-amber)',
+    fg: 'var(--solid-amber-fg)',
   },
   coral: {
-    bg: 'var(--tint-error-bg)',
-    fg: 'var(--tint-error-fg)',
-    fgMuted: 'var(--tint-error-fg)',
-    solid: 'var(--solid-error)',
+    bg: 'var(--solid-coral)',
+    fg: 'var(--solid-coral-fg)',
   },
   graphite: {
-    bg: 'var(--surface-inset-bg)',
-    fg: 'var(--text-primary)',
-    fgMuted: 'var(--text-muted)',
-    solid: 'var(--text-muted)',
+    bg: 'var(--solid-graphite)',
+    fg: 'var(--solid-graphite-fg)',
   },
 };
 
-export const colorPair = (c: WorkspaceColor): ColorPair => MAP[c] ?? MAP.green;
+export const userColorPair = (c: UserColor): ColorPair => USER_COLOR_MAP[c] ?? USER_COLOR_MAP.graphite;
 
-export const WORKSPACE_COLORS: WorkspaceColor[] = [
+export const USER_COLORS: UserColor[] = [
   'green',
   'purple',
   'blue',

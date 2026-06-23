@@ -2,13 +2,9 @@
    Domain types — shared by the mock API, query hooks, and UI.
    ============================================================ */
 
-export type WorkspaceColor =
-  | 'green'
-  | 'purple'
-  | 'blue'
-  | 'amber'
-  | 'coral'
-  | 'graphite';
+export type UserColor = 'green' | 'purple' | 'blue' | 'amber' | 'coral' | 'graphite';
+
+export type SystemColor = 'success' | 'info' | 'warning' | 'error' | 'accent-1' | 'accent-2';
 
 export type Privacy = 'private' | 'public' | 'link';
 
@@ -25,7 +21,7 @@ export interface User {
 export interface Workspace {
   id: string;
   name: string;
-  color: WorkspaceColor;
+  color: UserColor;
   privacy: Privacy;
   tags: string[];
   chapterCount: number;
@@ -150,7 +146,7 @@ export interface Deck {
   name: string;
   workspaceId: string;
   workspaceName: string;
-  color: WorkspaceColor;
+  color: UserColor;
   cardCount: number;
   knownPct: number;
 }
@@ -166,7 +162,7 @@ export interface Flashcard {
 export interface Label {
   id: string;
   name: string;
-  color: WorkspaceColor;
+  color: UserColor;
 }
 export interface CalendarEvent {
   id: string;
@@ -203,12 +199,7 @@ export interface ThinkingCanvas {
   scene?: unknown;
 }
 
-export type SearchKind =
-  | 'workspace'
-  | 'file'
-  | 'event'
-  | 'flashcards'
-  | 'thinking';
+export type SearchKind = 'workspace' | 'file' | 'event' | 'flashcards' | 'thinking';
 export interface SearchResult {
   id: string;
   kind: SearchKind;

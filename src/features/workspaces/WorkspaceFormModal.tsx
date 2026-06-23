@@ -25,9 +25,7 @@ export function WorkspaceFormModal({
   const [name, setName] = useState(initial?.name ?? '');
   const [color, setColor] = useState<WorkspaceColor>(initial?.color ?? 'green');
   const [tags, setTags] = useState(initial?.tags.join(', ') ?? '');
-  const [privacy, setPrivacy] = useState<Privacy>(
-    initial?.privacy ?? 'private'
-  );
+  const [privacy, setPrivacy] = useState<Privacy>(initial?.privacy ?? 'private');
 
   return (
     <Modal
@@ -85,8 +83,7 @@ export function WorkspaceFormModal({
                   aria-label={c}
                   className={cn(
                     'h-8 w-8 rounded-pill transition-transform',
-                    color === c &&
-                      'ring-2 ring-action ring-offset-2 ring-offset-surface'
+                    color === c && 'ring-2 ring-action ring-offset-2 ring-offset-surface'
                   )}
                   style={{ background: p.solid }}
                 />

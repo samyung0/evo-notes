@@ -1,13 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { Panel, PageHeader } from '@/components/app/layout';
-import {
-  Card,
-  Icon,
-  IconButton,
-  ProgressBar,
-  Spinner,
-  Text,
-} from '@/components/ui';
+import { Card, Icon, IconButton, ProgressBar, Spinner, Text } from '@/components/ui';
 import { colorPair } from '@/lib/workspaceColor';
 import { useDecks } from '@/api/hooks';
 import { m } from '@/i18n';
@@ -36,12 +29,7 @@ export default function Flashcards() {
                   params={{ deckId: d.id }}
                   preload="intent"
                 >
-                  <Card
-                    interactive
-                    padding={18}
-                    radius="card-lg"
-                    className="h-full"
-                  >
+                  <Card interactive padding={18} radius="card-lg" className="h-full">
                     <span
                       className="flex h-11 w-11 items-center justify-center rounded-card"
                       style={{ background: c.bg, color: c.fg }}

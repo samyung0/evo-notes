@@ -28,7 +28,7 @@ export default function Files() {
                 onClick={() => setOpen(f)}
                 className="flex items-center gap-3"
               >
-                <span className="bg-surface-hover-bg flex h-10 w-10 items-center justify-center rounded-card text-fg-soft">
+                <span className="bg-surface-hover-bg flex h-10 w-10 items-center justify-center rounded-card text-fg-secondary">
                   <Icon name="files" size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -47,12 +47,7 @@ export default function Files() {
           </div>
         )}
       </div>
-      <Modal
-        open={!!open}
-        onClose={() => setOpen(null)}
-        title={open?.name}
-        width={760}
-      >
+      <Modal open={!!open} onClose={() => setOpen(null)} title={open?.name} width={760}>
         <div className="min-h-[50vh]">{open && <FileViewer file={open} />}</div>
       </Modal>
     </Panel>

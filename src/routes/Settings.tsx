@@ -6,13 +6,7 @@ import { useTheme, THEMES } from '@/theme/ThemeProvider';
 import { cn } from '@/lib/cn';
 import { m } from '@/i18n';
 
-function Row({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between border-b border-divider py-4 last:border-0">
       <Text variant="subtitle">{label}</Text>
@@ -42,9 +36,7 @@ export default function Settings() {
                     onClick={() => setTheme(t.value)}
                     className={cn(
                       'rounded-pill px-3 py-1.5 text-sm font-semibold',
-                      theme === t.value
-                        ? 'bg-action text-action-fg'
-                        : 'text-fg-muted'
+                      theme === t.value ? 'bg-action text-action-fg' : 'text-fg-muted'
                     )}
                   >
                     {t.label}

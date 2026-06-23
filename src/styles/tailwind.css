@@ -21,7 +21,7 @@
   --color-canvas: var(--surface-canvas);
 
   --color-surface: var(--surface-card-bg);
-  --color-surface-fg: var(--surface-card-fg);
+  --color-surface-hover-bg: var(--surface-card-hover-bg);
 
   --color-surface-dark-hover-bg: var(--surface-card-dark-hover-bg);
   --color-surface-dark: var(--surface-card-dark-bg);
@@ -31,10 +31,10 @@
   --color-topbar: var(--surface-topbar-bg);
 
   /* Text → text-* */
-  --color-surface-hover-bg: var(--surface-card-hover-bg);
+  --color-surface-fg: var(--surface-card-fg);
   --color-surface-dark-fg: var(--surface-card-dark-fg);
   --color-fg: var(--text-primary);
-  --color-fg-soft: var(--text-secondary);
+  --color-fg-secondary: var(--text-secondary);
   --color-fg-muted: var(--text-muted);
   --color-placeholder: var(--text-placeholder);
   --color-link: var(--text-link);
@@ -53,7 +53,7 @@
   --color-accent-fg: var(--action-accent-fg);
   --color-accent-hover: var(--action-accent-hover);
 
-  /* Tints (container bg + fg) */
+  /* System colors */
   --color-tint-success: var(--tint-success-bg);
   --color-tint-success-fg: var(--tint-success-fg);
   --color-tint-info: var(--tint-info-bg);
@@ -62,18 +62,29 @@
   --color-tint-warning-fg: var(--tint-warning-fg);
   --color-tint-error: var(--tint-error-bg);
   --color-tint-error-fg: var(--tint-error-fg);
-  --color-tint-purple: var(--tint-purple-bg);
-  --color-tint-purple-fg: var(--tint-purple-fg);
-  --color-tint-green: var(--tint-green-bg);
-  --color-tint-green-fg: var(--tint-green-fg);
-
-  /* Solid signal colors (dots, bars, fills) */
+  --color-tint-accent-1: var(--tint-accent-1-bg);
+  --color-tint-accent-1-fg: var(--tint-accent-1-fg);
+  --color-tint-accent-2: var(--tint-accent-2-bg);
+  --color-tint-accent-2-fg: var(--tint-accent-2-fg);
   --color-solid-success: var(--solid-success);
   --color-solid-info: var(--solid-info);
   --color-solid-warning: var(--solid-warning);
   --color-solid-error: var(--solid-error);
+
+  /* User colors (used for assigned colors to workspaces/quiz/event/custom cards) */
+  /* TODO: in future include dynamic color palette so user have more options */
   --color-solid-purple: var(--solid-purple);
+  --color-solid-purple-fg: var(--solid-purple-fg);
   --color-solid-green: var(--solid-green);
+  --color-solid-green-fg: var(--solid-green-fg);
+  --color-solid-blue: var(--solid-blue);
+  --color-solid-blue-fg: var(--solid-blue-fg);
+  --color-solid-amber: var(--solid-amber);
+  --color-solid-amber-fg: var(--solid-amber-fg);
+  --color-solid-coral: var(--solid-coral);
+  --color-solid-coral-fg: var(--solid-coral-fg);
+  --color-solid-graphite: var(--solid-graphite);
+  --color-solid-graphite-fg: var(--solid-graphite-fg);
 
   /* Note surfaces */
   --color-note-green: var(--note-green-bg);
@@ -120,7 +131,7 @@
     margin: 0;
   }
   ::selection {
-    background: var(--tint-purple-bg);
+    background: var(--tint-accent-1-bg);
     color: var(--text-primary);
   }
 }
@@ -169,6 +180,11 @@
       font-weight: var(--font-label-weight, 600);
       line-height: var(--font-label-line-height, 1);
       letter-spacing: var(--font-label-letter-spacing, 0.03rem);
+    }
+    .t-meta {
+      font-size: var(--font-label-size, 0.875rem);
+      font-weight: var(--font-label-weight, 400);
+      line-height: var(--font-label-line-height, 1.2);
     }
   }
 }

@@ -36,8 +36,7 @@ export default function Schedule() {
   const visibleEvents = useMemo(
     () =>
       (events ?? []).filter(
-        (e) =>
-          e.labelIds.length === 0 || e.labelIds.some((id) => !hidden.has(id))
+        (e) => e.labelIds.length === 0 || e.labelIds.some((id) => !hidden.has(id))
       ),
     [events, hidden]
   );
@@ -98,11 +97,7 @@ export default function Schedule() {
                       border: on ? 'none' : '1.5px solid var(--border-strong)',
                     }}
                   />
-                  <span
-                    className={on ? 'text-sm text-fg' : 'text-sm text-fg-muted'}
-                  >
-                    {l.name}
-                  </span>
+                  <span className={on ? 'text-sm text-fg' : 'text-sm text-fg-muted'}>{l.name}</span>
                 </button>
               );
             })}
@@ -156,13 +151,7 @@ export default function Schedule() {
         </div>
       </Panel>
 
-      {active && (
-        <EventPopup
-          data={active}
-          labels={labels ?? []}
-          onClose={() => setActive(null)}
-        />
-      )}
+      {active && <EventPopup data={active} labels={labels ?? []} onClose={() => setActive(null)} />}
     </div>
   );
 }
@@ -190,20 +179,14 @@ function EventPopup({
         </Text>
         <div className="flex gap-1">
           <IconButton icon="notes" variant="ghost" size="sm" label="Edit" />
-          <IconButton
-            icon="x"
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            label="Close"
-          />
+          <IconButton icon="x" variant="ghost" size="sm" onClick={onClose} label="Close" />
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-2 text-sm text-fg-soft">
+      <div className="mt-2 flex items-center gap-2 text-sm text-fg-secondary">
         <Icon name="clock" size={15} /> {fmtTime(ev.start)} – {fmtTime(ev.end)}
       </div>
       {ev.location && (
-        <div className="mt-1 flex items-center gap-2 text-sm text-fg-soft">
+        <div className="mt-1 flex items-center gap-2 text-sm text-fg-secondary">
           <Icon name="location" size={15} /> {ev.location}
         </div>
       )}
@@ -213,7 +196,7 @@ function EventPopup({
           return l ? (
             <span
               key={id}
-              className="bg-surface-hover-bg rounded-pill px-2 py-0.5 text-[11px] font-medium text-fg-soft"
+              className="bg-surface-hover-bg rounded-pill px-2 py-0.5 text-[11px] font-medium text-fg-secondary"
             >
               {l.name}
             </span>

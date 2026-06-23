@@ -38,23 +38,12 @@ export default function Thinking() {
                 params={{ canvasId: c.id }}
                 preload="intent"
               >
-                <Card
-                  interactive
-                  padding={0}
-                  radius="card-lg"
-                  className="overflow-hidden"
-                >
+                <Card interactive padding={0} radius="card-lg" className="overflow-hidden">
                   <div
                     className="flex h-28 items-center justify-center"
                     style={{
-                      background:
-                        i % 2
-                          ? 'var(--note-purple-bg)'
-                          : 'var(--note-green-bg)',
-                      color:
-                        i % 2
-                          ? 'var(--note-purple-fg)'
-                          : 'var(--note-green-fg)',
+                      background: i % 2 ? 'var(--note-purple-bg)' : 'var(--note-green-bg)',
+                      color: i % 2 ? 'var(--note-purple-fg)' : 'var(--note-green-fg)',
                     }}
                   >
                     <Icon name="notes" size={28} />

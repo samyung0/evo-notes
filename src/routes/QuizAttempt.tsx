@@ -4,11 +4,7 @@ import { Panel } from '@/components/app/layout';
 import { Button, Icon, ProgressBar, Spinner, Text } from '@/components/ui';
 import { useQuiz, useSubmitAttempt } from '@/api/hooks';
 import { QuestionRunner } from '@/features/quizzes/QuestionRunner';
-import {
-  emptyAnswer,
-  gradeQuestion,
-  type Answer,
-} from '@/features/quizzes/grade';
+import { emptyAnswer, gradeQuestion, type Answer } from '@/features/quizzes/grade';
 
 export default function QuizAttempt() {
   const params = useParams({ strict: false });
@@ -22,9 +18,7 @@ export default function QuizAttempt() {
 
   const score = useMemo(() => {
     if (!quiz) return { correct: 0, total: 0 };
-    const correct = quiz.questions.filter((q) =>
-      gradeQuestion(q, answers[q.id])
-    ).length;
+    const correct = quiz.questions.filter((q) => gradeQuestion(q, answers[q.id])).length;
     return { correct, total: quiz.questions.length };
   }, [quiz, answers]);
 
@@ -51,7 +45,7 @@ export default function QuizAttempt() {
     return (
       <Panel>
         <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center gap-5 px-6 text-center">
-          <span className="flex h-16 w-16 items-center justify-center rounded-card-lg bg-tint-purple text-tint-purple-fg">
+          <span className="bg-tint-accent-1 text-tint-accent-1-fg flex h-16 w-16 items-center justify-center rounded-card-lg">
             <Icon name="quiz" size={30} />
           </span>
           <Text variant="page-title">
@@ -78,9 +72,7 @@ export default function QuizAttempt() {
                   <Icon
                     name={ok ? 'check' : 'x'}
                     size={16}
-                    className={
-                      ok ? 'text-tint-success-fg' : 'text-tint-error-fg'
-                    }
+                    className={ok ? 'text-tint-success-fg' : 'text-tint-error-fg'}
                   />
                   <Text variant="meta" className="flex-1">
                     {i + 1}. {qq.prompt}
@@ -101,18 +93,11 @@ export default function QuizAttempt() {
     <Panel>
       <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-6 py-6">
         <div className="mb-4 flex items-center gap-3">
-          <Link
-            to="/quizzes"
-            preload="intent"
-            className="text-fg-muted hover:text-fg"
-          >
+          <Link to="/quizzes" preload="intent" className="text-fg-muted hover:text-fg">
             <Icon name="x" size={20} />
           </Link>
           <div className="flex-1">
-            <ProgressBar
-              value={((idx + 1) / quiz.questions.length) * 100}
-              tone="purple"
-            />
+            <ProgressBar value={((idx + 1) / quiz.questions.length) * 100} tone="purple" />
           </div>
           <Text variant="meta" tone="muted" className="tabular-nums">
             {idx + 1} / {quiz.questions.length}
@@ -137,10 +122,7 @@ export default function QuizAttempt() {
             Previous
           </Button>
           {idx < quiz.questions.length - 1 ? (
-            <Button
-              onClick={() => setIdx((i) => i + 1)}
-              iconRight="chevronRight"
-            >
+            <Button onClick={() => setIdx((i) => i + 1)} iconRight="chevronRight">
               Next
             </Button>
           ) : (

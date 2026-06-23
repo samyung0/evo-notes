@@ -15,11 +15,7 @@ export default function Canvas() {
   return (
     <Panel>
       <div className="flex items-center gap-3 border-b border-divider px-5 py-3">
-        <Link
-          to="/thinking"
-          preload="intent"
-          className="text-fg-muted hover:text-fg"
-        >
+        <Link to="/thinking" preload="intent" className="text-fg-muted hover:text-fg">
           <Icon name="chevronLeft" size={20} />
         </Link>
         <Text variant="subtitle" className="flex-1">

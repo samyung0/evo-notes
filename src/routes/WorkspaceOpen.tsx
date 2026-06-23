@@ -2,14 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { Panel, RightRail } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
-import {
-  Button,
-  Icon,
-  Menu,
-  SegmentedControl,
-  Spinner,
-  Text,
-} from '@/components/ui';
+import { Button, Icon, Menu, SegmentedControl, Spinner, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { colorPair } from '@/lib/workspaceColor';
 import {
@@ -107,19 +100,12 @@ export default function WorkspaceOpen() {
                 <div key={ch.id} className="mb-0.5">
                   <div className="hover:bg-surface-hover-bg flex items-center gap-1 rounded-row px-2 py-1.5">
                     <button
-                      onClick={() =>
-                        setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))
-                      }
+                      onClick={() => setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))}
                       className="text-fg-muted"
                     >
-                      <Icon
-                        name={expanded ? 'chevronDown' : 'chevronRight'}
-                        size={15}
-                      />
+                      <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={15} />
                     </button>
-                    <span className="flex-1 truncate text-sm font-semibold text-fg">
-                      {ch.name}
-                    </span>
+                    <span className="flex-1 truncate text-sm font-semibold text-fg">{ch.name}</span>
                     <Menu
                       items={[
                         {
@@ -160,11 +146,10 @@ export default function WorkspaceOpen() {
                           'ml-6 flex w-[calc(100%-1.5rem)] items-center gap-2 rounded-row px-2 py-1.5 text-left text-sm',
                           openFileId === f.id
                             ? 'bg-surface-hover-bg font-medium text-fg'
-                            : 'hover:bg-surface-hover-bg text-fg-soft'
+                            : 'hover:bg-surface-hover-bg text-fg-secondary'
                         )}
                       >
-                        <Icon name="files" size={15} />{' '}
-                        <span className="truncate">{f.name}</span>
+                        <Icon name="files" size={15} /> <span className="truncate">{f.name}</span>
                       </button>
                     ))}
                 </div>
@@ -182,11 +167,10 @@ export default function WorkspaceOpen() {
                       'flex w-full items-center gap-2 rounded-row px-2 py-1.5 text-left text-sm',
                       openFileId === f.id
                         ? 'bg-surface-hover-bg font-medium text-fg'
-                        : 'hover:bg-surface-hover-bg text-fg-soft'
+                        : 'hover:bg-surface-hover-bg text-fg-secondary'
                     )}
                   >
-                    <Icon name="files" size={15} />{' '}
-                    <span className="truncate">{f.name}</span>
+                    <Icon name="files" size={15} /> <span className="truncate">{f.name}</span>
                   </button>
                 ))}
               </div>
@@ -197,7 +181,7 @@ export default function WorkspaceOpen() {
               const n = prompt('New chapter name');
               if (n) addChapter.mutate(n);
             }}
-            className="hover:bg-surface-hover-bg m-2 flex items-center justify-center gap-2 rounded-button border border-dashed border-line-strong py-2 text-sm font-medium text-fg-soft"
+            className="hover:bg-surface-hover-bg m-2 flex items-center justify-center gap-2 rounded-button border border-dashed border-line-strong py-2 text-sm font-medium text-fg-secondary"
           >
             <Icon name="plus" size={15} /> {m.action_add_chapter()}
           </button>
@@ -207,7 +191,7 @@ export default function WorkspaceOpen() {
       {/* Center: file viewer */}
       <Panel className="flex-1">
         <div className="flex items-center gap-2 border-b border-divider px-5 py-3">
-          <Icon name="files" size={18} className="text-fg-soft" />
+          <Icon name="files" size={18} className="text-fg-secondary" />
           <Text variant="subtitle" className="truncate">
             {openFile?.name ?? 'No file open'}
           </Text>
@@ -236,10 +220,7 @@ export default function WorkspaceOpen() {
             {mode === 'chat' ? (
               <ChatPanel workspaceId={workspaceId} />
             ) : (
-              <GeneratePanel
-                workspaceId={workspaceId}
-                chapters={chapters ?? []}
-              />
+              <GeneratePanel workspaceId={workspaceId} chapters={chapters ?? []} />
             )}
           </div>
         </Panel>

@@ -1,14 +1,6 @@
 import { useState } from 'react';
 import { Panel, PageHeader } from '@/components/app/layout';
-import {
-  Badge,
-  Button,
-  Card,
-  Icon,
-  Spinner,
-  Tabs,
-  Text,
-} from '@/components/ui';
+import { Badge, Button, Card, Icon, Spinner, Tabs, Text } from '@/components/ui';
 import { colorPair } from '@/lib/workspaceColor';
 import { useExploreQuizzes, useExploreWorkspaces } from '@/api/hooks';
 import { m } from '@/i18n';
@@ -58,12 +50,7 @@ export default function Explore() {
                     <Text variant="meta" tone="muted" className="mt-1">
                       by {w.author} · {w.clones.toLocaleString()} clones
                     </Text>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-3"
-                      iconLeft="plus"
-                    >
+                    <Button size="sm" variant="outline" className="mt-3" iconLeft="plus">
                       Clone to my library
                     </Button>
                   </Card>
@@ -79,7 +66,7 @@ export default function Explore() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {qz.data?.map((q) => (
               <Card key={q.id} padding={20} radius="card-lg">
-                <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-purple text-tint-purple-fg">
+                <span className="bg-tint-accent-1 text-tint-accent-1-fg flex h-11 w-11 items-center justify-center rounded-card">
                   <Icon name="quiz" size={20} />
                 </span>
                 <Text variant="card-title" className="mt-3 truncate">
@@ -93,12 +80,7 @@ export default function Explore() {
                     {q.questions.length} questions
                   </Badge>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-3"
-                  iconLeft="plus"
-                >
+                <Button size="sm" variant="outline" className="mt-3" iconLeft="plus">
                   Clone to my library
                 </Button>
               </Card>

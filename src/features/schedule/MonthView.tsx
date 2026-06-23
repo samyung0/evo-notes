@@ -28,10 +28,7 @@ export function MonthView({
     <div className="flex h-full flex-col">
       <div className="grid grid-cols-7 border-b border-divider">
         {WEEKDAYS.map((w) => (
-          <div
-            key={w}
-            className="py-2 text-center text-[0.7rem] font-semibold text-fg-muted"
-          >
+          <div key={w} className="py-2 text-center text-[0.7rem] font-semibold text-fg-muted">
             {w}
           </div>
         ))}
@@ -40,14 +37,9 @@ export function MonthView({
         {grid.map((day, i) => {
           const inMonth = day.getMonth() === month.getMonth();
           const isToday = sameDay(day, today);
-          const dayEvents = events.filter((e) =>
-            sameDay(new Date(e.start), day)
-          );
+          const dayEvents = events.filter((e) => sameDay(new Date(e.start), day));
           return (
-            <div
-              key={i}
-              className="min-h-0 overflow-hidden border-r border-b border-divider p-1"
-            >
+            <div key={i} className="min-h-0 overflow-hidden border-r border-b border-divider p-1">
               <div
                 className={cn(
                   'mb-1 flex h-6 w-6 items-center justify-center rounded-pill text-xs',
@@ -66,9 +58,7 @@ export function MonthView({
                   return (
                     <button
                       key={ev.id}
-                      onClick={(e) =>
-                        onSelectEvent(ev, { x: e.clientX, y: e.clientY })
-                      }
+                      onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
                       className="truncate rounded px-1.5 py-0.5 text-left text-[0.66rem] font-medium"
                       style={{ background: c.bg, color: c.fg }}
                     >

@@ -29,11 +29,7 @@ const ThemeContext = createContext<ThemeState | null>(null);
 const THEME_KEY = 'evo.theme';
 const MODE_KEY = 'evo.mode';
 
-function readStored<T extends string>(
-  key: string,
-  allowed: readonly T[],
-  fallback: T
-): T {
+function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   if (typeof localStorage === 'undefined') return fallback;
   const v = localStorage.getItem(key) as T | null;
   return v && allowed.includes(v) ? v : fallback;
@@ -41,8 +37,7 @@ function readStored<T extends string>(
 
 function prefersDark(): boolean {
   return (
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(prefers-color-scheme: dark)').matches
+    typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches
   );
 }
 
@@ -51,11 +46,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     readStored<ThemeName>(THEME_KEY, ['friendly', 'notion'], 'friendly')
   );
   const [mode, setModeState] = useState<ThemeMode>(() =>
-    readStored<ThemeMode>(
-      MODE_KEY,
-      ['light', 'dark'],
-      prefersDark() ? 'dark' : 'light'
-    )
+    readStored<ThemeMode>(MODE_KEY, ['light', 'dark'], prefersDark() ? 'dark' : 'light')
   );
 
   useEffect(() => {
@@ -87,9 +78,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [theme, mode, setTheme, setMode, toggleMode]
   );
 
-  return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): ThemeState {

@@ -67,7 +67,7 @@
   --surface-rail-bg: #fcfcfc;
   --surface-rail-fg: #222222;
   --surface-rail-border: #e6e6e6;
-  --surface-card-hover-bg: #f7f8f8; /* soft inset rows/tiles */
+  --surface-card-hover-bg: #f7f8f8;
   --surface-card-dark-hover-bg: #f1f3f2;
   --surface-inset-border: transparent;
   --surface-topbar-bg: #e0e5e2; /* search/notif/profile inset bar */
@@ -99,6 +99,7 @@
   --action-ghost-fg: #6b6b6b;
 
   /* Tinted containers (bg + fg) + solid signal color */
+  /* system colors */
   --tint-success-bg: #e7f6ee;
   --tint-success-fg: #2f7d56;
   --solid-success: #7bd9ab;
@@ -111,12 +112,23 @@
   --tint-error-bg: #fde7ea;
   --tint-error-fg: #b8475a;
   --solid-error: #f98e9e;
-  --tint-purple-bg: #ece6f6;
-  --tint-purple-fg: #5b4aa8;
+  --tint-accent-1-bg: #ece6f6;
+  --tint-accent-1-fg: #5b4aa8;
+  --tint-accent-2-bg: #eaf3e6;
+  --tint-accent-2-fg: #3c5230;
+  /* user colors (used for assigned colors to workspaces/quiz/event/custom cards) */
   --solid-purple: #8c7bd9;
-  --tint-green-bg: #eaf3e6;
-  --tint-green-fg: #3c5230;
+  --solid-purple-fg: #ffffff;
   --solid-green: #aef07f;
+  --solid-green-fg: #222222;
+  --solid-blue: #8ec9f9;
+  --solid-blue-fg: #222222;
+  --solid-amber: #f4c878;
+  --solid-amber-fg: #222222;
+  --solid-coral: #f49aa8;
+  --solid-coral-fg: #222222;
+  --solid-graphite: #2c302d;
+  --solid-graphite-fg: #ffffff;
 
   /* Sticky-note surfaces (saturated + soft) */
   --note-green-bg: #aef07f;
@@ -132,10 +144,8 @@
 
   /* Shadows */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-card:
-    0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.05);
-  --shadow-raised:
-    0 1px 2px rgba(0, 0, 0, 0.05), 0 16px 44px rgba(0, 0, 0, 0.07);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 32px rgba(0, 0, 0, 0.05);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.05), 0 16px 44px rgba(0, 0, 0, 0.07);
   --shadow-pop: 0 10px 34px rgba(0, 0, 0, 0.14);
   --shadow-chip: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
@@ -200,11 +210,11 @@
   --tint-error-bg: #321a1f;
   --tint-error-fg: #f49aa8;
   --solid-error: #f98e9e;
-  --tint-purple-bg: #322a5c;
-  --tint-purple-fg: #cfc4f2;
+  --tint-accent-1-bg: #322a5c;
+  --tint-accent-1-fg: #cfc4f2;
   --solid-purple: #9d8ee0;
-  --tint-green-bg: #2c3b1c;
-  --tint-green-fg: #cbe9a6;
+  --tint-accent-2-bg: #2c3b1c;
+  --tint-accent-2-fg: #cbe9a6;
   --solid-green: #aef07f;
 
   /* Sticky-note surfaces */
@@ -221,10 +231,8 @@
 
   /* Shadows */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-card:
-    0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
-  --shadow-raised:
-    0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 44px rgba(0, 0, 0, 0.55);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 44px rgba(0, 0, 0, 0.55);
   --shadow-pop: 0 10px 34px rgba(0, 0, 0, 0.6);
   --shadow-chip: 0 1px 2px rgba(0, 0, 0, 0.5);
 }

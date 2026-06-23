@@ -3,13 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { Button, Icon, Spinner, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { useGenerate } from '@/api/hooks';
-import type {
-  Chapter,
-  GenerateOptions,
-  Quiz,
-  QuestionType,
-  Difficulty,
-} from '@/api/types';
+import type { Chapter, GenerateOptions, Quiz, QuestionType, Difficulty } from '@/api/types';
 import { m } from '@/i18n';
 
 type Mode = 'summary' | 'flashcards' | 'quiz';
@@ -49,7 +43,7 @@ function Chip({
         'rounded-pill border px-2.5 py-1 text-xs font-medium transition-colors',
         active
           ? 'border-accent bg-accent text-accent-fg'
-          : 'hover:bg-surface-hover-bg border-line bg-surface text-fg-soft'
+          : 'hover:bg-surface-hover-bg border-line bg-surface text-fg-secondary'
       )}
     >
       {children}
@@ -71,12 +65,8 @@ export function GeneratePanel({
   // shared
   const [scope, setScope] = useState<string[]>([]);
   // summary
-  const [length, setLength] = useState<'brief' | 'standard' | 'detailed'>(
-    'standard'
-  );
-  const [format, setFormat] = useState<'bullets' | 'outline' | 'prose'>(
-    'bullets'
-  );
+  const [length, setLength] = useState<'brief' | 'standard' | 'detailed'>('standard');
+  const [format, setFormat] = useState<'bullets' | 'outline' | 'prose'>('bullets');
   // flashcards
   const [count, setCount] = useState(10);
   const [style, setStyle] = useState<'term-def' | 'qa' | 'cloze'>('term-def');
@@ -88,8 +78,7 @@ export function GeneratePanel({
     if (!mode) return;
     const chapterNames = scope.length ? scope : chapters.map((c) => c.name);
     let opts: GenerateOptions;
-    if (mode === 'summary')
-      opts = { kind: 'summary', length, format, chapters: chapterNames };
+    if (mode === 'summary') opts = { kind: 'summary', length, format, chapters: chapterNames };
     else if (mode === 'flashcards')
       opts = { kind: 'flashcards', count, style, chapters: chapterNames };
     else
@@ -163,9 +152,7 @@ export function GeneratePanel({
                   active={scope.includes(c.name)}
                   onClick={() =>
                     setScope((s) =>
-                      s.includes(c.name)
-                        ? s.filter((x) => x !== c.name)
-                        : [...s, c.name]
+                      s.includes(c.name) ? s.filter((x) => x !== c.name) : [...s, c.name]
                     )
                   }
                 >
@@ -220,9 +207,7 @@ export function GeneratePanel({
                       key={t}
                       active={types.includes(t)}
                       onClick={() =>
-                        setTypes((s) =>
-                          s.includes(t) ? s.filter((x) => x !== t) : [...s, t]
-                        )
+                        setTypes((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]))
                       }
                     >
                       {Q_TYPE_LABEL[t]}
@@ -240,9 +225,7 @@ export function GeneratePanel({
                       key={d}
                       active={diffs.includes(d)}
                       onClick={() =>
-                        setDiffs((s) =>
-                          s.includes(d) ? s.filter((x) => x !== d) : [...s, d]
-                        )
+                        setDiffs((s) => (s.includes(d) ? s.filter((x) => x !== d) : [...s, d]))
                       }
                     >
                       {d}
@@ -301,13 +284,7 @@ function OptionRow({
   );
 }
 
-function CountRow({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (n: number) => void;
-}) {
+function CountRow({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
     <div className="flex items-center justify-between">
       <Text variant="label" tone="muted">
@@ -344,8 +321,7 @@ function GenerateResult({ mode, result }: { mode: Mode; result: unknown }) {
       )}
       {mode === 'flashcards' && (
         <Text variant="body">
-          Generated {r.cards?.length ?? 0} flashcards. Find them in your
-          Flashcards library.
+          Generated {r.cards?.length ?? 0} flashcards. Find them in your Flashcards library.
         </Text>
       )}
       {mode === 'quiz' && r.quiz && (

@@ -11,11 +11,7 @@ const PATHS = {
     'M13.5 13.5H21V21h-7.5z',
     'M3 13.5h7.5V21H3z',
   ],
-  workspaces: [
-    'M12 3l9 4.5-9 4.5-9-4.5z',
-    'M3 12l9 4.5 9-4.5',
-    'M3 16.5l9 4.5 9-4.5',
-  ],
+  workspaces: ['M12 3l9 4.5-9 4.5-9-4.5z', 'M3 12l9 4.5 9-4.5', 'M3 16.5l9 4.5 9-4.5'],
   practice: [
     'M12 3.5a8.5 8.5 0 100 17 8.5 8.5 0 000-17z',
     'M12 8a4 4 0 100 8 4 4 0 000-8z',
@@ -27,16 +23,10 @@ const PATHS = {
     'M8 3v4',
     'M16 3v4',
   ],
-  files: [
-    'M13.5 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8.5z',
-    'M13.5 3v5.5H19',
-  ],
+  files: ['M13.5 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8.5z', 'M13.5 3v5.5H19'],
   tasks: ['M4 4h16v16H4z', 'M8.5 12.3l2.4 2.4 4.6-5'],
   notes: ['M12 20h9', 'M16.5 3.5a2.05 2.05 0 113 3L7 19l-4 1 1-4z'],
-  profile: [
-    'M12 4.2a3.8 3.8 0 100 7.6 3.8 3.8 0 000-7.6z',
-    'M5.5 20.5a6.5 6.5 0 0113 0',
-  ],
+  profile: ['M12 4.2a3.8 3.8 0 100 7.6 3.8 3.8 0 000-7.6z', 'M5.5 20.5a6.5 6.5 0 0113 0'],
   settings: [
     'M4 7.5h8',
     'M16 7.5h4',
@@ -45,11 +35,7 @@ const PATHS = {
     'M12 16.5h8',
     'M10 14.5a2 2 0 100 4 2 2 0 000-4z',
   ],
-  logout: [
-    'M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4',
-    'M16 17l5-5-5-5',
-    'M21 12H9',
-  ],
+  logout: ['M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4', 'M16 17l5-5-5-5', 'M21 12H9'],
   search: ['M11 4a7 7 0 100 14 7 7 0 000-14z', 'M21 21l-4-4'],
   bell: ['M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6z', 'M10 20a2 2 0 004 0'],
   plus: ['M12 5v14', 'M5 12h14'],
@@ -133,14 +119,7 @@ const PATHS = {
     'M12 17h.01',
   ],
   grid: ['M4 4h7v7H4z', 'M13 4h7v7h-7z', 'M4 13h7v7H4z', 'M13 13h7v7h-7z'],
-  list: [
-    'M8 6h13',
-    'M8 12h13',
-    'M8 18h13',
-    'M3.5 6h.01',
-    'M3.5 12h.01',
-    'M3.5 18h.01',
-  ],
+  list: ['M8 6h13', 'M8 12h13', 'M8 18h13', 'M3.5 6h.01', 'M3.5 12h.01', 'M3.5 18h.01'],
 } as const;
 
 export type IconName = keyof typeof PATHS;
@@ -153,13 +132,7 @@ export interface IconProps {
   style?: CSSProperties;
 }
 
-export function Icon({
-  name,
-  size = 18,
-  strokeWidth = 1.8,
-  className,
-  style,
-}: IconProps) {
+export function Icon({ name, size = 18, strokeWidth = 1.8, className, style }: IconProps) {
   const ds = PATHS[name] ?? PATHS.dashboard;
   return (
     <svg

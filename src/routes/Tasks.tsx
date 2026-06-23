@@ -54,11 +54,7 @@ export default function Tasks() {
                         >
                           {t.title}
                         </span>
-                        {t.meta && (
-                          <span className="block text-xs text-fg-muted">
-                            {t.meta}
-                          </span>
-                        )}
+                        {t.meta && <span className="block text-xs text-fg-muted">{t.meta}</span>}
                       </span>
                     </button>
                   ))}

@@ -33,13 +33,7 @@ export function FileViewer({ file }: { file: SourceFile | null }) {
   }
 
   if (file.kind === 'image' && file.url) {
-    return (
-      <img
-        src={file.url}
-        alt={file.name}
-        className="mx-auto max-w-full rounded-card"
-      />
-    );
+    return <img src={file.url} alt={file.name} className="mx-auto max-w-full rounded-card" />;
   }
 
   // md / txt / fallback — render the text content

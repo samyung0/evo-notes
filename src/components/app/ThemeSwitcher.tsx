@@ -27,9 +27,7 @@ export function ThemeSwitcher({ collapsed = false }: { collapsed?: boolean }) {
             onClick={() => setTheme(t.value)}
             className={cn(
               'flex-1 rounded-pill py-1.5 text-[12px] font-semibold transition-colors',
-              theme === t.value
-                ? 'bg-action text-action-fg'
-                : 'text-fg-muted hover:text-fg'
+              theme === t.value ? 'bg-action text-action-fg' : 'text-fg-muted hover:text-fg'
             )}
           >
             {t.label}

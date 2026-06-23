@@ -23,9 +23,7 @@ export function AddSourceModal({
   open: boolean;
   onClose: () => void;
   chapters: Chapter[];
-  onAdd: (
-    files: { name: string; kind: FileKind; chapterId: string | null }[]
-  ) => void;
+  onAdd: (files: { name: string; kind: FileKind; chapterId: string | null }[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
@@ -63,7 +61,7 @@ export function AddSourceModal({
 
         <button
           onClick={() => inputRef.current?.click()}
-          className="hover:bg-surface-hover-bg flex flex-col items-center gap-2 rounded-card border-[1.5px] border-dashed border-line-strong px-6 py-8 text-fg-soft transition-colors"
+          className="hover:bg-surface-hover-bg flex flex-col items-center gap-2 rounded-card border-[1.5px] border-dashed border-line-strong px-6 py-8 text-fg-secondary transition-colors"
         >
           <Icon name="upload" size={28} />
           <Text variant="subtitle">Upload from your computer</Text>
