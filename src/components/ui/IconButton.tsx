@@ -1,58 +1,73 @@
 import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 import { Icon, type IconName } from './Icon';
+import { cva, VariantProps } from 'class-variance-authority';
+import { Slot } from 'radix-ui';
 
-type Variant = 'dark' | 'accent' | 'outline' | 'ghost';
-type Size = 'sm' | 'md' | 'lg';
+const iconButtonVariants = cva(
+  'relative inline-flex cursor-pointer items-center justify-center transition-colors',
+  {
+    variants: {
+      variant: {
+        dark: 'bg-action text-action-fg hover:bg-action-hover',
+        accent: 'bg-accent text-accent-fg hover:bg-accent-hover',
+        neutral: 'bg-surface text-surface-fg hover:bg-surface-hover-bg',
+        ghost: 'bg-transparent text-fg',
+      },
+      size: {
+        sm: 'size-9 rounded-input',
+        md: 'size-10 rounded-button',
+        lg: 'size-11 rounded-button',
+      },
+    },
+    defaultVariants: {
+      variant: 'ghost',
+      size: 'md',
+    },
+  }
+);
 
-const VARIANT: Record<Variant, string> = {
-  dark: 'bg-action text-action-fg hover:bg-action-hover',
-  accent: 'bg-accent text-accent-fg hover:bg-accent-hover',
-  outline: 'bg-surface text-fg-secondary border border-line hover:bg-surface-hover-bg',
-  ghost: 'bg-transparent text-fg-secondary hover:bg-surface-hover-bg',
+const SIZE = {
+  sm: 19,
+  md: 22,
+  lg: 24,
 };
 
-const SIZE: Record<Size, { box: string; icon: number }> = {
-  sm: { box: 'w-[38px] h-[38px] rounded-input', icon: 19 },
-  md: { box: 'w-[46px] h-[46px] rounded-button', icon: 22 },
-  lg: { box: 'w-[52px] h-[52px] rounded-button', icon: 24 },
-};
-
-export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface IconButtonProps
+  extends React.ComponentProps<'button'>, VariantProps<typeof iconButtonVariants> {
   icon: IconName;
-  variant?: Variant;
-  size?: Size;
   dot?: boolean;
   strokeWidth?: number;
   label?: string;
+  asChild?: boolean;
 }
 
 export function IconButton({
   icon,
-  variant = 'outline',
-  size = 'md',
+  variant,
+  size,
   dot,
   strokeWidth,
   label,
+  children,
   className,
   ...rest
 }: IconButtonProps) {
-  const s = SIZE[size];
+  const Tag = rest.asChild ? Slot.Root : 'button';
   return (
-    <button
+    <Tag
+      data-slot="iconbutton"
+      data-variant={variant}
+      data-size={size}
       aria-label={label ?? rest['aria-label']}
-      className={cn(
-        'relative inline-flex cursor-pointer items-center justify-center transition-colors',
-        VARIANT[variant],
-        s.box,
-        className
-      )}
+      className={cn(iconButtonVariants({ variant, size }), className)}
       {...rest}
     >
-      <Icon name={icon} size={s.icon} strokeWidth={strokeWidth} />
+      <Icon name={icon} size={SIZE[size ?? 'md']} strokeWidth={strokeWidth} />
+      {children}
       {dot && (
-        <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-solid-error ring-2 ring-surface" />
+        <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-solid-error ring-1 ring-surface" />
       )}
-    </button>
+    </Tag>
   );
 }

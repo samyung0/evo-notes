@@ -3,6 +3,7 @@
 @import 'tailwindcss';
 @import './tokens/themes/friendly.css';
 @import './tokens/themes/notion.css';
+@import 'tw-animate-css';
 
 /* Drive dark variants off our [data-mode] attribute, not the class. */
 @custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
@@ -70,6 +71,8 @@
   --color-solid-info: var(--solid-info);
   --color-solid-warning: var(--solid-warning);
   --color-solid-error: var(--solid-error);
+  --color-solid-accent-1: var(--solid-accent-1);
+  --color-solid-accent-2: var(--solid-accent-2);
 
   /* User colors (used for assigned colors to workspaces/quiz/event/custom cards) */
   /* TODO: in future include dynamic color palette so user have more options */
@@ -110,6 +113,59 @@
 }
 
 /* ============================================================
+   Typographic role classes — the single rendering path for text.
+   Use via the <Text>/<Heading> components to prevent size/color drift.
+   ============================================================ */
+@layer components {
+  [data-theme='friendly'] {
+    .t-display {
+      font-size: var(--display-font-size, 3.125rem);
+      font-weight: var(--display-font-weight, 800);
+      line-height: var(--display-line-height, 1.15);
+      letter-spacing: var(--display-letter-spacing, -0.02rem);
+    }
+    .t-page-title {
+      font-size: var(--page-title-font-size, 1.75rem);
+      font-weight: var(--page-title-font-weight, 800);
+      line-height: var(--page-title-font-line-height, 1.15);
+      letter-spacing: var(--page-title-letter-spacing, -0.02rem);
+    }
+    .t-section {
+      font-size: var(--section-font-size, 1.375rem);
+      font-weight: var(--section-font-weight, 800);
+      line-height: var(--section-font-line-height, 1.35);
+      letter-spacing: var(--section-font-letter-spacing, -0.03rem);
+    }
+    .t-card-title {
+      font-size: var(--card-title-font-size, 1.125rem);
+      font-weight: var(--card-title-font-weight, 700);
+      line-height: var(--card-title-line-height, 1.35);
+    }
+    .t-subtitle {
+      font-size: var(--font-subtitle-size, 1rem);
+      font-weight: var(--font-subtitle-weight, 600);
+      line-height: var(--font-subtitle-line-height, 1.35);
+    }
+    .t-body {
+      font-size: var(--body-font-size, 0.875rem);
+      font-weight: var(--body-font-weight, 400);
+      line-height: var(--body-line-height, 1.5);
+    }
+    .t-label {
+      font-size: var(--label-font-size, 0.75rem);
+      font-weight: var(--label-font-weight, 600);
+      line-height: var(--label-font-line-height, 1);
+      letter-spacing: var(--label-letter-spacing, 0.03rem);
+    }
+    .t-meta {
+      font-size: var(--meta-font-size, 0.875rem);
+      font-weight: var(--meta-font-weight, 400);
+      line-height: var(--meta-line-height, 1.2);
+    }
+  }
+}
+
+/* ============================================================
    Base layer
    ============================================================ */
 @layer base {
@@ -124,7 +180,10 @@
     background: var(--surface-page);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    font-size: 16px;
+
+    font-size: var(--body-font-size, 0.875rem);
+    font-weight: var(--body-font-weight, 400);
+    line-height: var(--body-line-height, 1.5);
   }
   * {
     box-sizing: border-box;
@@ -134,109 +193,7 @@
     background: var(--tint-accent-1-bg);
     color: var(--text-primary);
   }
-}
-
-/* ============================================================
-   Dialog enter/exit animations (Radix data-state driven).
-   ============================================================ */
-@keyframes evo-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-@keyframes evo-overlay-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-@keyframes evo-content-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -0.5rem) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
-}
-@keyframes evo-content-out {
-  from {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translate(-50%, -0.5rem) scale(0.96);
-  }
-}
-[data-slot='dialog-overlay'][data-state='open'] {
-  animation: evo-overlay-in 160ms ease-out;
-}
-[data-slot='dialog-overlay'][data-state='closed'] {
-  animation: evo-overlay-out 140ms ease-in;
-}
-[data-slot='dialog-content'][data-state='open'] {
-  animation: evo-content-in 160ms ease-out;
-}
-[data-slot='dialog-content'][data-state='closed'] {
-  animation: evo-content-out 140ms ease-in;
-}
-
-/* ============================================================
-   Typographic role classes — the single rendering path for text.
-   Use via the <Text>/<Heading> components to prevent size/color drift.
-   ============================================================ */
-@layer components {
-  [data-theme='friendly'] {
-    .t-display {
-      font-size: var(--font-display-size, 3.125rem);
-      font-weight: var(--font-display-weight, 800);
-      line-height: var(--font-display-line-height, 1.15);
-      letter-spacing: var(--font-display-letter-spacing, -0.02rem);
-    }
-    .t-page-title {
-      font-size: var(--font-page-title-size, 1.75rem);
-      font-weight: var(--font-page-title-weight, 800);
-      line-height: var(--font-page-title-line-height, 1.15);
-      letter-spacing: var(--font-page-title-letter-spacing, -0.02rem);
-    }
-    .t-section {
-      font-size: var(--font-section-size, 1.375rem);
-      font-weight: var(--font-section-weight, 800);
-      line-height: var(--font-section-line-height, 1.35);
-      letter-spacing: var(--font-section-letter-spacing, -0.03rem);
-    }
-    .t-card-title {
-      font-size: var(--font-card-title-size, 1.125rem);
-      font-weight: var(--font-card-title-weight, 700);
-      line-height: var(--font-card-title-line-height, 1.35);
-    }
-    .t-subtitle {
-      font-size: var(--font-subtitle-size, 1rem);
-      font-weight: var(--font-subtitle-weight, 700);
-      line-height: var(--font-subtitle-line-height, 1.35);
-    }
-    .t-body {
-      font-size: var(--font-body-size, 0.875rem);
-      font-weight: var(--font-body-weight, 600);
-      line-height: var(--font-body-line-height, 1.5);
-    }
-    .t-label {
-      font-size: var(--font-label-size, 0.75rem);
-      font-weight: var(--font-label-weight, 600);
-      line-height: var(--font-label-line-height, 1);
-      letter-spacing: var(--font-label-letter-spacing, 0.03rem);
-    }
-    .t-meta {
-      font-size: var(--font-label-size, 0.875rem);
-      font-weight: var(--font-label-weight, 400);
-      line-height: var(--font-label-line-height, 1.2);
-    }
+  button {
+    cursor: pointer;
   }
 }

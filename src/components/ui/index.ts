@@ -16,3 +16,13 @@ export { Menu, type MenuItem } from './Menu';
 export { Modal, ConfirmDialog } from './Modal';
 export { Spinner, Skeleton, EmptyState } from './feedback';
 export { LogoMark } from './Logo';
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+} from './Dialog';
+export { Popover, PopoverAnchor, PopoverContent, PopoverTitle, PopoverTrigger } from './Popover';

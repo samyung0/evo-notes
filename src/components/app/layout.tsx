@@ -19,7 +19,7 @@ export function Panel({
       theme="light"
       radius="card-xl"
       className={cn(
-        'flex h-full min-h-full flex-col items-stretch p-0',
+        'flex h-full min-h-full flex-col items-stretch p-0 shadow-card',
         scroll && 'overflow-hidden',
         className
       )}

@@ -14,10 +14,10 @@ function StreakHeading() {
   const streak = me?.streak ?? 0;
   return (
     <div>
-      <p className="t-page-title">
+      <h2 className="t-page-title">
         {streak > 0 ? m.dashboard_streak_days({ count: streak }) : m.dashboard_streak_none()}
-      </p>
-      <p className="t-subtitle mt-1 font-medium text-fg-muted">
+      </h2>
+      <p className="t-subtitle mt-1 text-fg-muted">
         Take a look around — your workspaces, notes and itinerary will show up here.
       </p>
     </div>
@@ -126,22 +126,20 @@ function TasksCard() {
   const toggle = useToggleTask();
   const open = data?.filter((t) => !t.done) ?? [];
   return (
-    <Panel scroll={false} className="shrink-0">
+    <Card className="shrink-0 p-0">
       <div className="flex items-center justify-between px-4 pt-4">
-        <Text variant="subtitle">{m.dashboard_tasks()}</Text>
+        <h3 className="t-card-title">{m.dashboard_tasks()}</h3>
         <Link
           to="/tasks"
           preload="intent"
-          className="text-xs font-semibold text-link hover:text-link-hover"
+          className="text-sm font-semibold text-link hover:text-link-hover"
         >
           {m.action_see_all()}
         </Link>
       </div>
       <div className="flex flex-col gap-1 p-3">
         {!open.length && (
-          <Text variant="body" tone="muted" className="px-1 py-2">
-            {m.tasks_empty()}
-          </Text>
+          <p className="t-body px-1 pt-2 pb-4 text-center text-fg-muted">{m.tasks_empty()}</p>
         )}
         {data?.map((t) => (
           <button
@@ -149,23 +147,23 @@ function TasksCard() {
             onClick={() => toggle.mutate({ id: t.id, done: !t.done })}
             className="flex items-start gap-3 rounded-row px-1 py-2 text-left hover:bg-surface-hover-bg"
           >
-            <Checkbox checked={t.done} tone="purple" size={22} />
+            <Checkbox checked={t.done} tone="purple" size={22} className="translate-y-1" />
             <span className="min-w-0">
               <span
                 className={
                   t.done
-                    ? 'block text-sm font-medium text-fg-muted line-through'
-                    : 'block text-sm font-medium text-fg'
+                    ? 't-body block font-semibold text-fg-muted line-through'
+                    : 't-body block font-semibold text-fg'
                 }
               >
                 {t.title}
               </span>
-              {t.meta && <span className="block text-xs text-fg-muted">{t.meta}</span>}
+              {t.meta && <span className="t-body block text-fg-muted">{t.meta}</span>}
             </span>
           </button>
         ))}
       </div>
-    </Panel>
+    </Card>
   );
 }
 
@@ -184,7 +182,7 @@ export default function Dashboard() {
         </div>
       </Panel>
 
-      <RightRail className="w-200">
+      <RightRail className="w-90">
         <TopInsetBar />
         <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto">
           <TasksCard />

@@ -31,10 +31,10 @@
   --subtitle-line-height: 1.35;
 
   --body-font-size: 0.875rem;
-  --body-font-weight: 600;
-  --body-line-height: 1.5;
+  --body-font-weight: 500;
+  --body-line-height: 1.35;
 
-  --meta-font-size: 0.75rem;
+  --meta-font-size: 0.8rem;
   --meta-font-weight: 500;
   --meta-line-height: 1.35;
 
@@ -77,7 +77,7 @@
   --text-primary: #222222;
   --text-secondary: #6b6b6b;
   --text-muted: #6b6b6b;
-  --text-placeholder: #bcbcbc;
+  --text-placeholder: #6b6b6b;
   --text-link: #5b4aa8;
   --text-link-hover: #7866cf;
 
@@ -111,11 +111,13 @@
   --solid-warning: #ffcc61;
   --tint-error-bg: #fde7ea;
   --tint-error-fg: #b8475a;
-  --solid-error: #f98e9e;
+  --solid-error: #fa8597;
   --tint-accent-1-bg: #ece6f6;
   --tint-accent-1-fg: #5b4aa8;
   --tint-accent-2-bg: #eaf3e6;
   --tint-accent-2-fg: #3c5230;
+  --solid-accent-1: #8c7bd9;
+  --solid-accent-2: #aef07f;
   /* user colors (used for assigned colors to workspaces/quiz/event/custom cards) */
   --solid-purple: #8c7bd9;
   --solid-purple-fg: #ffffff;

@@ -106,7 +106,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
       <nav>
         <div className="flex items-center gap-3 px-2 pt-1 pb-6">
           <LogoMark size={36} />
-          <h1 className={cn('card-title translate-y-px font-extrabold tracking-[-0.02rem]')}>
+          <h1 className={cn('t-card-title translate-y-px font-extrabold tracking-[-0.02rem]')}>
             {m.app_name()}
           </h1>
         </div>

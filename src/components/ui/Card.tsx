@@ -3,7 +3,7 @@ import { cn } from '@/lib/cn';
 import { cva, VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
 
-const cardVariants = cva('flex flex-col items-center gap-2 p-5.5', {
+const cardVariants = cva('flex flex-col items-stretch gap-2 p-5.5', {
   variants: {
     radius: {
       card: 'rounded-card',
@@ -11,6 +11,7 @@ const cardVariants = cva('flex flex-col items-center gap-2 p-5.5', {
       'card-xl': 'rounded-card-xl',
       panel: 'rounded-card-lg',
       row: 'rounded-row',
+      button: 'rounded-button',
     },
     border: {
       none: '',
@@ -51,8 +52,12 @@ export function Card({
   const Tag = (asChild ? Slot.Root : 'div') as ElementType;
   return (
     <Tag
+      data-slot="card"
+      data-radius={radius}
+      data-theme={theme}
+      data-border={border}
       className={cn(
-        'flex flex-col items-center gap-2 p-5.5',
+        'flex flex-col items-stretch gap-2 p-5.5',
         cardVariants({ radius, theme, border }),
         raised && 'shadow-card',
         interactive &&

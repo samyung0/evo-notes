@@ -7,7 +7,7 @@ export default function DefaultBanner() {
       className="relative block min-h-fit overflow-hidden bg-tint-accent-1 hover:bg-tint-accent-1"
     >
       <div className="relative z-10 flex flex-col gap-1 xl:max-w-[80%]">
-        <p className="t-subtitle text-tint-accent-1-fg">
+        <p className="t-subtitle font-bold text-tint-accent-1-fg">
           Turn your sources into summaries, flashcards & quizzes
         </p>
         <p className="t-body mt-1 text-tint-accent-1-fg/80">
