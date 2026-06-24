@@ -42,7 +42,7 @@ export function IconButton({
     <button
       aria-label={label ?? rest['aria-label']}
       className={cn(
-        'relative inline-flex items-center justify-center transition-colors',
+        'relative inline-flex cursor-pointer items-center justify-center transition-colors',
         VARIANT[variant],
         s.box,
         className

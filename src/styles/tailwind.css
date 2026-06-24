@@ -137,6 +137,58 @@
 }
 
 /* ============================================================
+   Dialog enter/exit animations (Radix data-state driven).
+   ============================================================ */
+@keyframes evo-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes evo-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes evo-content-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -0.5rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+@keyframes evo-content-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -0.5rem) scale(0.96);
+  }
+}
+[data-slot='dialog-overlay'][data-state='open'] {
+  animation: evo-overlay-in 160ms ease-out;
+}
+[data-slot='dialog-overlay'][data-state='closed'] {
+  animation: evo-overlay-out 140ms ease-in;
+}
+[data-slot='dialog-content'][data-state='open'] {
+  animation: evo-content-in 160ms ease-out;
+}
+[data-slot='dialog-content'][data-state='closed'] {
+  animation: evo-content-out 140ms ease-in;
+}
+
+/* ============================================================
    Typographic role classes — the single rendering path for text.
    Use via the <Text>/<Heading> components to prevent size/color drift.
    ============================================================ */

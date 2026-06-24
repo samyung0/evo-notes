@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { Dialog } from 'radix-ui';
 import { cn } from '@/lib/cn';
 import { useDebounced } from '@/lib/useDebounced';
 import { useOutsideClick } from '@/lib/useOutsideClick';
@@ -16,60 +17,99 @@ const KIND_ICON: Record<SearchKind, Parameters<typeof Icon>[0]['name']> = {
   thinking: 'notes',
 };
 
-function SearchBox() {
-  const [q, setQ] = useState('');
+function SearchButton() {
   const [open, setOpen] = useState(false);
-  const debounced = useDebounced(q, 250);
+  const [q, setQ] = useState('');
+  const debounced = useDebounced(q, 400);
   const { data, isFetching } = useSearch(debounced);
-  const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-  useOutsideClick(ref, () => setOpen(false), open);
+  const query = debounced.trim();
 
   return (
-    <div ref={ref} className="relative min-w-0 flex-1">
-      <div className="flex items-center gap-2 rounded-input bg-surface px-3 py-2.5">
-        <Icon name="search" size={18} className="text-fg-muted" />
-        <input
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          placeholder={m.search_placeholder()}
-          className="min-w-0 flex-1 border-none bg-transparent text-sm text-fg outline-none placeholder:text-placeholder"
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setQ('');
+      }}
+    >
+      <Dialog.Trigger asChild>
+        <IconButton
+          icon="search"
+          size="sm"
+          label={m.search_placeholder()}
+          className="bg-[#222222] text-white hover:bg-[#222222]/90"
         />
-        {isFetching && <Spinner size={14} />}
-      </div>
-      {open && debounced.trim() && (
-        <div className="absolute top-full right-0 left-0 z-30 mt-1.5 max-h-80 overflow-auto rounded-card border border-line bg-surface py-1 shadow-pop">
-          {!data?.length && (
-            <div className="px-3 py-3 text-sm text-fg-muted">No matches for “{debounced}”.</div>
-          )}
-          {data?.map((r) => (
-            <button
-              key={`${r.kind}-${r.id}`}
-              onClick={() => {
-                setOpen(false);
-                setQ('');
-                navigate({ to: r.href });
-              }}
-              className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-surface-hover-bg"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-row bg-surface-hover-bg text-fg-secondary">
-                <Icon name={KIND_ICON[r.kind]} size={16} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-fg">{r.title}</span>
-                {r.subtitle && (
-                  <span className="block truncate text-xs text-fg-muted">{r.subtitle}</span>
+      </Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay data-slot="dialog-overlay" className="fixed inset-0 z-50 bg-black/50" />
+        <Dialog.Content
+          data-slot="dialog-content"
+          aria-describedby={undefined}
+          className="fixed top-[12vh] left-1/2 z-50 w-full max-w-xl px-4 outline-none transform-[translateX(-50%)]"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            (e.currentTarget as HTMLElement).querySelector('input')?.focus();
+          }}
+        >
+          <Dialog.Title className="sr-only">{m.search_placeholder()}</Dialog.Title>
+          <Card radius="card-lg" raised className="w-full items-stretch gap-0 overflow-hidden p-0">
+            <div className="flex max-h-[70vh] flex-col">
+              <div className="flex items-center gap-2.5 border-b border-divider px-4 py-3">
+                <Icon name="search" size={18} className="text-fg-muted" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={m.search_placeholder()}
+                  className="min-w-0 flex-1 border-none bg-transparent text-sm text-fg outline-none placeholder:text-placeholder"
+                />
+                <Dialog.Close asChild>
+                  <IconButton icon="x" variant="ghost" size="sm" label="Close" />
+                </Dialog.Close>
+              </div>
+              <div className="relative min-h-40 flex-1 overflow-auto py-1">
+                {isFetching && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Spinner size={22} />
+                  </div>
                 )}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+                {!isFetching && !query && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center text-sm text-fg-muted">
+                    {m.search_placeholder()}
+                  </div>
+                )}
+                {!isFetching && query && !data?.length && (
+                  <div className="px-4 py-8 text-center text-sm text-fg-muted">
+                    No matches for "{query}".
+                  </div>
+                )}
+                {!isFetching &&
+                  data?.map((r) => (
+                    <button
+                      key={`${r.kind}-${r.id}`}
+                      onClick={() => {
+                        setOpen(false);
+                        navigate({ to: r.href });
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover-bg"
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-row bg-surface-hover-bg text-fg-secondary">
+                        <Icon name={KIND_ICON[r.kind]} size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-fg">{r.title}</span>
+                        {r.subtitle && (
+                          <span className="block truncate text-xs text-fg-muted">{r.subtitle}</span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </Card>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
@@ -181,7 +221,7 @@ export function TopInsetBar({ className }: { className?: string }) {
       className={cn('flex h-14 flex-row items-center justify-between gap-2.5 px-4', className)}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <SearchBox />
+        <SearchButton />
         <NotificationsBell />
       </div>
       <ProfilePill />
