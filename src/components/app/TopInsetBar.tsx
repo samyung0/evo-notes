@@ -22,6 +22,7 @@ import {
 import { useMe, useNotifications, useSearch, useMarkNotificationsRead } from '@/api/hooks';
 import type { SearchKind } from '@/api/types';
 import { m } from '@/i18n';
+import { MobileNav } from './Sidebar';
 
 const KIND_ICON: Record<SearchKind, Parameters<typeof Icon>[0]['name']> = {
   workspace: 'workspaces',
@@ -222,8 +223,11 @@ export function TopInsetBar({ className }: { className?: string }) {
       className={cn('flex-row items-center justify-between gap-2.5 px-4 py-1.5', className)}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <MobileNav className="lg:hidden" />
         <NotificationsBell />
-        <SearchButton />
+        <div className="hidden lg:block">
+          <SearchButton />
+        </div>
       </div>
       <ProfilePill />
     </Card>

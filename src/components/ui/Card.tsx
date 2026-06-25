@@ -19,7 +19,7 @@ const cardVariants = cva('flex flex-col items-stretch gap-2 p-5.5', {
       dashed: 'border-[1.5px] border-dashed border-line-strong',
     },
     theme: {
-      light: 'bg-surface text-surface-fg hover:bg-surface-hover-bg',
+      light: 'bg-surface text-surface-fg transition-colors hover:bg-surface-hover-bg',
       gray: 'bg-surface-dark text-surface-dark-fg hover:bg-surface-dark-hover-bg',
     },
   },
@@ -57,11 +57,10 @@ export function Card({
       data-theme={theme}
       data-border={border}
       className={cn(
-        'flex flex-col items-stretch gap-2 p-5.5',
         cardVariants({ radius, theme, border }),
         raised && 'shadow-card',
         interactive &&
-          'cursor-pointer transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-card',
+          'cursor-pointer transition-all duration-100 hover:-translate-y-0.5 hover:shadow-card',
         (!hoverBackgroundColorChange || !interactive) && 'hover:bg-unset',
         className
       )}

@@ -26,3 +26,13 @@ export {
   DialogTrigger,
 } from './Dialog';
 export { Popover, PopoverAnchor, PopoverContent, PopoverTitle, PopoverTrigger } from './Popover';
+export {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerOverlay,
+  DrawerPortal,
+  DrawerTitle,
+  DrawerTrigger,
+} from './Drawer';

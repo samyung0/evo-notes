@@ -20,7 +20,7 @@ export function Panel({
       radius="card-xl"
       className={cn(
         'flex h-full min-h-full flex-col items-stretch p-0 shadow-card',
-        scroll && 'overflow-hidden',
+        scroll && 'overflow-auto',
         className
       )}
     >
@@ -65,7 +65,9 @@ export function PageHeader({
 /** Fixed-width right column used by the dashboard and opened-workspace views. */
 export function RightRail({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <aside className={cn('flex h-full min-h-full shrink-0 flex-col gap-2.5', className)}>
+    <aside
+      className={cn('flex h-full min-h-full shrink-0 flex-col gap-2.5 overflow-hidden', className)}
+    >
       {children}
     </aside>
   );

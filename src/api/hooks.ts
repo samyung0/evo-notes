@@ -292,6 +292,21 @@ export function useToggleTask() {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.tasks }),
   });
 }
+export function useUpdateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: string } & Partial<Pick<Task, 'title' | 'meta' | 'done'>>) =>
+      api.patch<Task>(`/tasks/${id}`, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tasks }),
+  });
+}
+export function useDeleteTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del<void>(`/tasks/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tasks }),
+  });
+}
 
 /* ---------------- thinking ---------------- */
 export const useCanvases = () =>

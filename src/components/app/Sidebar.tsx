@@ -1,10 +1,18 @@
+import { useEffect, useState } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { Icon, type IconName } from '@/components/ui/Icon';
-import { Text } from '@/components/ui/Text';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { m } from '@/i18n';
-import { Card, LogoMark } from '../ui';
+import {
+  Card,
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+  DrawerTrigger,
+  IconButton,
+  LogoMark,
+} from '../ui';
 
 interface NavItem {
   to: string;
@@ -36,11 +44,22 @@ function isActive(pathname: string, item: NavItem): boolean {
   return pathname === item.to || pathname.startsWith(item.to + '/');
 }
 
-function Row({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
+function Row({
+  item,
+  active,
+  collapsed,
+  onNavigate,
+}: {
+  item: NavItem;
+  active: boolean;
+  collapsed: boolean;
+  onNavigate?: () => void;
+}) {
   return (
     <Link
       to={item.to}
       preload="intent"
+      onClick={onNavigate}
       title={collapsed ? item.label : undefined}
       className={cn(
         'flex items-center rounded-button transition-colors',
@@ -51,7 +70,9 @@ function Row({ item, active, collapsed }: { item: NavItem; active: boolean; coll
       )}
     >
       <Icon name={item.icon} size={19} />
-      {!collapsed && <span className={cn('t-body translate-y-px')}>{item.label}</span>}
+      {!collapsed && (
+        <span className={cn('t-body translate-y-px font-semibold')}>{item.label}</span>
+      )}
     </Link>
   );
 }
@@ -60,7 +81,15 @@ function SectionLabel({ children }: { children: string }) {
   return <div className="t-label px-3 pt-0 pb-1.5 text-fg-muted">{children}</div>;
 }
 
-export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
+export function Sidebar({
+  collapsed = false,
+  className,
+  onNavigate,
+}: {
+  collapsed?: boolean;
+  className?: string;
+  onNavigate?: () => void;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const nav = items();
 
@@ -101,7 +130,10 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
       asChild
       theme="gray"
       radius="card-xl"
-      className="m-2.5 mr-0 flex w-52 shrink-0 items-stretch gap-0 px-2.5 py-4"
+      className={cn(
+        'm-2.5 mr-0 flex w-52 shrink-0 items-stretch gap-0 overflow-y-auto px-2.5 py-4',
+        className
+      )}
     >
       <nav>
         <div className="flex items-center gap-3 px-2 pt-1 pb-6">
@@ -114,7 +146,13 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
         <SectionLabel>{m.nav_section_general()}</SectionLabel>
         <div className="flex flex-col gap-1">
           {nav.general.map((i) => (
-            <Row key={i.to} item={i} active={isActive(pathname, i)} collapsed={false} />
+            <Row
+              key={i.to}
+              item={i}
+              active={isActive(pathname, i)}
+              collapsed={false}
+              onNavigate={onNavigate}
+            />
           ))}
         </div>
 
@@ -122,7 +160,13 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
         <SectionLabel>{m.nav_section_tools()}</SectionLabel>
         <div className="flex flex-col gap-1">
           {nav.tools.map((i) => (
-            <Row key={i.to} item={i} active={isActive(pathname, i)} collapsed={false} />
+            <Row
+              key={i.to}
+              item={i}
+              active={isActive(pathname, i)}
+              collapsed={false}
+              onNavigate={onNavigate}
+            />
           ))}
         </div>
 
@@ -132,6 +176,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           <Link
             to="/support"
             preload="intent"
+            onClick={onNavigate}
             className={cn(
               'flex items-center gap-3 rounded-button px-3 py-2.5 text-[0.95rem] font-medium transition-colors',
               isActive(pathname, { to: '/support', label: '', icon: 'help' })
@@ -145,5 +190,40 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
         </div>
       </nav>
     </Card>
+  );
+}
+
+/**
+ * Mobile-only hamburger that slides the full nav in from the left.
+ * The trigger is meant to live in the top inset bar; the drawer closes
+ * itself whenever the route changes.
+ */
+export function MobileNav({ className }: { className?: string }) {
+  const [open, setOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  return (
+    <Drawer direction="left" open={open} onOpenChange={setOpen}>
+      <DrawerTrigger asChild>
+        <IconButton
+          icon="menu"
+          variant="neutral"
+          size="md"
+          aria-label="Open navigation"
+          className={className}
+        />
+      </DrawerTrigger>
+      <DrawerContent className="w-64 max-w-[82vw] border-0 bg-transparent p-0">
+        <DrawerTitle className="sr-only">{m.app_name()}</DrawerTitle>
+        <Sidebar
+          className="m-0 h-full w-full rounded-none"
+          onNavigate={() => setOpen(false)}
+        />
+      </DrawerContent>
+    </Drawer>
   );
 }

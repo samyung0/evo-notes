@@ -22,6 +22,8 @@
   "action_edit": "编辑",
   "action_delete": "删除",
   "action_rename": "重命名",
+  "action_mark_done": "标记为完成",
+  "action_mark_undone": "标记为未完成",
   "action_reorder": "重新排序",
   "action_view_stats": "查看统计",
   "action_cancel": "取消",

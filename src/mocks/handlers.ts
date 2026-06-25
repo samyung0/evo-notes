@@ -1,6 +1,3 @@
-import { http, HttpResponse, delay } from 'msw';
-import * as db from './db';
-import { uid } from './db';
 import type {
   Chapter,
   Flashcard,
@@ -9,9 +6,12 @@ import type {
   Quiz,
   SearchResult,
   Task,
+  UserColor,
   Workspace,
-  WorkspaceColor,
 } from '@/api/types';
+import { delay, http, HttpResponse } from 'msw';
+import * as db from './db';
+import { uid } from './db';
 
 const latency = () => delay(180 + Math.random() * 220);
 
@@ -146,7 +146,7 @@ export const handlers = [
     const ws: Workspace = {
       id: uid('ws'),
       name: body.name ?? 'Untitled workspace',
-      color: (body.color as WorkspaceColor) ?? 'green',
+      color: (body.color as UserColor) ?? 'green',
       privacy: body.privacy ?? 'private',
       tags: body.tags ?? [],
       chapterCount: 0,
@@ -457,6 +457,12 @@ export const handlers = [
     if (!t) return new HttpResponse(null, { status: 404 });
     Object.assign(t, await request.json());
     return HttpResponse.json(t);
+  }),
+  http.delete('/api/tasks/:id', async ({ params }) => {
+    await latency();
+    const i = db.tasks.findIndex((x) => x.id === params.id);
+    if (i >= 0) db.tasks.splice(i, 1);
+    return new HttpResponse(null, { status: 204 });
   }),
 
   /* ---------------- thinking space ---------------- */

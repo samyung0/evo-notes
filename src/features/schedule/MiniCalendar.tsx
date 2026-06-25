@@ -24,25 +24,25 @@ export function MiniCalendar({
   const grid = monthGrid(month);
 
   return (
-    <div className="rounded-card border border-line bg-surface p-3.5 shadow-card">
+    <div className="">
       <div className="mb-2 flex items-center justify-between">
         <button
           onClick={() => setPicking((p) => !p)}
-          className="hover:bg-surface-hover-bg rounded-row px-2 py-1 text-sm font-bold text-fg"
+          className="rounded-row px-2 py-1 text-sm font-bold text-fg hover:bg-surface-hover-bg"
         >
           {MONTHS[month.getMonth()]} {month.getFullYear()}
         </button>
         <div className="flex items-center gap-1">
           <button
             onClick={() => onMonthChange(addMonths(month, -1))}
-            className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
+            className="rounded-row p-1 text-fg-muted hover:bg-surface-hover-bg"
             aria-label="Previous month"
           >
             <Icon name="chevronLeft" size={16} />
           </button>
           <button
             onClick={() => onMonthChange(addMonths(month, 1))}
-            className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
+            className="rounded-row p-1 text-fg-muted hover:bg-surface-hover-bg"
             aria-label="Next month"
           >
             <Icon name="chevronRight" size={16} />
@@ -55,7 +55,7 @@ export function MiniCalendar({
           <div className="mb-2 flex items-center justify-between">
             <button
               onClick={() => onMonthChange(new Date(month.getFullYear() - 1, month.getMonth(), 1))}
-              className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
+              className="rounded-row p-1 text-fg-muted hover:bg-surface-hover-bg"
               aria-label="Previous year"
             >
               <Icon name="chevronLeft" size={16} />
@@ -63,7 +63,7 @@ export function MiniCalendar({
             <span className="text-sm font-bold">{month.getFullYear()}</span>
             <button
               onClick={() => onMonthChange(new Date(month.getFullYear() + 1, month.getMonth(), 1))}
-              className="hover:bg-surface-hover-bg rounded-row p-1 text-fg-muted"
+              className="rounded-row p-1 text-fg-muted hover:bg-surface-hover-bg"
               aria-label="Next year"
             >
               <Icon name="chevronRight" size={16} />
@@ -78,7 +78,7 @@ export function MiniCalendar({
                   setPicking(false);
                 }}
                 className={cn(
-                  'hover:bg-surface-hover-bg rounded-row py-1.5 text-xs font-medium',
+                  'rounded-row py-1.5 text-xs font-medium hover:bg-surface-hover-bg',
                   i === month.getMonth() ? 'bg-action text-action-fg' : 'text-fg'
                 )}
               >
@@ -112,8 +112,8 @@ export function MiniCalendar({
                     !isToday && isSel && 'ring-[1.5px] ring-action',
                     !isToday &&
                       (inMonth
-                        ? 'hover:bg-surface-hover-bg text-fg'
-                        : 'hover:bg-surface-hover-bg text-fg-muted')
+                        ? 'text-fg hover:bg-surface-hover-bg'
+                        : 'text-fg-muted hover:bg-surface-hover-bg')
                   )}
                 >
                   {day.getDate()}

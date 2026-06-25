@@ -4,21 +4,21 @@
    for the session. Swap for the real API later — no UI changes.
    ============================================================ */
 import type {
+  AppNotification,
   Attempt,
   CalendarEvent,
   Chapter,
   Deck,
   Flashcard,
   Label,
-  AppNotification,
+  PublicQuiz,
+  PublicWorkspace,
   Quiz,
   SourceFile,
   Task,
   ThinkingCanvas,
   User,
   Workspace,
-  PublicWorkspace,
-  PublicQuiz,
 } from '@/api/types';
 
 export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
@@ -498,7 +498,8 @@ export const events: CalendarEvent[] = [
 export const tasks: Task[] = [
   {
     id: 'tk_1',
-    title: 'Read Chapter 3 — Genetics',
+    title:
+      'Read Chapter 3 — Genetics b labdl ab lb la this is really long I guess just to make sure everything works',
     meta: 'Biology 101',
     done: false,
     dueDate: todayAt(23),

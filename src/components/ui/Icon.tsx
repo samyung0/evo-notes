@@ -120,6 +120,7 @@ const PATHS = {
   ],
   grid: ['M4 4h7v7H4z', 'M13 4h7v7h-7z', 'M4 13h7v7H4z', 'M13 13h7v7h-7z'],
   list: ['M8 6h13', 'M8 12h13', 'M8 18h13', 'M3.5 6h.01', 'M3.5 12h.01', 'M3.5 18h.01'],
+  menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
 } as const;
 
 export type IconName = keyof typeof PATHS;

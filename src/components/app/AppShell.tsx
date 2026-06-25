@@ -8,8 +8,10 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-page text-fg">
-      <Sidebar collapsed={collapsed} />
-      <main className="flex-1 overflow-hidden p-2.5">
+      <div className="hidden lg:flex">
+        <Sidebar collapsed={collapsed} />
+      </div>
+      <main className="min-w-0 flex-1 overflow-hidden p-1.5 sm:p-2.5">
         <Outlet />
       </main>
     </div>

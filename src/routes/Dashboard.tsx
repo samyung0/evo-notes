@@ -3,11 +3,20 @@ import { Link } from '@tanstack/react-router';
 import { Panel, RightRail } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
 import { MiniCalendar } from '@/features/schedule/MiniCalendar';
-import { Badge, Card, Checkbox, Icon, Text, Spinner, Button } from '@/components/ui';
+import { Badge, Card, Checkbox, Icon, Menu, Text, Spinner, Button } from '@/components/ui';
 import { userColorPair } from '@/lib/workspaceColor';
-import { useCanvases, useMe, useTasks, useToggleTask, useWorkspaces } from '@/api/hooks';
+import {
+  useCanvases,
+  useDeleteTask,
+  useMe,
+  useTasks,
+  useToggleTask,
+  useUpdateTask,
+  useWorkspaces,
+} from '@/api/hooks';
 import { m } from '@/i18n';
 import DashboardDefaultBanner from '@/components/banners/DashboardDefaultBanner';
+import { cn } from '@/lib/cn';
 
 function StreakHeading() {
   const { data: me } = useMe();
@@ -26,8 +35,8 @@ function StreakHeading() {
 
 function WorkspacesSection() {
   const { data, isLoading } = useWorkspaces({ sort: 'accessed' });
-  // const recent = data;
-  const recent = data?.slice(0, 2);
+  const recent = data;
+  // const recent = data?.slice(0, 2);
   // TODO: do a UI design to let user know there are more data, possible bottom shadows
   return (
     <section>
@@ -124,10 +133,12 @@ function ThinkingSection() {
 function TasksCard() {
   const { data } = useTasks();
   const toggle = useToggleTask();
+  const update = useUpdateTask();
+  const remove = useDeleteTask();
   const open = data?.filter((t) => !t.done) ?? [];
   return (
-    <Card className="shrink-0 p-0">
-      <div className="flex items-center justify-between px-4 pt-4">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
         <h3 className="t-card-title">{m.dashboard_tasks()}</h3>
         <Link
           to="/tasks"
@@ -137,33 +148,69 @@ function TasksCard() {
           {m.action_see_all()}
         </Link>
       </div>
-      <div className="flex flex-col gap-1 p-3">
+      <div className="flex flex-col gap-1">
         {!open.length && (
           <p className="t-body px-1 pt-2 pb-4 text-center text-fg-muted">{m.tasks_empty()}</p>
         )}
         {data?.map((t) => (
-          <button
+          <div
             key={t.id}
-            onClick={() => toggle.mutate({ id: t.id, done: !t.done })}
-            className="flex items-start gap-3 rounded-row px-1 py-2 text-left hover:bg-surface-hover-bg"
+            className="group flex items-start gap-3 rounded-row px-1 py-2 hover:bg-surface-hover-bg"
           >
-            <Checkbox checked={t.done} tone="purple" size={22} className="translate-y-1" />
-            <span className="min-w-0">
-              <span
-                className={
-                  t.done
-                    ? 't-body block font-semibold text-fg-muted line-through'
-                    : 't-body block font-semibold text-fg'
-                }
-              >
-                {t.title}
+            <button
+              onClick={() => toggle.mutate({ id: t.id, done: !t.done })}
+              className="flex min-w-0 flex-1 items-start gap-3 text-left"
+            >
+              <Checkbox
+                checked={t.done}
+                tone="purple"
+                size={22}
+                className={cn(t.meta && 'translate-y-1')}
+              />
+              <span className="min-w-0">
+                <span
+                  className={cn(
+                    t.done
+                      ? 't-body block font-semibold text-fg-muted line-through'
+                      : 't-body block font-semibold text-fg',
+                    'line-clamp-2',
+                    !t.meta && 'translate-y-1'
+                  )}
+                >
+                  {t.title}
+                </span>
+                {t.meta && <span className="t-body block text-fg-muted">{t.meta}</span>}
               </span>
-              {t.meta && <span className="t-body block text-fg-muted">{t.meta}</span>}
-            </span>
-          </button>
+            </button>
+            <div className="opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+              <Menu
+                items={[
+                  {
+                    label: m.action_edit(),
+                    icon: 'notes',
+                    onClick: () => {
+                      const title = prompt(m.action_edit(), t.title);
+                      if (title && title !== t.title) update.mutate({ id: t.id, title });
+                    },
+                  },
+                  {
+                    label: t.done ? m.action_mark_undone() : m.action_mark_done(),
+                    icon: 'check',
+                    onClick: () => toggle.mutate({ id: t.id, done: !t.done }),
+                  },
+                  {
+                    label: m.action_delete(),
+                    icon: 'trash',
+                    danger: true,
+                    onClick: () => remove.mutate(t.id),
+                  },
+                ]}
+              />
+            </div>
+          </div>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -172,19 +219,17 @@ export default function Dashboard() {
   const [selected, setSelected] = useState(() => new Date());
 
   return (
-    <div className="flex h-full min-h-full gap-2.5">
-      <Panel className="flex-1">
-        <div className="flex flex-col gap-6 overflow-auto px-6 py-6">
-          <StreakHeading />
-          <DashboardDefaultBanner />
-          <WorkspacesSection />
-          <ThinkingSection />
-        </div>
+    <div className="flex h-full min-h-full flex-col gap-1.5 sm:gap-2.5 lg:flex-row">
+      <Panel className="order-last min-h-0 flex-1 gap-5 rounded-card p-4 sm:gap-6 sm:rounded-card-xl sm:p-6 lg:order-first">
+        <StreakHeading />
+        <DashboardDefaultBanner />
+        <WorkspacesSection />
+        <ThinkingSection />
       </Panel>
 
-      <RightRail className="w-90">
-        <TopInsetBar />
-        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-auto">
+      <RightRail className="order-first h-auto min-h-0 w-full shrink-0 overflow-visible lg:order-last lg:h-full lg:min-h-full lg:w-90 lg:overflow-hidden">
+        <TopInsetBar className="rounded-card sm:rounded-card-lg" />
+        <Panel className="hidden min-h-0 flex-1 gap-2.5 p-5 lg:flex">
           <TasksCard />
           <MiniCalendar
             month={month}
@@ -192,7 +237,7 @@ export default function Dashboard() {
             selected={selected}
             onSelect={setSelected}
           />
-        </div>
+        </Panel>
       </RightRail>
     </div>
   );

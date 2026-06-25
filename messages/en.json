@@ -23,6 +23,8 @@
   "action_edit": "Edit",
   "action_delete": "Delete",
   "action_rename": "Rename",
+  "action_mark_done": "Mark as done",
+  "action_mark_undone": "Mark as not done",
   "action_reorder": "Reorder",
   "action_view_stats": "View statistics",
   "action_cancel": "Cancel",

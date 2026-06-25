@@ -1,8 +1,36 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
-import { useOutsideClick } from '@/lib/useOutsideClick';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { Card } from './Card';
 import { Icon, type IconName } from './Icon';
 import { IconButton } from './IconButton';
+import { Popover, PopoverContent, PopoverTrigger } from './Popover';
+
+const menuVariants = cva('w-auto min-w-[180px] p-0', {
+  variants: {
+    variant: {
+      default: '',
+    },
+  },
+  defaultVariants: {
+    variant: 'default',
+  },
+});
+
+const menuItemVariants = cva(
+  'flex w-full items-center gap-2.5 rounded-row px-3 py-2 text-left text-sm transition-colors disabled:opacity-40',
+  {
+    variants: {
+      danger: {
+        true: 'text-tint-error-fg hover:bg-tint-error',
+        false: 'text-fg hover:bg-surface-hover-bg',
+      },
+    },
+    defaultVariants: {
+      danger: false,
+    },
+  }
+);
 
 export interface MenuItem {
   label: string;
@@ -12,29 +40,21 @@ export interface MenuItem {
   disabled?: boolean;
 }
 
-export interface MenuProps {
+export interface MenuProps extends VariantProps<typeof menuVariants> {
   items: MenuItem[];
   /** Custom trigger. Defaults to the unified thick vertical 3-dot button. */
   trigger?: ReactNode;
-  align?: 'start' | 'end';
+  align?: 'start' | 'center' | 'end';
   className?: string;
 }
 
-/** Unified action menu — the thick-stroke vertical three-dot used app-wide. */
-export function Menu({ items, trigger, align = 'end', className }: MenuProps) {
+/** Unified action menu — Popover-backed, thick-stroke vertical three-dot used app-wide. */
+export function Menu({ items, trigger, align = 'end', variant = 'default', className }: MenuProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useOutsideClick(ref, () => setOpen(false), open);
 
   return (
-    <div ref={ref} className={cn('relative inline-flex', className)}>
-      <span
-        onClick={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          setOpen((o) => !o);
-        }}
-      >
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         {trigger ?? (
           <IconButton
             icon="moreVertical"
@@ -44,15 +64,14 @@ export function Menu({ items, trigger, align = 'end', className }: MenuProps) {
             label="Open menu"
           />
         )}
-      </span>
-      {open && (
-        <div
-          role="menu"
-          className={cn(
-            'absolute top-full z-30 mt-1 min-w-[180px] overflow-hidden rounded-card border border-line bg-surface py-1 shadow-pop',
-            align === 'end' ? 'right-0' : 'left-0'
-          )}
-        >
+      </PopoverTrigger>
+      <PopoverContent
+        data-slot="menu"
+        data-variant={variant}
+        align={align}
+        className={cn(menuVariants({ variant }), className)}
+      >
+        <Card radius="card" border="solid" className="block p-1">
           {items.map((it, i) => (
             <button
               key={i}
@@ -63,19 +82,14 @@ export function Menu({ items, trigger, align = 'end', className }: MenuProps) {
                 setOpen(false);
                 it.onClick?.();
               }}
-              className={cn(
-                'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors disabled:opacity-40',
-                it.danger
-                  ? 'text-tint-error-fg hover:bg-tint-error'
-                  : 'hover:bg-surface-hover-bg text-fg'
-              )}
+              className={menuItemVariants({ danger: it.danger })}
             >
               {it.icon && <Icon name={it.icon} size={16} />}
               {it.label}
             </button>
           ))}
-        </div>
-      )}
-    </div>
+        </Card>
+      </PopoverContent>
+    </Popover>
   );
 }
