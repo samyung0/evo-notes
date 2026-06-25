@@ -199,7 +199,7 @@ export default function WorkspaceOpen() {
         <div className="min-h-0 flex-1 overflow-auto p-6">
           <FileViewer file={openFile ?? null} />
         </div>
-      </Panel>
+      </PanelWithInvertedRadius>
 
       {/* Right column: top bar + AI */}
       <RightRail width={380}>
@@ -223,7 +223,7 @@ export default function WorkspaceOpen() {
               <GeneratePanel workspaceId={workspaceId} chapters={chapters ?? []} />
             )}
           </div>
-        </Panel>
+        </PanelWithInvertedRadius>
       </RightRail>
 
       <AddSourceModal

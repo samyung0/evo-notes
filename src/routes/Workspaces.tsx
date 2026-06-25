@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Panel, PageHeader, Toolbar } from '@/components/app/layout';
+import { Panel, PageHeader, Toolbar, PanelWithInvertedRadius } from '@/components/app/layout';
 import {
   Badge,
   Button,
@@ -13,8 +13,9 @@ import {
   Modal,
   Spinner,
   Text,
+  WorkspaceCard,
 } from '@/components/ui';
-import { colorPair, WORKSPACE_COLORS } from '@/lib/workspaceColor';
+import { userColorPair, USER_COLORS } from '@/lib/workspaceColor';
 import {
   useCreateWorkspace,
   useDeleteWorkspace,
@@ -48,7 +49,7 @@ function StatsModal({ id, open, onClose }: { id: string; open: boolean; onClose:
         {rows.map(([label, val]) => (
           <div
             key={label}
-            className="bg-surface-hover-bg rounded-card border border-line px-4 py-3"
+            className="rounded-card border border-line bg-surface-hover-bg px-4 py-3"
           >
             <Text variant="label" tone="muted">
               {label}
@@ -85,14 +86,42 @@ export default function Workspaces() {
 
   const sortLabel = useMemo(() => SORTS.find((s) => s.value === sort)?.label() ?? '', [sort]);
 
+  const ActionMenu = useCallback(({ w }: { w: Workspace }) => {
+    return (
+      <div className="absolute top-3 right-3 z-50">
+        <Menu
+          items={[
+            {
+              label: m.action_edit(),
+              icon: 'settings',
+              onClick: () => setEditing(w),
+            },
+            {
+              label: m.action_view_stats(),
+              icon: 'quiz',
+              onClick: () => setStats(w.id),
+            },
+            {
+              label: m.action_delete(),
+              icon: 'trash',
+              danger: true,
+              onClick: () => setDeleting(w),
+            },
+          ]}
+        />
+      </div>
+    );
+  }, []);
+
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader
         title={m.workspaces_title()}
         actions={
           <IconButton
             icon="plus"
-            variant="dark"
+            variant="outline"
+            size="lg"
             onClick={() => setCreating(true)}
             label={m.action_new_workspace()}
           />
@@ -122,7 +151,7 @@ export default function Workspaces() {
             }
             items={[
               { label: 'All colors', onClick: () => setColorFilter(undefined) },
-              ...WORKSPACE_COLORS.map((c) => ({
+              ...USER_COLORS.map((c) => ({
                 label: c,
                 onClick: () => setColorFilter(c),
               })),
@@ -153,75 +182,31 @@ export default function Workspaces() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
+      <div className="min-h-0 w-full flex-1 overflow-auto px-6 pb-6">
         {isLoading ? (
           <div className="grid place-items-center py-16">
             <Spinner />
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {data?.map((w) => {
-              const c = colorPair(w.color);
-              return (
-                <Card key={w.id} padding={20} radius="card-lg" className="group relative">
-                  <Link
-                    to="/workspaces/$workspaceId"
-                    params={{ workspaceId: w.id }}
-                    preload="intent"
-                    className="block"
-                  >
-                    <div className="flex items-start justify-between">
-                      <span
-                        className="flex h-11 w-11 items-center justify-center rounded-card"
-                        style={{ background: c.bg, color: c.fg }}
-                      >
-                        <Icon name="workspaces" size={20} />
-                      </span>
-                    </div>
-                    <Text variant="card-title" className="mt-3 truncate">
-                      {w.name}
-                    </Text>
-                    <Text variant="meta" tone="muted" className="mt-1">
-                      {w.chapterCount} chapters · {w.fileCount} files
-                    </Text>
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {w.tags.map((t) => (
-                        <Badge key={t} tone="neutral" size="sm">
-                          #{t}
-                        </Badge>
-                      ))}
-                      {w.privacy !== 'private' && (
-                        <Badge tone={w.privacy === 'public' ? 'success' : 'info'} size="sm">
-                          {w.privacy === 'public' ? 'Public' : 'Shared'}
-                        </Badge>
-                      )}
-                    </div>
-                  </Link>
-                  <div className="absolute top-3 right-3">
-                    <Menu
-                      items={[
-                        {
-                          label: m.action_edit(),
-                          icon: 'settings',
-                          onClick: () => setEditing(w),
-                        },
-                        {
-                          label: m.action_view_stats(),
-                          icon: 'quiz',
-                          onClick: () => setStats(w.id),
-                        },
-                        {
-                          label: m.action_delete(),
-                          icon: 'trash',
-                          danger: true,
-                          onClick: () => setDeleting(w),
-                        },
-                      ]}
-                    />
-                  </div>
-                </Card>
-              );
-            })}
+          <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+            {data?.map((w) => (
+              <WorkspaceCard key={w.id} workspace={w} customComponent={<ActionMenu w={w} />} />
+            ))}
+            {data?.map((w) => (
+              <WorkspaceCard key={w.id} workspace={w} customComponent={<ActionMenu w={w} />} />
+            ))}
+            {data?.map((w) => (
+              <WorkspaceCard key={w.id} workspace={w} customComponent={<ActionMenu w={w} />} />
+            ))}
+            {data?.map((w) => (
+              <WorkspaceCard key={w.id} workspace={w} customComponent={<ActionMenu w={w} />} />
+            ))}
+            {data?.map((w) => (
+              <WorkspaceCard key={w.id} workspace={w} customComponent={<ActionMenu w={w} />} />
+            ))}
+            {data?.map((w) => (
+              <WorkspaceCard key={w.id} workspace={w} customComponent={<ActionMenu w={w} />} />
+            ))}
             <Card
               dashed
               radius="card-lg"
@@ -268,6 +253,6 @@ export default function Workspaces() {
         title={deleting ? m.confirm_delete_title({ name: deleting.name }) : ''}
         body={m.confirm_delete_body()}
       />
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

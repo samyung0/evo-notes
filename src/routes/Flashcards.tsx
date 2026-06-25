@@ -8,7 +8,7 @@ import { m } from '@/i18n';
 export default function Flashcards() {
   const { data, isLoading } = useDecks();
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader
         title={m.nav_flashcards()}
         actions={<IconButton icon="plus" variant="dark" label="New deck" />}
@@ -56,6 +56,6 @@ export default function Flashcards() {
           </div>
         )}
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

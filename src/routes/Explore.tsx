@@ -11,7 +11,7 @@ export default function Explore() {
   const qz = useExploreQuizzes();
 
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader
         title={m.nav_explore()}
         subtitle="Discover public study sets from the community."
@@ -66,7 +66,7 @@ export default function Explore() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {qz.data?.map((q) => (
               <Card key={q.id} padding={20} radius="card-lg">
-                <span className="bg-tint-accent-1 text-tint-accent-1-fg flex h-11 w-11 items-center justify-center rounded-card">
+                <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-accent-1 text-tint-accent-1-fg">
                   <Icon name="quiz" size={20} />
                 </span>
                 <Text variant="card-title" className="mt-3 truncate">
@@ -88,6 +88,6 @@ export default function Explore() {
           </div>
         )}
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

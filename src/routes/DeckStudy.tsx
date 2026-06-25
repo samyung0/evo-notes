@@ -16,21 +16,21 @@ export default function DeckStudy() {
 
   if (isLoading || !cards)
     return (
-      <Panel>
+      <PanelWithInvertedRadius>
         <div className="grid h-full place-items-center">
           <Spinner />
         </div>
-      </Panel>
+      </PanelWithInvertedRadius>
     );
   if (!cards.length)
     return (
-      <Panel>
+      <PanelWithInvertedRadius>
         <div className="grid h-full place-items-center">
           <Text variant="body" tone="muted">
             This deck has no cards yet.
           </Text>
         </div>
-      </Panel>
+      </PanelWithInvertedRadius>
     );
 
   const card = cards[idx];
@@ -41,7 +41,7 @@ export default function DeckStudy() {
   }
 
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-6 py-6">
         <div className="mb-4 flex items-center gap-3">
           <Link to="/flashcards" preload="intent" className="text-fg-muted hover:text-fg">
@@ -82,6 +82,6 @@ export default function DeckStudy() {
           </Button>
         </div>
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

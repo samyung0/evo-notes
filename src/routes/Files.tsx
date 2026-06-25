@@ -11,7 +11,7 @@ export default function Files() {
   const [open, setOpen] = useState<SourceFile | null>(null);
 
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader title={m.nav_files()} />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {isLoading ? (
@@ -28,7 +28,7 @@ export default function Files() {
                 onClick={() => setOpen(f)}
                 className="flex items-center gap-3"
               >
-                <span className="bg-surface-hover-bg flex h-10 w-10 items-center justify-center rounded-card text-fg-secondary">
+                <span className="flex h-10 w-10 items-center justify-center rounded-card bg-surface-hover-bg text-fg-secondary">
                   <Icon name="files" size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -50,6 +50,6 @@ export default function Files() {
       <Modal open={!!open} onClose={() => setOpen(null)} title={open?.name} width={760}>
         <div className="min-h-[50vh]">{open && <FileViewer file={open} />}</div>
       </Modal>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

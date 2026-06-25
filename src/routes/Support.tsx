@@ -86,7 +86,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function Support() {
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader
         title={m.nav_support()}
         subtitle="Find an answer or reach the team — we’re happy to help."
@@ -146,6 +146,6 @@ export default function Support() {
           </section>
         </div>
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

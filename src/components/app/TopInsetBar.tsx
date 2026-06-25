@@ -49,7 +49,13 @@ function SearchButton() {
       }}
     >
       <DialogTrigger asChild>
-        <IconButton icon="search" size="md" variant="neutral" label={m.search_placeholder()} />
+        <IconButton
+          icon="search"
+          size="md"
+          variant="dark"
+          className="shrink-0"
+          label={m.search_placeholder()}
+        />
       </DialogTrigger>
       <DialogContent
         onOpenAutoFocus={(e) => {
@@ -130,13 +136,14 @@ function NotificationsBell() {
       <PopoverTrigger asChild>
         <IconButton
           icon="bell"
-          variant="dark"
+          variant="neutral"
           size="md"
           dot={unread}
           label="Notifications"
           onClick={() => {
             if (unread) markRead.mutate();
           }}
+          className="shrink-0"
         />
       </PopoverTrigger>
       <PopoverContent className="w-80">
@@ -181,11 +188,11 @@ function ProfilePill() {
   return (
     <Popover open={open} onOpenChange={(next) => setOpen(next)}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-2.5 rounded-pill bg-surface py-1 pr-3 pl-1 hover:bg-surface-hover-bg">
+        <button className="flex items-center gap-2.5 rounded-card bg-surface py-1 pr-3 pl-1 hover:bg-surface-hover-bg lg:rounded-pill">
           <Avatar name={me?.name} src={me?.avatarUrl} size="md" />
-          <span className="hidden text-left sm:block">
-            <span className="block text-sm leading-tight font-bold text-fg">{me?.name ?? '—'}</span>
-            <span className="block text-[11px] leading-tight text-fg-muted">{me?.classLabel}</span>
+          <span className="text-left">
+            <span className="block font-bold">{me?.name ?? '—'}</span>
+            {/* <span className="block text-[11px] leading-tight text-fg-muted">{me?.classLabel}</span> */}
           </span>
           <Icon name="chevronDown" size={16} className="text-fg-muted" />
         </button>
@@ -195,18 +202,18 @@ function ProfilePill() {
           <Link
             to="/profile"
             onClick={() => setOpen(false)}
-            className="t-body flex items-center gap-2.5 rounded-row px-3 py-2 hover:bg-surface-hover-bg"
+            className="flex items-center gap-2.5 rounded-row px-3 py-2 hover:bg-surface-hover-bg"
           >
             <Icon name="profile" size={16} /> {m.profile_menu_profile()}
           </Link>
           <Link
             to="/settings"
             onClick={() => setOpen(false)}
-            className="t-body flex items-center gap-2.5 rounded-row px-3 py-2 hover:bg-surface-hover-bg"
+            className="flex items-center gap-2.5 rounded-row px-3 py-2 hover:bg-surface-hover-bg"
           >
             <Icon name="settings" size={16} /> {m.profile_menu_settings()}
           </Link>
-          <button className="t-body flex w-full items-center gap-2.5 rounded-row px-3 py-2 text-tint-error-fg hover:bg-tint-error">
+          <button className="flex w-full items-center gap-2.5 rounded-row px-3 py-2 text-tint-error-fg hover:bg-tint-error">
             <Icon name="logout" size={16} /> {m.profile_menu_logout()}
           </button>
         </Card>
@@ -217,17 +224,21 @@ function ProfilePill() {
 
 export function TopInsetBar({ className }: { className?: string }) {
   return (
+    // the border radius should match the large panel/panel with inverted radius
     <Card
       theme="gray"
-      radius="card-lg"
-      className={cn('flex-row items-center justify-between gap-2.5 px-4 py-1.5', className)}
+      radius="unset"
+      className={cn(
+        'top-inset-bar-shape flex-row items-center justify-between gap-2.5 py-1.5 pr-3 pl-4',
+        className
+      )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <MobileNav className="lg:hidden" />
-        <NotificationsBell />
         <div className="hidden lg:block">
           <SearchButton />
         </div>
+        <NotificationsBell />
       </div>
       <ProfilePill />
     </Card>

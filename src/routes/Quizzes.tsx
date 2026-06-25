@@ -51,7 +51,7 @@ function AllQuizzes() {
             className="relative"
             onClick={() => setInfo(q)}
           >
-            <span className="bg-tint-accent-1 text-tint-accent-1-fg flex h-11 w-11 items-center justify-center rounded-card">
+            <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-accent-1 text-tint-accent-1-fg">
               <Icon name="quiz" size={20} />
             </span>
             <Text variant="card-title" className="mt-3 truncate">
@@ -218,7 +218,7 @@ function PastAttempts() {
 export default function Quizzes() {
   const [tab, setTab] = useState('all');
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader
         title={m.nav_quizzes()}
         actions={<IconButton icon="plus" variant="dark" label={m.action_new_quiz()} />}
@@ -236,6 +236,6 @@ export default function Quizzes() {
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {tab === 'all' ? <AllQuizzes /> : <PastAttempts />}
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

@@ -13,11 +13,12 @@ const iconButtonVariants = cva(
         accent: 'bg-accent text-accent-fg hover:bg-accent-hover',
         neutral: 'bg-surface text-surface-fg hover:bg-surface-hover-bg',
         ghost: 'bg-transparent text-fg',
+        outline: 'border border-line bg-transparent text-fg hover:bg-surface-hover-bg',
       },
       size: {
-        sm: 'size-9 rounded-input',
-        md: 'size-10 rounded-button',
-        lg: 'size-11 rounded-button',
+        sm: '[&>svg]:size-4.8 size-9 rounded-input',
+        md: 'size-10 rounded-button [&>svg]:size-5.5',
+        lg: 'size-11 rounded-button [&>svg]:size-6',
       },
     },
     defaultVariants: {
@@ -27,11 +28,11 @@ const iconButtonVariants = cva(
   }
 );
 
-const SIZE = {
-  sm: 19,
-  md: 22,
-  lg: 24,
-};
+// const SIZE = {
+//   sm: 19,
+//   md: 22,
+//   lg: 24,
+// };
 
 export interface IconButtonProps
   extends React.ComponentProps<'button'>, VariantProps<typeof iconButtonVariants> {
@@ -63,7 +64,7 @@ export function IconButton({
       className={cn(iconButtonVariants({ variant, size }), className)}
       {...rest}
     >
-      <Icon name={icon} size={SIZE[size ?? 'md']} strokeWidth={strokeWidth} />
+      <Icon name={icon} strokeWidth={strokeWidth} />
       {children}
       {dot && (
         <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-solid-error ring-1 ring-surface" />

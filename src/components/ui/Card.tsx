@@ -6,6 +6,8 @@ import { Slot } from 'radix-ui';
 const cardVariants = cva('flex flex-col items-stretch gap-2 p-5.5', {
   variants: {
     radius: {
+      unset: '',
+      none: 'rounded-none',
       card: 'rounded-card',
       'card-lg': 'rounded-card-lg',
       'card-xl': 'rounded-card-xl',
@@ -21,6 +23,7 @@ const cardVariants = cva('flex flex-col items-stretch gap-2 p-5.5', {
     theme: {
       light: 'bg-surface text-surface-fg transition-colors hover:bg-surface-hover-bg',
       gray: 'bg-surface-dark text-surface-dark-fg hover:bg-surface-dark-hover-bg',
+      transparent: 'bg-transparent text-surface-fg',
     },
   },
   defaultVariants: {

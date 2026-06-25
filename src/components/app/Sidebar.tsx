@@ -4,15 +4,7 @@ import { cn } from '@/lib/cn';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { m } from '@/i18n';
-import {
-  Card,
-  Drawer,
-  DrawerContent,
-  DrawerTitle,
-  DrawerTrigger,
-  IconButton,
-  LogoMark,
-} from '../ui';
+import { Card, Drawer, DrawerContent, DrawerTrigger, IconButton, LogoMark } from '../ui';
 
 interface NavItem {
   to: string;
@@ -70,9 +62,7 @@ function Row({
       )}
     >
       <Icon name={item.icon} size={19} />
-      {!collapsed && (
-        <span className={cn('t-body translate-y-px font-semibold')}>{item.label}</span>
-      )}
+      {!collapsed && <span className={cn('translate-y-px font-semibold')}>{item.label}</span>}
     </Link>
   );
 }
@@ -136,11 +126,21 @@ export function Sidebar({
       )}
     >
       <nav>
-        <div className="flex items-center gap-3 px-2 pt-1 pb-6">
-          <LogoMark size={36} />
-          <h1 className={cn('t-card-title translate-y-px font-extrabold tracking-[-0.02rem]')}>
-            {m.app_name()}
-          </h1>
+        <div className="flex items-center justify-between px-2 pt-1 pb-6">
+          <div className="flex items-center gap-3">
+            <LogoMark size={36} />
+            <h1 className={cn('t-card-title translate-y-px font-extrabold tracking-[-0.02rem]')}>
+              {m.app_name()}
+            </h1>
+          </div>
+          <IconButton
+            icon="x"
+            variant="ghost"
+            size="sm"
+            label="Close"
+            className="lg:hidden"
+            onClick={onNavigate}
+          />
         </div>
 
         <SectionLabel>{m.nav_section_general()}</SectionLabel>
@@ -211,16 +211,15 @@ export function MobileNav({ className }: { className?: string }) {
       <DrawerTrigger asChild>
         <IconButton
           icon="menu"
-          variant="neutral"
+          variant="dark"
           size="md"
           aria-label="Open navigation"
           className={className}
         />
       </DrawerTrigger>
-      <DrawerContent className="w-64 max-w-[82vw] border-0 bg-transparent p-0">
-        <DrawerTitle className="sr-only">{m.app_name()}</DrawerTitle>
+      <DrawerContent className="border-0 bg-transparent p-0">
         <Sidebar
-          className="m-0 h-full w-full rounded-none"
+          className="m-0 h-full w-[40vw] min-w-62 rounded-none bg-surface text-surface-fg"
           onNavigate={() => setOpen(false)}
         />
       </DrawerContent>

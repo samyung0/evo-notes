@@ -30,9 +30,8 @@ export {
   Drawer,
   DrawerClose,
   DrawerContent,
-  DrawerDescription,
   DrawerOverlay,
   DrawerPortal,
-  DrawerTitle,
   DrawerTrigger,
 } from './Drawer';
+export { WorkspaceCard } from './WorkspaceCard';

@@ -9,7 +9,7 @@ export default function Thinking() {
   const create = useCreateCanvas();
 
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader
         title={m.nav_thinking()}
         actions={
@@ -62,6 +62,6 @@ export default function Thinking() {
           </div>
         )}
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

@@ -2,8 +2,12 @@ use dynamic color paletts for solid colors (these should be user defined colors,
 
 in search results, display user color for that worksapce/item etc instead of just gray
 
-hint user of more data in workspaces, thinking space, tasks in dashboard
+hint user of more data in workspaces:
+- dashbaord workspace item (use a -> see all at the end of item number 10, so limit max 9 items)
+- daashboard task (use ... ellipses after item 4)
 
 use skeleton instead of loaders
 
-tasks in dashboard: optimistic updates, limit text lengths, 
+tasks in dashboard: optimistic updates
+
+move dialogs/modals to app root and use global state (zustand or something lightweight) to control the state of these dialogs (e.g. edit dialogs from action menus)

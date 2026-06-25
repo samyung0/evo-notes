@@ -24,11 +24,11 @@ export default function QuizAttempt() {
 
   if (isLoading || !quiz) {
     return (
-      <Panel>
+      <PanelWithInvertedRadius>
         <div className="grid h-full place-items-center">
           <Spinner />
         </div>
-      </Panel>
+      </PanelWithInvertedRadius>
     );
   }
 
@@ -43,9 +43,9 @@ export default function QuizAttempt() {
   if (done) {
     const pct = Math.round((score.correct / Math.max(1, score.total)) * 100);
     return (
-      <Panel>
+      <PanelWithInvertedRadius>
         <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center gap-5 px-6 text-center">
-          <span className="bg-tint-accent-1 text-tint-accent-1-fg flex h-16 w-16 items-center justify-center rounded-card-lg">
+          <span className="flex h-16 w-16 items-center justify-center rounded-card-lg bg-tint-accent-1 text-tint-accent-1-fg">
             <Icon name="quiz" size={30} />
           </span>
           <Text variant="page-title">
@@ -85,12 +85,12 @@ export default function QuizAttempt() {
             <Button iconLeft="chevronLeft">Back to quizzes</Button>
           </Link>
         </div>
-      </Panel>
+      </PanelWithInvertedRadius>
     );
   }
 
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-6 py-6">
         <div className="mb-4 flex items-center gap-3">
           <Link to="/quizzes" preload="intent" className="text-fg-muted hover:text-fg">
@@ -132,6 +132,6 @@ export default function QuizAttempt() {
           )}
         </div>
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

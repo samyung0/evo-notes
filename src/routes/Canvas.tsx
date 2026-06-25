@@ -13,7 +13,7 @@ export default function Canvas() {
   const save = useSaveCanvas(canvasId);
 
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <div className="flex items-center gap-3 border-b border-divider px-5 py-3">
         <Link to="/thinking" preload="intent" className="text-fg-muted hover:text-fg">
           <Icon name="chevronLeft" size={20} />
@@ -47,6 +47,6 @@ export default function Canvas() {
           </Suspense>
         )}
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

@@ -149,7 +149,7 @@ export default function Schedule() {
             />
           )}
         </div>
-      </Panel>
+      </PanelWithInvertedRadius>
 
       {active && <EventPopup data={active} labels={labels ?? []} onClose={() => setActive(null)} />}
     </div>

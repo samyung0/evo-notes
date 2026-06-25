@@ -3,7 +3,17 @@ import { Link } from '@tanstack/react-router';
 import { Panel, RightRail } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
 import { MiniCalendar } from '@/features/schedule/MiniCalendar';
-import { Badge, Card, Checkbox, Icon, Menu, Text, Spinner, Button } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  Checkbox,
+  Icon,
+  Menu,
+  Text,
+  Spinner,
+  Button,
+  WorkspaceCard,
+} from '@/components/ui';
 import { userColorPair } from '@/lib/workspaceColor';
 import {
   useCanvases,
@@ -51,40 +61,10 @@ function WorkspacesSection() {
       {isLoading ? (
         <Spinner />
       ) : (
-        <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(256px,1fr))] gap-4">
-          {recent?.map((w) => {
-            const c = userColorPair(w.color);
-            return (
-              <Link
-                key={w.id}
-                to="/workspaces/$workspaceId"
-                params={{ workspaceId: w.id }}
-                preload="intent"
-              >
-                <Card interactive border="solid" className="flex items-start gap-3">
-                  <span
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-card"
-                    style={{ background: c.bg, color: c.fg }}
-                  >
-                    <Icon name="workspaces" size={22} />
-                  </span>
-                  <div className="flex-1">
-                    <h3 className="t-card-title truncate">{w.name}</h3>
-                    <p className="t-meta mt-1.5 text-fg-muted">
-                      {w.chapterCount} chapters · {w.fileCount} files
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {w.tags.slice(0, 2).map((t) => (
-                        <Badge key={t} tone="neutral" size="sm">
-                          # {t}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
+        <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+          {recent?.map((w) => (
+            <WorkspaceCard key={w.id} workspace={w} />
+          ))}
         </div>
       )}
     </section>
@@ -220,16 +200,19 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-full min-h-full flex-col gap-1.5 sm:gap-2.5 lg:flex-row">
-      <Panel className="order-last min-h-0 flex-1 gap-5 rounded-card p-4 sm:gap-6 sm:rounded-card-xl sm:p-6 lg:order-first">
+      <Panel
+        className="order-last min-h-0 flex-1 rounded-row lg:order-first lg:rounded-card-xl"
+        sectionClassName="gap-5 sm:gap-6 p-4 sm:p-6"
+      >
         <StreakHeading />
         <DashboardDefaultBanner />
         <WorkspacesSection />
         <ThinkingSection />
       </Panel>
 
-      <RightRail className="order-first h-auto min-h-0 w-full shrink-0 overflow-visible lg:order-last lg:h-full lg:min-h-full lg:w-90 lg:overflow-hidden">
-        <TopInsetBar className="rounded-card sm:rounded-card-lg" />
-        <Panel className="hidden min-h-0 flex-1 gap-2.5 p-5 lg:flex">
+      <RightRail className="order-first h-auto min-h-0 w-full shrink-0 overflow-visible lg:order-last lg:h-full lg:min-h-full lg:w-75 lg:overflow-hidden xl:w-90">
+        <TopInsetBar />
+        <Panel className="hidden min-h-0 flex-1 lg:flex" sectionClassName="gap-2.5 p-5">
           <TasksCard />
           <MiniCalendar
             month={month}

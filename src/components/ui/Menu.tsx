@@ -60,7 +60,7 @@ export function Menu({ items, trigger, align = 'end', variant = 'default', class
             icon="moreVertical"
             variant="ghost"
             size="sm"
-            strokeWidth={2.6}
+            strokeWidth={3.5}
             label="Open menu"
           />
         )}

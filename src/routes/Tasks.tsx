@@ -18,7 +18,7 @@ export default function Tasks() {
   }, {});
 
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader title={m.nav_tasks()} />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {isLoading ? (
@@ -41,7 +41,7 @@ export default function Tasks() {
                     <button
                       key={t.id}
                       onClick={() => toggle.mutate({ id: t.id, done: !t.done })}
-                      className="hover:bg-surface-hover-bg flex items-start gap-3 rounded-card border border-line bg-surface px-4 py-3 text-left"
+                      className="flex items-start gap-3 rounded-card border border-line bg-surface px-4 py-3 text-left hover:bg-surface-hover-bg"
                     >
                       <Checkbox checked={t.done} tone="purple" size={22} />
                       <span className="min-w-0">
@@ -64,6 +64,6 @@ export default function Tasks() {
           </div>
         )}
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

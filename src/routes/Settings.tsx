@@ -20,7 +20,7 @@ export default function Settings() {
   const [privacy, setPrivacy] = useState('private');
 
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader title={m.profile_menu_settings()} />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         <div className="mx-auto max-w-2xl">
@@ -79,6 +79,6 @@ export default function Settings() {
           </div>
         </div>
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

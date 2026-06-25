@@ -6,7 +6,7 @@ import { m } from '@/i18n';
 export default function Profile() {
   const { data: me } = useMe();
   return (
-    <Panel>
+    <PanelWithInvertedRadius>
       <PageHeader title={m.profile_menu_profile()} />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         <div className="mx-auto max-w-2xl">
@@ -37,6 +37,6 @@ export default function Profile() {
           </Card>
         </div>
       </div>
-    </Panel>
+    </PanelWithInvertedRadius>
   );
 }

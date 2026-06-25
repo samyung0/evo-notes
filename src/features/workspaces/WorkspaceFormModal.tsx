@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Modal, Button, Input, Text, SegmentedControl } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { WORKSPACE_COLORS, colorPair } from '@/lib/workspaceColor';
-import type { Privacy, Workspace, WorkspaceColor } from '@/api/types';
+import { USER_COLORS, userColorPair } from '@/lib/workspaceColor';
+import type { Privacy, Workspace, UserColor } from '@/api/types';
 
 export interface WorkspaceFormValues {
   name: string;
-  color: WorkspaceColor;
+  color: UserColor;
   tags: string[];
   privacy: Privacy;
 }
@@ -23,7 +23,7 @@ export function WorkspaceFormModal({
   onSubmit: (v: WorkspaceFormValues) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [color, setColor] = useState<WorkspaceColor>(initial?.color ?? 'green');
+  const [color, setColor] = useState<UserColor>(initial?.color ?? 'green');
   const [tags, setTags] = useState(initial?.tags.join(', ') ?? '');
   const [privacy, setPrivacy] = useState<Privacy>(initial?.privacy ?? 'private');
 
@@ -74,8 +74,8 @@ export function WorkspaceFormModal({
             Color
           </Text>
           <div className="flex gap-2">
-            {WORKSPACE_COLORS.map((c) => {
-              const p = colorPair(c);
+            {USER_COLORS.map((c) => {
+              const p = userColorPair(c);
               return (
                 <button
                   key={c}
@@ -85,7 +85,7 @@ export function WorkspaceFormModal({
                     'h-8 w-8 rounded-pill transition-transform',
                     color === c && 'ring-2 ring-action ring-offset-2 ring-offset-surface'
                   )}
-                  style={{ background: p.solid }}
+                  style={{ background: p.fg }}
                 />
               );
             })}

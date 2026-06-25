@@ -3,14 +3,49 @@ import { cn } from '@/lib/cn';
 import { Card, Text } from '@/components/ui';
 import { TopInsetBar } from './TopInsetBar';
 
-/** White inset "page" surface — the central card on general pages. */
-export function Panel({
+export function PanelWithInvertedRadius({
   children,
   className,
-  scroll = true,
+  sectionClassName,
 }: {
   children: ReactNode;
   className?: string;
+  sectionClassName?: string;
+  scroll?: boolean;
+}) {
+  return (
+    <Card
+      theme="transparent"
+      radius="card-xl"
+      className={cn(
+        'inverted-radius-large-panel-container h-full w-full p-0 shadow-card',
+        className
+      )}
+    >
+      <section className={cn('relative h-full max-w-full overflow-hidden', sectionClassName)}>
+        <Card
+          asChild
+          theme="light"
+          radius="card-xl"
+          className={cn('inverted-radius-large-panel absolute inset-0 block p-0', className)}
+        >
+          <div></div>
+        </Card>
+        <div className="relative flex h-full flex-col items-stretch gap-2 overflow-auto p-0">
+          {children}
+        </div>
+      </section>
+    </Card>
+  );
+}
+export function Panel({
+  children,
+  className,
+  sectionClassName,
+}: {
+  children: ReactNode;
+  className?: string;
+  sectionClassName?: string;
   scroll?: boolean;
 }) {
   return (
@@ -18,13 +53,18 @@ export function Panel({
       asChild
       theme="light"
       radius="card-xl"
-      className={cn(
-        'flex h-full min-h-full flex-col items-stretch p-0 shadow-card',
-        scroll && 'overflow-auto',
-        className
-      )}
+      className={cn('h-full min-h-full overflow-hidden p-0 shadow-card', className)}
     >
-      <section>{children}</section>
+      <div>
+        <section
+          className={cn(
+            'flex max-h-full flex-col items-stretch gap-2 overflow-auto p-0',
+            sectionClassName
+          )}
+        >
+          {children}
+        </section>
+      </div>
     </Card>
   );
 }
@@ -45,8 +85,8 @@ export function PageHeader({
   showTopBar?: boolean;
 }) {
   return (
-    <header className="flex flex-col gap-3 px-6 pt-6 pb-2 md:flex-row md:items-start md:justify-between md:gap-6">
-      <div className="flex min-w-0 items-center gap-3">
+    <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
+      <div className="flex min-w-0 items-center gap-6 px-6 pt-6 pb-2">
         <div className="min-w-0">
           {typeof title === 'string' ? <Text variant="page-title">{title}</Text> : title}
           {subtitle && (
