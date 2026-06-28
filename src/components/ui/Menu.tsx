@@ -18,7 +18,7 @@ const menuVariants = cva('w-auto min-w-[180px] p-0', {
 });
 
 const menuItemVariants = cva(
-  'flex w-full items-center gap-2.5 rounded-row px-3 py-2 text-left text-sm transition-colors disabled:opacity-40',
+  'flex w-full items-center gap-1.5 rounded-row px-3 py-2 text-left font-semibold transition-colors disabled:opacity-40',
   {
     variants: {
       danger: {
@@ -84,8 +84,8 @@ export function Menu({ items, trigger, align = 'end', variant = 'default', class
               }}
               className={menuItemVariants({ danger: it.danger })}
             >
-              {it.icon && <Icon name={it.icon} size={16} />}
-              {it.label}
+              {it.icon && <Icon name={it.icon} className="size-5" />}
+              <span className="translate-y-px">{it.label}</span>
             </button>
           ))}
         </Card>

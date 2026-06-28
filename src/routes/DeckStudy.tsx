@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { Panel } from '@/components/app/layout';
-import { Button, Icon, ProgressBar, Spinner, Text } from '@/components/ui';
+import { Button, Icon, ProgressBar, Skeleton, Text } from '@/components/ui';
 import { useCards, useDeck, useUpdateCard } from '@/api/hooks';
 
 export default function DeckStudy() {
@@ -17,8 +17,8 @@ export default function DeckStudy() {
   if (isLoading || !cards)
     return (
       <PanelWithInvertedRadius>
-        <div className="grid h-full place-items-center">
-          <Spinner />
+        <div className="h-full p-6">
+          <Skeleton className="h-full w-full" />
         </div>
       </PanelWithInvertedRadius>
     );

@@ -1,30 +1,32 @@
 [project]
 name = "evo-pipeline"
-version = "0.1.0"
-description = "Evo Notes parser + RAG pipeline (pluggable MinerU/Docling x LightRAG/LinearRAG)"
+version = "0.2.0"
+description = "Evo Notes ingest + retrieval pipeline (RAG-Anything + official LightRAG)"
 requires-python = ">=3.10"
 dependencies = [
+  # RAG-Anything orchestration + official LightRAG with Postgres/AGE/pgvector.
+  "raganything>=1.0",
+  "lightrag-hku>=1.4",
+  "asyncpg>=0.29",           # LightRAG PG storages (KV/vector/graph/doc-status)
+  # Job queue + notifications over the shared Postgres.
   "psycopg[binary]>=3.1",
-  "fastapi>=0.110",
-  "uvicorn>=0.29",
-  "pydantic>=2",
+  # Model providers (OpenAI-compatible: OpenRouter / DeepSeek / Gemini).
+  "openai>=1.30",
   "numpy>=1.26",
+  # Modal parse client + Redis progress + retrieval API.
+  "requests>=2.31",
+  "redis>=5.0",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+  "pydantic>=2",
+  "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
-# Heavy/optional backends — install the pair you want to run.
-docling = ["docling>=2.0"]
-mineru = ["mineru>=2.0"]
-pdf = ["pypdf>=4.0"]
-embed = ["sentence-transformers>=2.7"]
-nlp = ["spacy>=3.7", "keybert>=0.8"]
-llm = ["anthropic>=0.39"]
-rag = ["scipy>=1.11", "scikit-learn>=1.4"]
 test = ["pytest>=8.0"]
 
 [project.scripts]
 evo-worker = "pipeline.ingest.worker:main"
-evo-bench = "pipeline.bench.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -33,9 +35,6 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["pipeline*"]
-
-[tool.setuptools.package-data]
-"pipeline.bench.datasets" = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

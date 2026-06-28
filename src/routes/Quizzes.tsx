@@ -1,21 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Panel, PageHeader } from '@/components/app/layout';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
 import {
   Badge,
   Button,
   Card,
-  ConfirmDialog,
   Icon,
   IconButton,
   Menu,
   Modal,
-  Spinner,
+  SkeletonCardGrid,
+  SkeletonList,
   Tabs,
   Text,
 } from '@/components/ui';
-import { useAttempts, useDeleteQuiz, useQuizzes, useUpdateQuiz } from '@/api/hooks';
-import { QuizEditModal } from '@/features/quizzes/QuizEditModal';
+import { useAttempts, useDeleteQuiz, useQuizzes } from '@/api/hooks';
+import { useDialogs } from '@/stores/dialogs';
 import type { Attempt, Quiz } from '@/api/types';
 import { m } from '@/i18n';
 
@@ -26,18 +26,12 @@ function scoreTone(pct: number): 'success' | 'warning' | 'error' {
 function AllQuizzes() {
   const { data, isLoading } = useQuizzes();
   const navigate = useNavigate();
-  const update = useUpdateQuiz();
   const del = useDeleteQuiz();
-  const [editing, setEditing] = useState<Quiz | null>(null);
+  const openQuizEdit = useDialogs((s) => s.openQuizEdit);
+  const openConfirm = useDialogs((s) => s.openConfirm);
   const [info, setInfo] = useState<Quiz | null>(null);
-  const [deleting, setDeleting] = useState<Quiz | null>(null);
 
-  if (isLoading)
-    return (
-      <div className="grid place-items-center py-16">
-        <Spinner />
-      </div>
-    );
+  if (isLoading) return <SkeletonCardGrid count={6} cardHeight={150} />;
 
   return (
     <>
@@ -45,10 +39,9 @@ function AllQuizzes() {
         {data?.map((q) => (
           <Card
             key={q.id}
-            padding={20}
-            radius="card-lg"
             interactive
-            className="relative"
+            border="solid"
+            className="relative gap-3 p-4.5 xl:p-5.5"
             onClick={() => setInfo(q)}
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-accent-1 text-tint-accent-1-fg">
@@ -69,7 +62,7 @@ function AllQuizzes() {
                   {
                     label: m.action_edit(),
                     icon: 'settings',
-                    onClick: () => setEditing(q),
+                    onClick: () => openQuizEdit(q),
                   },
                   {
                     label: 'Start quiz',
@@ -84,7 +77,12 @@ function AllQuizzes() {
                     label: m.action_delete(),
                     icon: 'trash',
                     danger: true,
-                    onClick: () => setDeleting(q),
+                    onClick: () =>
+                      openConfirm({
+                        title: m.confirm_delete_title({ name: q.name }),
+                        body: m.confirm_delete_body(),
+                        onConfirm: () => del.mutate(q.id),
+                      }),
                   },
                 ]}
               />
@@ -92,15 +90,6 @@ function AllQuizzes() {
           </Card>
         ))}
       </div>
-
-      {editing && (
-        <QuizEditModal
-          quiz={editing}
-          open
-          onClose={() => setEditing(null)}
-          onSave={(patch) => update.mutate({ id: editing.id, ...patch })}
-        />
-      )}
 
       <Modal
         open={!!info}
@@ -152,26 +141,13 @@ function AllQuizzes() {
           </div>
         )}
       </Modal>
-
-      <ConfirmDialog
-        open={!!deleting}
-        onClose={() => setDeleting(null)}
-        onConfirm={() => deleting && del.mutate(deleting.id)}
-        title={deleting ? m.confirm_delete_title({ name: deleting.name }) : ''}
-        body={m.confirm_delete_body()}
-      />
     </>
   );
 }
 
 function PastAttempts() {
   const { data, isLoading } = useAttempts();
-  if (isLoading)
-    return (
-      <div className="grid place-items-center py-16">
-        <Spinner />
-      </div>
-    );
+  if (isLoading) return <SkeletonList count={6} rowHeight={52} />;
   if (!data?.length)
     return (
       <Text variant="body" tone="muted" className="py-8 text-center">
@@ -221,9 +197,9 @@ export default function Quizzes() {
     <PanelWithInvertedRadius>
       <PageHeader
         title={m.nav_quizzes()}
-        actions={<IconButton icon="plus" variant="dark" label={m.action_new_quiz()} />}
+        actions={<IconButton icon="plus" variant="gray" size="lg" label={m.action_new_quiz()} />}
       />
-      <div className="px-6">
+      <div className="px-6 pt-4">
         <Tabs
           tabs={[
             { value: 'all', label: m.quiz_tab_all() },

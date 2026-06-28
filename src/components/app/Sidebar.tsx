@@ -86,9 +86,10 @@ export function Sidebar({
   if (collapsed) {
     return (
       <Card
+        asChild
         theme="gray"
-        radius="card-xl"
-        className="m-2.5 mr-0 flex w-15 shrink-0 gap-1.5 px-0 py-4"
+        radius="row"
+        className="m-2.5 mr-0 flex w-15 shrink-0 items-center gap-1.5 overflow-y-auto px-0 py-4"
       >
         <nav>
           <LogoMark size={36} />

@@ -26,8 +26,10 @@ class TestDatasetLoading(unittest.TestCase):
 class TestRetrievalBenchmark(unittest.TestCase):
     def test_metrics_in_range(self):
         ds = harness.load_dataset("sample")
-        results = harness.run_retrieval_benchmark(ds, ["dense", "linearrag", "lightrag"], ks=(1, 3))
-        self.assertEqual(len(results), 3)
+        # dense + linearrag run fully offline; lightrag needs an extraction LLM
+        # and is exercised separately (see test_lightrag_gated_without_llm).
+        results = harness.run_retrieval_benchmark(ds, ["dense", "linearrag"], ks=(1, 3))
+        self.assertEqual(len(results), 2)
         for r in results:
             self.assertEqual(r.n_queries, 4)
             self.assertGreater(r.index_build_s, 0.0)
@@ -38,6 +40,18 @@ class TestRetrievalBenchmark(unittest.TestCase):
                 self.assertLessEqual(r.ndcg[k], 1.0)
             self.assertGreaterEqual(r.mrr, 0.0)
             self.assertLessEqual(r.mrr, 1.0)
+
+    def test_lightrag_gated_without_llm(self):
+        # lightrag requires an LLM-extracted graph; with no extraction model
+        # configured the harness drops it (rather than failing the whole run).
+        from pipeline.llm.client import LLMClient
+        if LLMClient().available_role("extraction"):
+            self.skipTest("extraction LLM configured; offline gating not exercised")
+        ds = harness.load_dataset("sample")
+        results = harness.run_retrieval_benchmark(ds, ["dense", "linearrag", "lightrag"], ks=(1,))
+        names = {r.engine for r in results}
+        self.assertIn("dense", names)
+        self.assertNotIn("lightrag", names)
 
     def test_dense_recovers_all_relevant_within_topk(self):
         ds = harness.load_dataset("sample")

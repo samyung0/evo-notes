@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { IconButton, Spinner, Text } from '@/components/ui';
+import { IconButton, Skeleton, Text } from '@/components/ui';
 
 // Load the worker from a CDN matching the bundled pdfjs version.
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
@@ -16,11 +16,7 @@ export default function PdfView({ url }: { url: string }) {
       <Document
         file={url}
         onLoadSuccess={({ numPages: n }) => setNumPages(n)}
-        loading={
-          <div className="grid h-40 place-items-center">
-            <Spinner />
-          </div>
-        }
+        loading={<Skeleton className="h-[680px] w-[680px] max-w-full" />}
         error={
           <Text variant="body" tone="muted" className="py-8">
             Couldn't load this PDF.

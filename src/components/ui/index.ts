@@ -13,8 +13,9 @@ export { Switch } from './Switch';
 export { SegmentedControl } from './SegmentedControl';
 export { Tabs } from './Tabs';
 export { Menu, type MenuItem } from './Menu';
+export { HoverActions } from './HoverActions';
 export { Modal, ConfirmDialog } from './Modal';
-export { Spinner, Skeleton, EmptyState } from './feedback';
+export { Spinner, Skeleton, SkeletonCardGrid, SkeletonList, EmptyState } from './feedback';
 export { LogoMark } from './Logo';
 export {
   Dialog,

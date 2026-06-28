@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Panel, PageHeader } from '@/components/app/layout';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
 import { SegmentedControl, Text } from '@/components/ui';
 import { LocaleSwitcher } from '@/components/app/LocaleSwitcher';
 import { useTheme, THEMES } from '@/theme/ThemeProvider';
@@ -20,8 +20,8 @@ export default function Settings() {
   const [privacy, setPrivacy] = useState('private');
 
   return (
-    <PanelWithInvertedRadius>
-      <PageHeader title={m.profile_menu_settings()} />
+    <Panel>
+      <PageHeader showTopBar={false} title={m.profile_menu_settings()} />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         <div className="mx-auto max-w-2xl">
           <Text variant="label" tone="muted" className="mb-1 block">
@@ -79,6 +79,6 @@ export default function Settings() {
           </div>
         </div>
       </div>
-    </PanelWithInvertedRadius>
+    </Panel>
   );
 }

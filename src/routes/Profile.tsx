@@ -1,4 +1,4 @@
-import { Panel, PageHeader } from '@/components/app/layout';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
 import { Avatar, Badge, Card, Icon, Text } from '@/components/ui';
 import { useMe } from '@/api/hooks';
 import { m } from '@/i18n';

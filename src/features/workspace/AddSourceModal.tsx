@@ -23,7 +23,7 @@ export function AddSourceModal({
   open: boolean;
   onClose: () => void;
   chapters: Chapter[];
-  onAdd: (files: { name: string; kind: FileKind; chapterId: string | null }[]) => void;
+  onAdd: (files: { file: File; kind: FileKind; chapterId: string | null }[]) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
@@ -32,7 +32,7 @@ export function AddSourceModal({
     if (!list?.length) return;
     const files = Array.from(list).map((f) => {
       const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
-      return { name: f.name, kind: KIND_BY_EXT[ext] ?? 'txt', chapterId };
+      return { file: f, kind: KIND_BY_EXT[ext] ?? 'txt', chapterId };
     });
     onAdd(files);
     onClose();

@@ -40,6 +40,9 @@ export interface Chapter {
 
 export type FileKind = 'pdf' | 'doc' | 'md' | 'image' | 'txt';
 
+/** Ingest lifecycle. Absent (legacy/seed rows) is treated as `ready`. */
+export type FileStatus = 'processing' | 'ready' | 'failed';
+
 export interface SourceFile {
   id: string;
   workspaceId: string;
@@ -48,6 +51,9 @@ export interface SourceFile {
   kind: FileKind;
   sizeKb: number;
   addedAt: string;
+  status?: FileStatus;
+  /** Transient client-only ingest progress (0–100), driven by SSE. Not persisted. */
+  ingestPct?: number;
   /** For previewable content. PDFs use `url`; text/md use `content`. */
   url?: string;
   content?: string;

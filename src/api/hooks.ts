@@ -1,10 +1,13 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, qk } from './client';
+import type { QueryClient } from '@tanstack/react-query';
+import { API_BASE, api, qk } from './client';
 import type {
   Attempt,
   CalendarEvent,
   Chapter,
   Deck,
+  FileStatus,
   Flashcard,
   GenerateOptions,
   Label,
@@ -19,6 +22,8 @@ import type {
   PublicQuiz,
   PublicWorkspace,
 } from './types';
+
+const USE_MSW = import.meta.env.VITE_USE_MSW === 'true';
 
 /* ---------------- account / shell ---------------- */
 export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.get<User>('/me') });
@@ -168,16 +173,89 @@ export function useDeleteChapter(wsId: string) {
     },
   });
 }
-export function useAddSource(wsId: string) {
+/** Patch a single file across both the workspace list cache and its detail cache. */
+function patchFileInCache(
+  qc: QueryClient,
+  wsId: string,
+  fileId: string,
+  patch: Partial<SourceFile>
+) {
+  qc.setQueryData<SourceFile[]>(qk.files(wsId), (prev) =>
+    prev ? prev.map((f) => (f.id === fileId ? { ...f, ...patch } : f)) : prev
+  );
+  qc.setQueryData<SourceFile>(qk.file(fileId), (prev) => (prev ? { ...prev, ...patch } : prev));
+}
+
+// MSW has no SSE channel, so fake the progress animation client-side in dev.
+function simulateMswProgress(qc: QueryClient, wsId: string, fileId: string) {
+  let pct = 0;
+  const timer = setInterval(() => {
+    pct = Math.min(100, pct + 20);
+    patchFileInCache(qc, wsId, fileId, { status: 'processing', ingestPct: pct });
+    if (pct >= 100) {
+      clearInterval(timer);
+      patchFileInCache(qc, wsId, fileId, { status: 'ready', ingestPct: 100 });
+    }
+  }, 450);
+}
+
+/** Real multipart upload: sends the file bytes, which triggers the async ingest
+ * pipeline (file lands `processing`; progress arrives via SSE / useIngestProgress). */
+export function useUploadSource(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string; kind: SourceFile['kind']; chapterId?: string | null }) =>
-      api.post<SourceFile>(`/workspaces/${wsId}/sources`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.files(wsId) });
+    mutationFn: ({
+      file,
+      kind,
+      chapterId,
+    }: {
+      file: File;
+      kind: SourceFile['kind'];
+      chapterId?: string | null;
+    }) => {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      form.append('name', file.name);
+      form.append('kind', kind);
+      if (chapterId) form.append('chapterId', chapterId);
+      return api.upload<SourceFile>(`/workspaces/${wsId}/sources`, form);
+    },
+    onSuccess: (file) => {
+      // Insert immediately so the row (with its progress bar) shows up at once.
+      qc.setQueryData<SourceFile[]>(qk.files(wsId), (prev) => {
+        const next = prev ? [...prev] : [];
+        if (!next.some((f) => f.id === file.id)) {
+          next.push({ ...file, status: file.status ?? 'processing', ingestPct: 0 });
+        }
+        return next;
+      });
       qc.invalidateQueries({ queryKey: qk.chapters(wsId) });
+      if (USE_MSW) simulateMswProgress(qc, wsId, file.id);
     },
   });
+}
+
+/** Subscribe to live ingest progress for a workspace (SSE) and patch the file
+ * caches as events arrive. No-op under MSW (dev mock has no event stream). */
+export function useIngestProgress(wsId: string) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!wsId || USE_MSW) return;
+    const es = new EventSource(`${API_BASE}/workspaces/${wsId}/ingest-events`);
+    es.onmessage = (e) => {
+      try {
+        const ev = JSON.parse(e.data) as { fileId: string; pct: number; status: FileStatus };
+        patchFileInCache(qc, wsId, ev.fileId, { status: ev.status, ingestPct: ev.pct });
+        if (ev.status === 'ready' || ev.status === 'failed') {
+          qc.invalidateQueries({ queryKey: qk.files(wsId) });
+          qc.invalidateQueries({ queryKey: qk.file(ev.fileId) });
+        }
+      } catch {
+        /* ignore malformed events */
+      }
+    };
+    return () => es.close();
+  }, [wsId, qc]);
 }
 
 /* ---------------- chat & generate ---------------- */
@@ -273,6 +351,24 @@ export const useEvents = () =>
   });
 export const useLabels = () =>
   useQuery({ queryKey: qk.labels, queryFn: () => api.get<Label[]>('/labels') });
+export function useUpdateLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: Partial<Label> & { id: string }) =>
+      api.patch<Label>(`/labels/${id}`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.labels }),
+  });
+}
+export function useDeleteLabel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del<void>(`/labels/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.labels });
+      qc.invalidateQueries({ queryKey: qk.events });
+    },
+  });
+}
 export function useCreateEvent() {
   const qc = useQueryClient();
   return useMutation({
@@ -284,27 +380,69 @@ export function useCreateEvent() {
 /* ---------------- tasks ---------------- */
 export const useTasks = () =>
   useQuery({ queryKey: qk.tasks, queryFn: () => api.get<Task[]>('/tasks') });
+
+interface TasksMutationContext {
+  prev?: Task[];
+}
+
+function patchTasksCache(qc: ReturnType<typeof useQueryClient>, mutate: (tasks: Task[]) => Task[]) {
+  const prev = qc.getQueryData<Task[]>(qk.tasks);
+  if (prev) qc.setQueryData<Task[]>(qk.tasks, mutate(prev));
+  return prev;
+}
+
 export function useToggleTask() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, done }: { id: string; done: boolean }) =>
-      api.patch<Task>(`/tasks/${id}`, { done }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tasks }),
+  return useMutation<Task, Error, { id: string; done: boolean }, TasksMutationContext>({
+    mutationFn: ({ id, done }) => api.patch<Task>(`/tasks/${id}`, { done }),
+    onMutate: async ({ id, done }) => {
+      await qc.cancelQueries({ queryKey: qk.tasks });
+      const prev = patchTasksCache(qc, (tasks) =>
+        tasks.map((t) => (t.id === id ? { ...t, done } : t))
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.tasks, ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.tasks }),
   });
 }
 export function useUpdateTask() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, ...patch }: { id: string } & Partial<Pick<Task, 'title' | 'meta' | 'done'>>) =>
-      api.patch<Task>(`/tasks/${id}`, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tasks }),
+  return useMutation<
+    Task,
+    Error,
+    { id: string } & Partial<Pick<Task, 'title' | 'meta' | 'done'>>,
+    TasksMutationContext
+  >({
+    mutationFn: ({ id, ...patch }) => api.patch<Task>(`/tasks/${id}`, patch),
+    onMutate: async ({ id, ...patch }) => {
+      await qc.cancelQueries({ queryKey: qk.tasks });
+      const prev = patchTasksCache(qc, (tasks) =>
+        tasks.map((t) => (t.id === id ? { ...t, ...patch } : t))
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.tasks, ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.tasks }),
   });
 }
 export function useDeleteTask() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.del<void>(`/tasks/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tasks }),
+  return useMutation<void, Error, string, TasksMutationContext>({
+    mutationFn: (id) => api.del<void>(`/tasks/${id}`),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: qk.tasks });
+      const prev = patchTasksCache(qc, (tasks) => tasks.filter((t) => t.id !== id));
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.tasks, ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.tasks }),
   });
 }
 

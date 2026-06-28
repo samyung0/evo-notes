@@ -22,8 +22,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Multipart upload (real file bytes). Lets the browser set the multipart
+ * boundary — never send a JSON Content-Type here. */
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', body: form });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = (await res.json())?.message ?? '';
+    } catch {
+      /* ignore */
+    }
+    throw new Error(`${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
+  upload: <T>(path: string, form: FormData) => upload<T>(path, form),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, {
       method: 'POST',

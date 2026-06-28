@@ -1,40 +1,57 @@
-"""Retrieval HTTP service. The Go gateway proxies /chat and /generate here
-(Phase 3); for now it's runnable/testable standalone.
+"""Retrieval HTTP service. The Go gateway proxies /chat and /generate here.
 
-Run: uvicorn pipeline.retrieve.service:app --port 8001
+Queries run against the per-workspace LightRAG instances (query-side: pro by
+default, flash reachable via the ``model`` field). One ``RagCache`` lives on the
+FastAPI event loop so the asyncpg pools stay valid.
+
+Run: ``uvicorn pipeline.retrieve.service:app --host 0.0.0.0 --port 8001``
 """
 from __future__ import annotations
+
+import json
+import logging
+import re
+from contextlib import asynccontextmanager
+from typing import Any, List, Optional
 
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from typing import List, Optional
-
 from ..config import cfg
-from ..engines import get_engine
-from ..generate import generate as generate_artifact
-from ..llm.client import LLMClient
-from ..llm.embeddings import get_embedder
 from ..store import db
-from ..store.pg import PgCorpus
+from ..rag.cache import RagCache
+from ..rag.factory import build_query_rag
+from ..rag.models import query_model_override
 
-app = FastAPI(title="Evo Notes retrieval")
+log = logging.getLogger("evo.retrieve")
 
-_embedder = get_embedder()
-_engine = get_engine(cfg.engine)
-_llm = LLMClient()
+_cache: Optional[RagCache] = None
 
 
-class RetrieveReq(BaseModel):
-    query: str
-    workspaceId: str
-    k: int = 8
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _cache
+    _cache = RagCache(build_query_rag, maxsize=cfg.lightrag_cache_size)
+    log.info(
+        "retrieval up — query_model=%s alt=%s embedding=%s",
+        cfg.query_model,
+        cfg.query_model_alt,
+        cfg.embedding_model,
+    )
+    try:
+        yield
+    finally:
+        await _cache.close()
+
+
+app = FastAPI(title="Evo Notes retrieval", lifespan=lifespan)
 
 
 class ChatReq(BaseModel):
     query: str
     workspaceId: str
     k: int = 6
+    model: Optional[str] = None  # deepseek-v4-pro | deepseek-v4-flash
 
 
 class GenerateReq(BaseModel):
@@ -50,47 +67,109 @@ class GenerateReq(BaseModel):
     timeLimitMin: Optional[int] = None
 
 
+def _extract_json(text: str) -> Any:
+    """Pull the first JSON value out of an LLM reply, tolerating prose/fences."""
+    if not text:
+        return None
+    fenced = re.search(r"```(?:json)?\s*(.+?)\s*```", text, re.DOTALL)
+    candidate = fenced.group(1) if fenced else text
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        pass
+    m = re.search(r"(\{.*\}|\[.*\])", candidate, re.DOTALL)
+    if not m:
+        return None
+    try:
+        return json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return None
+
+
+async def _answer(workspace: str, query: str, model: Optional[str]) -> str:
+    assert _cache is not None
+    rag = await _cache.get(workspace)
+    token = query_model_override.set(model if model in cfg.query_models else None)
+    try:
+        # vlm_enhanced disabled: answer from the text/graph index, no image re-encode.
+        return await rag.aquery(query, mode="mix", vlm_enhanced=False)
+    finally:
+        query_model_override.reset(token)
+
+
 @app.get("/healthz")
 def healthz():
-    return {"ok": True, "engine": _engine.name, "embedder": cfg.embedder, "llm": _llm.available}
-
-
-@app.post("/retrieve")
-def retrieve(req: RetrieveReq):
-    with db.connect() as conn:
-        with PgCorpus(conn) as corpus:
-            return {"passages": _engine.retrieve(corpus, _embedder, req.workspaceId, req.query, req.k)}
+    return {"ok": True, "query_model": cfg.query_model, "embedding": cfg.embedding_model}
 
 
 @app.post("/chat")
-def chat(req: ChatReq):
-    with db.connect() as conn:
-        with PgCorpus(conn) as corpus:
-            passages = _engine.retrieve(corpus, _embedder, req.workspaceId, req.query, req.k)
-
-    context = "\n\n".join(f"[{i + 1}] {p['text']}" for i, p in enumerate(passages))
-    citations = [
-        {"fileId": p["fileId"], "fileName": p["fileName"], "snippet": p["text"][:200]}
-        for p in passages
-    ]
-
-    if _llm.available and context:
-        text = _llm.complete(
-            system="Answer the question using ONLY the provided sources. Cite sources as [n]. If the sources don't cover it, say so.",
-            prompt=f"Sources:\n{context}\n\nQuestion: {req.query}",
-        )
-    elif passages:
-        text = "Top matching passage:\n\n" + passages[0]["text"][:600]
-    else:
-        text = "No indexed sources yet for this workspace — add a source to start."
-
-    return {"id": db.uid("m"), "role": "assistant", "text": text, "citations": citations}
+async def chat(req: ChatReq):
+    text = await _answer(req.workspaceId, req.query, req.model)
+    # Citations: LightRAG returns a synthesized answer (with an inline reference
+    # section when configured) rather than structured spans; structured citations
+    # are a follow-up. The Go gateway tolerates an empty list.
+    return {"id": db.uid("m"), "role": "assistant", "text": text, "citations": []}
 
 
 @app.post("/generate")
-def generate(req: GenerateReq):
-    with db.connect() as conn:
-        with conn.cursor() as cur:
-            passages = db.workspace_passages(cur, req.workspaceId, limit=24)
-    opts = req.model_dump(exclude={"workspaceId", "kind"})
-    return generate_artifact(req.kind, passages, opts, _llm)
+async def generate(req: GenerateReq):
+    chapters = req.chapters or []
+    if req.kind == "summary":
+        body = await _answer(
+            req.workspaceId,
+            "Write a concise study summary of the most important ideas in this workspace. "
+            "Use short bullet points.",
+            cfg.query_model_alt,
+        )
+        return {"kind": "summary", "title": "Workspace summary", "body": body}
+
+    if req.kind == "flashcards":
+        n = req.count or 10
+        raw = await _answer(
+            req.workspaceId,
+            f"Create {n} study flashcards from this workspace. Return ONLY a JSON array "
+            'of objects {"front": "...", "back": "..."}.',
+            cfg.query_model_alt,
+        )
+        data = _extract_json(raw) or []
+        cards = [
+            {
+                "id": db.uid("c"),
+                "deckId": "generated",
+                "front": str(item.get("front", "")),
+                "back": str(item.get("back", "")),
+                "known": False,
+            }
+            for item in data
+            if isinstance(item, dict)
+        ]
+        return {"kind": "flashcards", "cards": cards}
+
+    # quiz
+    n = req.count or 5
+    types = req.types or ["mcq"]
+    raw = await _answer(
+        req.workspaceId,
+        f"Create a {n}-question quiz from this workspace using question types {types}. "
+        "Return ONLY a JSON array of question objects. Each object has: "
+        '"type" (one of mcq, multi, boolean, fill, short, ordering, matching), '
+        '"difficulty" (easy|medium|hard), "prompt", and the fields appropriate to its '
+        "type (mcq/multi: options[] + correct[] indices; boolean: correct bool; "
+        "fill/short: accepted[]; ordering: items[] in order; matching: pairs[] of {left,right}).",
+        cfg.query_model,
+    )
+    data = _extract_json(raw) or []
+    questions = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        item.setdefault("id", db.uid("q"))
+        item.setdefault("difficulty", "medium")
+        questions.append(item)
+    return {
+        "kind": "quiz",
+        "name": "Workspace quiz",
+        "chapters": chapters,
+        "questions": questions,
+        "timeLimitMin": req.timeLimitMin,
+    }

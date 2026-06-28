@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Panel, PageHeader } from '@/components/app/layout';
-import { Badge, Button, Card, Icon, Spinner, Tabs, Text } from '@/components/ui';
-import { colorPair } from '@/lib/workspaceColor';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
+import { Badge, Button, Card, Icon, SkeletonCardGrid, Tabs, Text } from '@/components/ui';
+import { userColorPair } from '@/lib/workspaceColor';
 import { useExploreQuizzes, useExploreWorkspaces } from '@/api/hooks';
 import { m } from '@/i18n';
 
@@ -29,13 +29,11 @@ export default function Explore() {
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {tab === 'workspaces' ? (
           ws.isLoading ? (
-            <div className="grid place-items-center py-16">
-              <Spinner />
-            </div>
+            <SkeletonCardGrid count={6} cardHeight={170} />
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {ws.data?.map((w) => {
-                const c = colorPair(w.color);
+                const c = userColorPair(w.color);
                 return (
                   <Card key={w.id} padding={20} radius="card-lg">
                     <span
@@ -59,9 +57,7 @@ export default function Explore() {
             </div>
           )
         ) : qz.isLoading ? (
-          <div className="grid place-items-center py-16">
-            <Spinner />
-          </div>
+          <SkeletonCardGrid count={6} cardHeight={190} />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {qz.data?.map((q) => (

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { Panel } from '@/components/app/layout';
-import { Button, Icon, ProgressBar, Spinner, Text } from '@/components/ui';
+import { Panel, PanelWithInvertedRadius } from '@/components/app/layout';
+import { Button, Icon, ProgressBar, Skeleton, Text } from '@/components/ui';
 import { useQuiz, useSubmitAttempt } from '@/api/hooks';
 import { QuestionRunner } from '@/features/quizzes/QuestionRunner';
 import { emptyAnswer, gradeQuestion, type Answer } from '@/features/quizzes/grade';
@@ -25,8 +25,8 @@ export default function QuizAttempt() {
   if (isLoading || !quiz) {
     return (
       <PanelWithInvertedRadius>
-        <div className="grid h-full place-items-center">
-          <Spinner />
+        <div className="h-full p-6">
+          <Skeleton className="h-full w-full" />
         </div>
       </PanelWithInvertedRadius>
     );

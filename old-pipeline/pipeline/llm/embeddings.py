@@ -2,7 +2,10 @@
 
 `hash` is a deterministic, dependency-free bag-of-words hashing embedder so the
 whole pipeline runs offline for dev/CI. `st` swaps in sentence-transformers for
-real semantic vectors (install the `embed` extra). Both emit EMBED_DIM vectors.
+real semantic vectors (install the `embed` extra). `remote` calls an
+OpenAI-compatible `/embeddings` API using the role-based embedding provider/model
+from ModelConfig (e.g. Qwen3-Embedding-4B via OpenRouter). All emit EMBED_DIM
+vectors.
 """
 from __future__ import annotations
 
@@ -57,7 +60,47 @@ class STEmbedder:
         return [list(map(float, v)) for v in self.model.encode(texts, normalize_embeddings=True)]
 
 
+class RemoteEmbedder:
+    """OpenAI-compatible `/embeddings` backend for the role-based embedding model.
+
+    Routes through the provider assigned to the ``embedding`` role (base_url +
+    api_key), using ``model_ids['embedding']``. Vectors are L2-normalized and
+    checked against EMBED_DIM so a model/migration mismatch fails loudly."""
+
+    dim = EMBED_DIM
+
+    def __init__(self) -> None:
+        from openai import OpenAI  # type: ignore
+
+        pc = cfg.models.provider_for("embedding")
+        if not pc.api_key:
+            raise RuntimeError(
+                "EVO_EMBEDDER=remote but the embedding provider has no API key "
+                f"({cfg.models.provider_name('embedding')!r}). Set the provider key."
+            )
+        self.model = cfg.models.model_for("embedding")
+        self.client = OpenAI(api_key=pc.api_key, base_url=pc.base_url or None)
+
+    def embed(self, texts: List[str]) -> List[List[float]]:
+        if not texts:
+            return []
+        resp = self.client.embeddings.create(model=self.model, input=list(texts))
+        out: List[List[float]] = []
+        for item in resp.data:
+            vec = [float(x) for x in item.embedding]
+            if len(vec) != EMBED_DIM:
+                raise RuntimeError(
+                    f"embedding model {self.model} returned dim {len(vec)} != EMBED_DIM {EMBED_DIM}; "
+                    "update embedding_specs and the migration halfvec(N)."
+                )
+            norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+            out.append([v / norm for v in vec])
+        return out
+
+
 def get_embedder():
+    if cfg.embedder == "remote":
+        return RemoteEmbedder()
     if cfg.embedder == "st":
         return STEmbedder()
     return HashEmbedder()

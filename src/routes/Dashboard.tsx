@@ -7,10 +7,9 @@ import {
   Badge,
   Card,
   Checkbox,
+  HoverActions,
   Icon,
-  Menu,
-  Text,
-  Spinner,
+  SkeletonCardGrid,
   Button,
   WorkspaceCard,
 } from '@/components/ui';
@@ -21,9 +20,9 @@ import {
   useMe,
   useTasks,
   useToggleTask,
-  useUpdateTask,
   useWorkspaces,
 } from '@/api/hooks';
+import { useDialogs } from '@/stores/dialogs';
 import { m } from '@/i18n';
 import DashboardDefaultBanner from '@/components/banners/DashboardDefaultBanner';
 import { cn } from '@/lib/cn';
@@ -43,11 +42,12 @@ function StreakHeading() {
   );
 }
 
+const DASHBOARD_WORKSPACE_LIMIT = 9;
+
 function WorkspacesSection() {
   const { data, isLoading } = useWorkspaces({ sort: 'accessed' });
-  const recent = data;
-  // const recent = data?.slice(0, 2);
-  // TODO: do a UI design to let user know there are more data, possible bottom shadows
+  const recent = data?.slice(0, DASHBOARD_WORKSPACE_LIMIT);
+  const hasMore = (data?.length ?? 0) > DASHBOARD_WORKSPACE_LIMIT;
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
@@ -59,12 +59,28 @@ function WorkspacesSection() {
         </Button>
       </div>
       {isLoading ? (
-        <Spinner />
+        <SkeletonCardGrid count={6} />
       ) : (
         <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {recent?.map((w) => (
             <WorkspaceCard key={w.id} workspace={w} />
           ))}
+          {hasMore && (
+            <Card
+              border="dashed"
+              radius="card-lg"
+              interactive
+              asChild
+              className="grid min-h-[120px] place-items-center"
+            >
+              <Link to="/workspaces" preload="intent">
+                <span className="flex items-center gap-2 font-semibold text-fg-muted">
+                  {m.action_see_all()}
+                  <Icon name="arrowRight" size={16} />
+                </span>
+              </Link>
+            </Card>
+          )}
         </div>
       )}
     </section>
@@ -113,9 +129,12 @@ function ThinkingSection() {
 function TasksCard() {
   const { data } = useTasks();
   const toggle = useToggleTask();
-  const update = useUpdateTask();
   const remove = useDeleteTask();
+  const openTaskEdit = useDialogs((s) => s.openTaskEdit);
+  const openConfirm = useDialogs((s) => s.openConfirm);
   const open = data?.filter((t) => !t.done) ?? [];
+  const visible = data?.slice(0, 4) ?? [];
+  const hasMore = (data?.length ?? 0) > visible.length;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -132,7 +151,7 @@ function TasksCard() {
         {!open.length && (
           <p className="t-body px-1 pt-2 pb-4 text-center text-fg-muted">{m.tasks_empty()}</p>
         )}
-        {data?.map((t) => (
+        {visible.map((t) => (
           <div
             key={t.id}
             className="group flex items-start gap-3 rounded-row px-1 py-2 hover:bg-surface-hover-bg"
@@ -162,33 +181,43 @@ function TasksCard() {
                 {t.meta && <span className="t-body block text-fg-muted">{t.meta}</span>}
               </span>
             </button>
-            <div className="opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-              <Menu
-                items={[
-                  {
-                    label: m.action_edit(),
-                    icon: 'notes',
-                    onClick: () => {
-                      const title = prompt(m.action_edit(), t.title);
-                      if (title && title !== t.title) update.mutate({ id: t.id, title });
-                    },
-                  },
-                  {
-                    label: t.done ? m.action_mark_undone() : m.action_mark_done(),
-                    icon: 'check',
-                    onClick: () => toggle.mutate({ id: t.id, done: !t.done }),
-                  },
-                  {
-                    label: m.action_delete(),
-                    icon: 'trash',
-                    danger: true,
-                    onClick: () => remove.mutate(t.id),
-                  },
-                ]}
-              />
-            </div>
+            <HoverActions
+              items={[
+                {
+                  label: m.action_edit(),
+                  icon: 'notes',
+                  onClick: () => openTaskEdit(t),
+                },
+                {
+                  label: t.done ? m.action_mark_undone() : m.action_mark_done(),
+                  icon: 'check',
+                  onClick: () => toggle.mutate({ id: t.id, done: !t.done }),
+                },
+                {
+                  label: m.action_delete(),
+                  icon: 'trash',
+                  danger: true,
+                  onClick: () =>
+                    openConfirm({
+                      title: m.confirm_delete_title({ name: t.title }),
+                      body: m.confirm_delete_body(),
+                      onConfirm: () => remove.mutate(t.id),
+                    }),
+                },
+              ]}
+            />
           </div>
         ))}
+        {hasMore && (
+          <Link
+            to="/tasks"
+            preload="intent"
+            className="px-1 py-1 text-center text-lg leading-none font-bold text-fg-muted hover:text-fg"
+            aria-label={m.action_see_all()}
+          >
+            …
+          </Link>
+        )}
       </div>
     </div>
   );

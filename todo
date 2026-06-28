@@ -1,13 +1,16 @@
+low priority:
 use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc)
-
 in search results, display user color for that worksapce/item etc instead of just gray
 
-hint user of more data in workspaces:
+high PRIORITIES:
+
+1. hint user of more data in workspaces:
+
 - dashbaord workspace item (use a -> see all at the end of item number 10, so limit max 9 items)
 - daashboard task (use ... ellipses after item 4)
 
-use skeleton instead of loaders
+2. use skeleton instead of loaders
 
-tasks in dashboard: optimistic updates
+3. tasks in dashboard: optimistic updates
 
-move dialogs/modals to app root and use global state (zustand or something lightweight) to control the state of these dialogs (e.g. edit dialogs from action menus)
+4. move dialogs/modals to app root and use global state (zustand or something lightweight) to control the state of these dialogs (e.g. edit dialogs from action menus)

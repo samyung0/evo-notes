@@ -4,15 +4,17 @@ import { Link } from '@tanstack/react-router';
 import { Badge } from './Badge';
 import { Card } from './Card';
 import { Icon } from './Icon';
+import { Menu } from '@/components/ui/Menu';
+import { m } from '@/i18n';
+import { useDeleteWorkspace } from '@/api/hooks';
+import { useDialogs } from '@/stores/dialogs';
 
-export function WorkspaceCard({
-  workspace,
-  customComponent,
-}: {
-  workspace: Workspace;
-  customComponent?: React.ReactNode;
-}) {
+export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const c = userColorPair(workspace.color);
+  const del = useDeleteWorkspace();
+  const openWorkspaceForm = useDialogs((s) => s.openWorkspaceForm);
+  const openWorkspaceStats = useDialogs((s) => s.openWorkspaceStats);
+  const openConfirm = useDialogs((s) => s.openConfirm);
   return (
     <div className="relative">
       <Link
@@ -48,7 +50,33 @@ export function WorkspaceCard({
           </div>
         </Card>
       </Link>
-      {customComponent}
+      <div className="absolute top-3 right-3 z-50">
+        <Menu
+          items={[
+            {
+              label: m.action_edit(),
+              icon: 'settings',
+              onClick: () => openWorkspaceForm(workspace),
+            },
+            {
+              label: m.action_view_stats(),
+              icon: 'quiz',
+              onClick: () => openWorkspaceStats(workspace.id),
+            },
+            {
+              label: m.action_delete(),
+              icon: 'trash',
+              danger: true,
+              onClick: () =>
+                openConfirm({
+                  title: m.confirm_delete_title({ name: workspace.name }),
+                  body: m.confirm_delete_body(),
+                  onConfirm: () => del.mutate(workspace.id),
+                }),
+            },
+          ]}
+        />
+      </div>
     </div>
   );
 }

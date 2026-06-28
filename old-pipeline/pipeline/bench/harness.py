@@ -19,6 +19,7 @@ effect; running one engine over corpora from different parsers isolates the
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -26,11 +27,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 from ..engines import get_engine
-from ..ingest import indexer
+from ..ingest import indexer, lightrag_index
+from ..llm.client import LLMClient
 from ..llm.embeddings import get_embedder
 from ..parsers import ParseOpts, get_parser
 from ..store.memory import MemoryCorpus
 from . import metrics
+
+log = logging.getLogger("evo.bench")
 
 DATASETS_DIR = Path(__file__).parent / "datasets"
 
@@ -72,20 +76,24 @@ def list_datasets() -> List[str]:
 
 # --------------------------------------------------------------------- corpus build
 
-def build_memory_corpus(dataset: Dataset, embedder, ws: str = "bench") -> tuple[MemoryCorpus, float]:
+def build_memory_corpus(dataset: Dataset, embedder, ws: str = "bench", llm: Optional[LLMClient] = None) -> tuple[MemoryCorpus, float]:
     """Index every dataset document (one document == one file) into a fresh
-    in-memory corpus. Returns (corpus, build_seconds)."""
+    in-memory corpus. When ``llm`` is given, also build the LightRAG LLM graph.
+    Returns (corpus, build_seconds)."""
     corpus = MemoryCorpus()
     t0 = time.perf_counter()
     for doc in dataset.documents:
         corpus.add_file(doc["id"], doc["id"])
-        indexer.index_document(corpus, embedder, ws, doc["id"], "dataset", [doc["text"]], pages=1)
+        doc_id = indexer.index_document(corpus, embedder, ws, doc["id"], "dataset", [doc["text"]], pages=1)
+        if llm is not None:
+            lightrag_index.build(corpus, embedder, llm, ws, doc["id"], doc_id)
     return corpus, time.perf_counter() - t0
 
 
-def build_pg_corpus(conn, dataset: Dataset, embedder, ws: str) -> float:
+def build_pg_corpus(conn, dataset: Dataset, embedder, ws: str, llm: Optional[LLMClient] = None) -> float:
     """Index a dataset into Postgres under a throwaway workspace. Caller is
-    responsible for purging ``ws`` afterwards. Returns build_seconds."""
+    responsible for purging ``ws`` afterwards. When ``llm`` is given, also build
+    the LightRAG LLM graph. Returns build_seconds."""
     from ..store import db
     from ..store.pg import PgCorpus
 
@@ -100,7 +108,9 @@ def build_pg_corpus(conn, dataset: Dataset, embedder, ws: str) -> float:
     t0 = time.perf_counter()
     try:
         for doc in dataset.documents:
-            indexer.index_document(corpus, embedder, ws, doc["id"], "dataset", [doc["text"]], pages=1)
+            doc_id = indexer.index_document(corpus, embedder, ws, doc["id"], "dataset", [doc["text"]], pages=1)
+            if llm is not None:
+                lightrag_index.build(corpus, embedder, llm, ws, doc["id"], doc_id)
         conn.commit()
     finally:
         corpus.close()
@@ -179,10 +189,24 @@ def run_retrieval_benchmark(
 ) -> List[EngineResult]:
     """Benchmark each engine over one fixed corpus built from ``dataset``."""
     embedder = embedder or get_embedder()
+    engine_names = list(engine_names)
+
+    # LightRAG needs an LLM-extracted graph at index time. Gate it on a
+    # configured extraction model; otherwise drop it (linearrag/dense still run
+    # fully offline).
+    llm: Optional[LLMClient] = None
+    if "lightrag" in engine_names:
+        candidate = LLMClient()
+        if candidate.available_role("extraction"):
+            llm = candidate
+        else:
+            log.warning("lightrag benchmark skipped: no extraction LLM configured")
+            engine_names = [n for n in engine_names if n != "lightrag"]
+
     results: List[EngineResult] = []
 
     if backend == "memory":
-        corpus, build_s = build_memory_corpus(dataset, embedder, ws)
+        corpus, build_s = build_memory_corpus(dataset, embedder, ws, llm=llm)
         for name in engine_names:
             engine = get_engine(name)
             results.append(evaluate_engine(corpus, engine, embedder, dataset, ks, ws, build_s))
@@ -195,7 +219,7 @@ def run_retrieval_benchmark(
         from ..store import db
         from ..store.pg import PgCorpus
         try:
-            build_s = build_pg_corpus(conn, dataset, embedder, ws)
+            build_s = build_pg_corpus(conn, dataset, embedder, ws, llm=llm)
             for name in engine_names:
                 engine = get_engine(name)
                 corpus = PgCorpus(conn)

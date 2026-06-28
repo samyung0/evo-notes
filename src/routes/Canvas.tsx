@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { Panel } from '@/components/app/layout';
-import { Icon, Spinner, Text } from '@/components/ui';
+import { Panel, PanelWithInvertedRadius } from '@/components/app/layout';
+import { Icon, Skeleton, Text } from '@/components/ui';
 import { useCanvas, useSaveCanvas } from '@/api/hooks';
 
 const CanvasEditor = lazy(() => import('@/features/thinking/CanvasEditor'));
@@ -29,17 +29,9 @@ export default function Canvas() {
       </div>
       <div className="min-h-0 flex-1">
         {isLoading ? (
-          <div className="grid h-full place-items-center">
-            <Spinner />
-          </div>
+          <Skeleton className="h-full w-full rounded-none" />
         ) : (
-          <Suspense
-            fallback={
-              <div className="grid h-full place-items-center">
-                <Spinner />
-              </div>
-            }
-          >
+          <Suspense fallback={<Skeleton className="h-full w-full rounded-none" />}>
             <CanvasEditor
               initialScene={canvas?.scene}
               onChange={(scene) => save.mutate({ scene })}

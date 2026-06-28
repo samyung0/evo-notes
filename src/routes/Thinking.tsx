@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
-import { Panel, PageHeader } from '@/components/app/layout';
-import { Card, Icon, IconButton, Spinner, Text } from '@/components/ui';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
+import { Card, Icon, IconButton, SkeletonCardGrid, Text } from '@/components/ui';
 import { useCanvases, useCreateCanvas } from '@/api/hooks';
 import { m } from '@/i18n';
 
@@ -26,9 +26,7 @@ export default function Thinking() {
       />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {isLoading ? (
-          <div className="grid place-items-center py-16">
-            <Spinner />
-          </div>
+          <SkeletonCardGrid count={6} cardHeight={172} />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data?.map((c, i) => (

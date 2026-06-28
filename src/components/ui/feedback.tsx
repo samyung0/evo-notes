@@ -29,6 +29,57 @@ export function Skeleton({
   );
 }
 
+export function SkeletonCardGrid({
+  count = 6,
+  className,
+  cardClassName,
+  cardHeight = 150,
+}: {
+  count?: number;
+  className?: string;
+  cardClassName?: string;
+  cardHeight?: number;
+}) {
+  return (
+    <div
+      className={cn(
+        'grid w-full grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4',
+        className
+      )}
+      role="status"
+      aria-label="Loading"
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <Skeleton
+          key={i}
+          className={cn('rounded-card-lg', cardClassName)}
+          style={{ height: cardHeight }}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonList({
+  count = 5,
+  className,
+  rowClassName,
+  rowHeight = 44,
+}: {
+  count?: number;
+  className?: string;
+  rowClassName?: string;
+  rowHeight?: number;
+}) {
+  return (
+    <div className={cn('flex flex-col gap-2', className)} role="status" aria-label="Loading">
+      {Array.from({ length: count }).map((_, i) => (
+        <Skeleton key={i} className={cn('rounded-row', rowClassName)} style={{ height: rowHeight }} />
+      ))}
+    </div>
+  );
+}
+
 export function EmptyState({
   icon = 'sparkles',
   title,

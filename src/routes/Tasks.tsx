@@ -1,5 +1,5 @@
-import { Panel, PageHeader } from '@/components/app/layout';
-import { Checkbox, Spinner, Text } from '@/components/ui';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
+import { Checkbox, SkeletonList, Text } from '@/components/ui';
 import { useTasks, useToggleTask } from '@/api/hooks';
 import { m } from '@/i18n';
 
@@ -22,8 +22,8 @@ export default function Tasks() {
       <PageHeader title={m.nav_tasks()} />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {isLoading ? (
-          <div className="grid place-items-center py-16">
-            <Spinner />
+          <div className="mx-auto max-w-2xl">
+            <SkeletonList count={6} rowHeight={56} />
           </div>
         ) : !data?.length ? (
           <Text variant="body" tone="muted" className="py-8 text-center">

@@ -68,6 +68,28 @@ class _Keyword:
 
 
 @dataclass
+class _LREntity:
+    id: str
+    ws: str
+    name: str
+    etype: str
+    description: str
+    emb: List[float]
+
+
+@dataclass
+class _LRRelation:
+    id: str
+    ws: str
+    src: str
+    dst: str
+    description: str
+    keywords: List[str]
+    weight: float
+    emb: List[float]
+
+
+@dataclass
 class MemoryCorpus:
     """A single in-memory RAG corpus implementing the `Corpus` protocol."""
 
@@ -85,6 +107,11 @@ class MemoryCorpus:
     sentence_concept: List[Tuple[str, str, float]] = field(default_factory=list)
     passage_keyword: List[Tuple[str, str]] = field(default_factory=list)
     relations: Dict[Tuple[str, str, str], float] = field(default_factory=dict)
+    # LightRAG LLM graph
+    lr_entities: Dict[str, _LREntity] = field(default_factory=dict)
+    lr_relations: Dict[Tuple[str, str, str], _LRRelation] = field(default_factory=dict)
+    lr_passage_entity: List[Tuple[str, str, float]] = field(default_factory=list)
+    _lr_entity_by_name: Dict[Tuple[str, str], str] = field(default_factory=dict)
     _seq: itertools.count = field(default_factory=lambda: itertools.count(1))
 
     # ------------------------------------------------------------------ ids
@@ -209,6 +236,60 @@ class MemoryCorpus:
             out.append({"passageId": pid, "text": p.text, "fileId": fid, "fileName": fname, "w": float(w)})
         return out
 
+    # ------------------------------------------------- reads (LightRAG graph)
+    def document_passages(self, doc_id: str) -> List[Tuple[str, str]]:
+        rows = [(p.ord, pid, p.text) for pid, p in self.passages.items() if p.document_id == doc_id]
+        rows.sort()
+        return [(pid, text) for _ord, pid, text in rows]
+
+    def entity_search(self, ws: str, qvec: Sequence[float], k: int) -> List[Tuple[str, str, float]]:
+        scored = [
+            (cosine(qvec, e.emb), e)
+            for e in self.lr_entities.values()
+            if e.ws == ws and e.emb
+        ]
+        scored.sort(key=lambda t: -t[0])
+        return [(e.id, e.name, float(s)) for s, e in scored[:k]]
+
+    def relation_search(self, ws: str, qvec: Sequence[float], k: int) -> List[Tuple[str, str, str, float]]:
+        scored = [
+            (cosine(qvec, r.emb), r)
+            for r in self.lr_relations.values()
+            if r.ws == ws and r.emb
+        ]
+        scored.sort(key=lambda t: -t[0])
+        return [(r.id, r.src, r.dst, float(s)) for s, r in scored[:k]]
+
+    def relation_neighbors_lr(self, ws: str, entity_ids: Sequence[str]) -> List[Tuple[str, float]]:
+        if not entity_ids:
+            return []
+        seeds = set(entity_ids)
+        out: List[Tuple[str, float]] = []
+        for r in self.lr_relations.values():
+            if r.ws != ws:
+                continue
+            if r.src in seeds:
+                out.append((r.dst, float(r.weight)))
+            elif r.dst in seeds:
+                out.append((r.src, float(r.weight)))
+        return out
+
+    def passages_for_entities(self, ws: str, entity_ids: Sequence[str], limit: int) -> List[Dict[str, Any]]:
+        if not entity_ids:
+            return []
+        wanted = set(entity_ids)
+        agg: Dict[str, float] = {}
+        for pid, eid, w in self.lr_passage_entity:
+            if eid in wanted and pid in self.passages and self.passages[pid].ws == ws:
+                agg[pid] = agg.get(pid, 0.0) + w
+        ranked = sorted(agg.items(), key=lambda kv: -kv[1])[:limit]
+        out: List[Dict[str, Any]] = []
+        for pid, w in ranked:
+            p = self.passages[pid]
+            fid, fname = self._file(p.document_id)
+            out.append({"passageId": pid, "text": p.text, "fileId": fid, "fileName": fname, "w": float(w)})
+        return out
+
     # ----------------------------------------------------------- writes
     def reset_document(self, file_id: str) -> None:
         doc_ids = {d for d, f in self.doc_file.items() if f == file_id}
@@ -221,6 +302,7 @@ class MemoryCorpus:
         self.passage_concept = [e for e in self.passage_concept if e[0] not in pids]
         self.sentence_concept = [e for e in self.sentence_concept if e[0] not in sids]
         self.passage_keyword = [e for e in self.passage_keyword if e[0] not in pids]
+        self.lr_passage_entity = [e for e in self.lr_passage_entity if e[0] not in pids]  # mirror FK cascade
         for d in doc_ids:
             self.doc_file.pop(d, None)
 
@@ -277,3 +359,53 @@ class MemoryCorpus:
         a, b = (src, dst) if src < dst else (dst, src)
         key = (ws, a, b)
         self.relations[key] = self.relations.get(key, 0.0) + float(weight)
+
+    # ----------------------------------------------- writes (LightRAG graph)
+    def reset_lightrag(self, ws: str, file_id: str) -> None:
+        linked = {eid for _pid, eid, _w in self.lr_passage_entity}
+        orphan = {eid for eid, e in self.lr_entities.items() if e.ws == ws and eid not in linked}
+        if not orphan:
+            return
+        self.lr_entities = {k: v for k, v in self.lr_entities.items() if k not in orphan}
+        self.lr_relations = {
+            key: r for key, r in self.lr_relations.items()
+            if r.src not in orphan and r.dst not in orphan
+        }
+        self._lr_entity_by_name = {k: v for k, v in self._lr_entity_by_name.items() if v not in orphan}
+
+    def upsert_entity(self, ws: str, name: str, etype: str, description: str, emb: Sequence[float]) -> str:
+        key = (ws, name)
+        eid = self._lr_entity_by_name.get(key)
+        if eid is not None:
+            e = self.lr_entities[eid]
+            if len(description) > len(e.description):
+                e.description = description
+            e.etype = etype
+            e.emb = list(emb)
+            return eid
+        eid = self._uid("le")
+        self.lr_entities[eid] = _LREntity(eid, ws, name, etype, description, list(emb))
+        self._lr_entity_by_name[key] = eid
+        return eid
+
+    def link_passage_entity(self, passage_id: str, entity_id: str, weight: float = 1.0) -> None:
+        for i, (pid, eid, w) in enumerate(self.lr_passage_entity):
+            if pid == passage_id and eid == entity_id:
+                self.lr_passage_entity[i] = (pid, eid, w + float(weight))
+                return
+        self.lr_passage_entity.append((passage_id, entity_id, float(weight)))
+
+    def add_lr_relation(self, ws: str, src: str, dst: str, description: str, keywords: List[str], weight: float, emb: Sequence[float]) -> None:
+        if src == dst:
+            return
+        a, b = (src, dst) if src < dst else (dst, src)
+        key = (ws, a, b)
+        existing = self.lr_relations.get(key)
+        if existing is not None:
+            existing.weight += float(weight)
+            if len(description) > len(existing.description):
+                existing.description = description
+            existing.keywords = list(keywords)
+            existing.emb = list(emb)
+            return
+        self.lr_relations[key] = _LRRelation(self._uid("lr"), ws, a, b, description, list(keywords), float(weight), list(emb))

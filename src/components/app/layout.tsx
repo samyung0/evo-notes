@@ -78,22 +78,22 @@ export function PageHeader({
   subtitle,
   actions,
   showTopBar = true,
+  titleClassName,
+  className,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
   showTopBar?: boolean;
+  titleClassName?: string;
+  className?: string;
 }) {
   return (
     <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
-      <div className="flex min-w-0 items-center gap-6 px-6 pt-6 pb-2">
-        <div className="min-w-0">
-          {typeof title === 'string' ? <Text variant="page-title">{title}</Text> : title}
-          {subtitle && (
-            <Text variant="body" tone="secondary" className="mt-1">
-              {subtitle}
-            </Text>
-          )}
+      <div className={cn('flex min-w-0 items-center gap-10 px-6 pt-6 pb-2', className)}>
+        <div className={cn('min-w-0 translate-y-px', titleClassName)}>
+          {typeof title === 'string' ? <h1 className="t-page-title">{title}</h1> : title}
+          {subtitle && <p className="t-body mt-1 text-fg-secondary">{subtitle}</p>}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>

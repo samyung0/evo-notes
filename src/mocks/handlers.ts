@@ -231,24 +231,48 @@ export const handlers = [
   }),
   http.post('/api/workspaces/:id/sources', async ({ params, request }) => {
     await delay(500);
-    const body = (await request.json()) as {
-      name: string;
-      kind: SourceKindFix;
-      chapterId?: string | null;
-    };
+    // Real uploads are multipart (file bytes); fall back to JSON for any
+    // legacy/metadata-only callers.
+    let name = '';
+    let kind: SourceKindFix = 'pdf';
+    let chapterId: string | null = null;
+    const ct = request.headers.get('content-type') ?? '';
+    if (ct.includes('multipart/form-data')) {
+      const form = await request.formData();
+      const file = form.get('file');
+      name = String(form.get('name') || (file instanceof File ? file.name : '') || 'Untitled');
+      kind = (String(form.get('kind') || '') || 'pdf') as SourceKindFix;
+      chapterId = (form.get('chapterId') as string) || null;
+    } else {
+      const body = (await request.json()) as {
+        name: string;
+        kind: SourceKindFix;
+        chapterId?: string | null;
+      };
+      name = body.name;
+      kind = body.kind ?? 'pdf';
+      chapterId = body.chapterId ?? null;
+    }
     const f: (typeof db.files)[number] = {
       id: uid('f'),
       workspaceId: String(params.id),
-      chapterId: body.chapterId ?? null,
-      name: body.name,
-      kind: body.kind ?? 'pdf',
+      chapterId,
+      name,
+      kind,
       sizeKb: Math.round(200 + Math.random() * 3000),
       addedAt: new Date().toISOString(),
+      // Mirror the real backend: uploads start 'processing' and the client
+      // animates progress (useUploadSource) before flipping to 'ready'.
+      status: 'processing',
     };
     db.files.push(f);
     const ws = db.workspaces.find((w) => w.id === params.id);
     if (ws) ws.fileCount += 1;
     if (f.chapterId) db.chapters.find((c) => c.id === f.chapterId)?.fileIds.push(f.id);
+    // Eventually mark ready so later refetches reflect a finished ingest.
+    setTimeout(() => {
+      f.status = 'ready';
+    }, 2600);
     return HttpResponse.json(f, { status: 201 });
   }),
 
@@ -441,6 +465,21 @@ export const handlers = [
   http.get('/api/labels', async () => {
     await latency();
     return HttpResponse.json(db.labels);
+  }),
+  http.patch('/api/labels/:id', async ({ params, request }) => {
+    const label = db.labels.find((x) => x.id === params.id);
+    if (!label) return new HttpResponse(null, { status: 404 });
+    Object.assign(label, await request.json());
+    return HttpResponse.json(label);
+  }),
+  http.delete('/api/labels/:id', async ({ params }) => {
+    const i = db.labels.findIndex((x) => x.id === params.id);
+    if (i >= 0) db.labels.splice(i, 1);
+    // keep events consistent — strip the deleted label from any event.
+    for (const ev of db.events) {
+      ev.labelIds = ev.labelIds.filter((id) => id !== params.id);
+    }
+    return new HttpResponse(null, { status: 204 });
   }),
 
   /* ---------------- tasks ---------------- */

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/cn';
-import { colorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/workspaceColor';
 import type { CalendarEvent, Label } from '@/api/types';
 import { WEEKDAYS, monthGrid, sameDay } from './dateUtils';
 
@@ -8,11 +8,13 @@ export function MonthView({
   events,
   labels,
   onSelectEvent,
+  onCreate,
 }: {
   month: Date;
   events: CalendarEvent[];
   labels: Label[];
   onSelectEvent: (ev: CalendarEvent, anchor: { x: number; y: number }) => void;
+  onCreate?: (day: Date) => void;
 }) {
   const grid = monthGrid(month);
   const today = new Date();
@@ -20,7 +22,7 @@ export function MonthView({
   function colorFor(ev: CalendarEvent) {
     const first = labels.find((l) => l.id === ev.labelIds[0]);
     return first
-      ? colorPair(first.color)
+      ? userColorPair(first.color)
       : { bg: 'var(--surface-inset-bg)', fg: 'var(--text-secondary)' };
   }
 
@@ -39,7 +41,11 @@ export function MonthView({
           const isToday = sameDay(day, today);
           const dayEvents = events.filter((e) => sameDay(new Date(e.start), day));
           return (
-            <div key={i} className="min-h-0 overflow-hidden border-r border-b border-divider p-1">
+            <div
+              key={i}
+              onClick={() => onCreate?.(day)}
+              className="min-h-0 cursor-pointer overflow-hidden border-r border-b border-divider p-1 transition-colors hover:bg-surface-hover-bg"
+            >
               <div
                 className={cn(
                   'mb-1 flex h-6 w-6 items-center justify-center rounded-pill text-xs',
@@ -58,7 +64,10 @@ export function MonthView({
                   return (
                     <button
                       key={ev.id}
-                      onClick={(e) => onSelectEvent(ev, { x: e.clientX, y: e.clientY })}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectEvent(ev, { x: e.clientX, y: e.clientY });
+                      }}
                       className="truncate rounded px-1.5 py-0.5 text-left text-[0.66rem] font-medium"
                       style={{ background: c.bg, color: c.fg }}
                     >

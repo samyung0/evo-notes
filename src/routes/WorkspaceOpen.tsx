@@ -2,25 +2,68 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { Panel, RightRail } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
-import { Button, Icon, Menu, SegmentedControl, Spinner, Text } from '@/components/ui';
+import { Button, Icon, Menu, ProgressBar, SegmentedControl, SkeletonList, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { colorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/workspaceColor';
 import {
   useAddChapter,
-  useAddSource,
   useChapters,
   useDeleteChapter,
   useFile,
   useFiles,
+  useIngestProgress,
   useReorderChapters,
   useUpdateChapter,
+  useUploadSource,
   useWorkspace,
 } from '@/api/hooks';
+import type { SourceFile } from '@/api/types';
 import { FileViewer } from '@/features/files/FileViewer';
 import { AddSourceModal } from '@/features/workspace/AddSourceModal';
 import { ChatPanel } from '@/features/workspace/ChatPanel';
 import { GeneratePanel } from '@/features/workspace/GeneratePanel';
 import { m } from '@/i18n';
+
+/** A file row in the workspace sidebar. Shows a progress bar while the source is
+ * being ingested and an error state if it failed. */
+function FileListItem({
+  file,
+  active,
+  indent,
+  onOpen,
+}: {
+  file: SourceFile;
+  active: boolean;
+  indent?: boolean;
+  onOpen: (id: string) => void;
+}) {
+  const processing = file.status === 'processing';
+  const failed = file.status === 'failed';
+  return (
+    <div className={cn(indent && 'ml-6 w-[calc(100%-1.5rem)]')}>
+      <button
+        onClick={() => !processing && onOpen(file.id)}
+        disabled={processing}
+        className={cn(
+          'flex w-full items-center gap-2 rounded-row px-2 py-1.5 text-left text-sm',
+          active
+            ? 'bg-surface-hover-bg font-medium text-fg'
+            : 'text-fg-secondary hover:bg-surface-hover-bg',
+          processing && 'cursor-default'
+        )}
+      >
+        <Icon name="files" size={15} className={failed ? 'text-solid-error' : undefined} />
+        <span className="flex-1 truncate">{file.name}</span>
+        {failed && <span className="t-label text-solid-error">failed</span>}
+      </button>
+      {processing && (
+        <div className="mr-2 mb-1 ml-7">
+          <ProgressBar value={file.ingestPct ?? 0} height={4} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function WorkspaceOpen() {
   const params = useParams({ strict: false });
@@ -29,7 +72,8 @@ export default function WorkspaceOpen() {
   const { data: ws } = useWorkspace(workspaceId);
   const { data: chapters } = useChapters(workspaceId);
   const { data: files } = useFiles(workspaceId);
-  const addSource = useAddSource(workspaceId);
+  const upload = useUploadSource(workspaceId);
+  useIngestProgress(workspaceId);
   const addChapter = useAddChapter(workspaceId);
   const updateChapter = useUpdateChapter(workspaceId);
   const reorder = useReorderChapters(workspaceId);
@@ -41,11 +85,13 @@ export default function WorkspaceOpen() {
   const [openChapters, setOpenChapters] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (!openFileId && files?.length) setOpenFileId(files[0].id);
+    if (openFileId || !files?.length) return;
+    const first = files.find((f) => f.status !== 'processing' && f.status !== 'failed') ?? files[0];
+    setOpenFileId(first.id);
   }, [files, openFileId]);
 
   const { data: openFile } = useFile(openFileId);
-  const pair = ws ? colorPair(ws.color) : null;
+  const pair = ws ? userColorPair(ws.color) : null;
   const unfiled = files?.filter((f) => f.chapterId === null) ?? [];
 
   function filesFor(chapterId: string) {
@@ -80,7 +126,7 @@ export default function WorkspaceOpen() {
           </Text>
           <button
             onClick={() => setAdding(true)}
-            className="hover:bg-surface-hover-bg mt-3 flex w-full items-center justify-center gap-2 rounded-button bg-surface px-3 py-2.5 text-sm font-semibold text-fg"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-button bg-surface px-3 py-2.5 text-sm font-semibold text-fg hover:bg-surface-hover-bg"
           >
             <Icon name="plus" size={16} /> {m.action_add_source()}
           </button>
@@ -89,16 +135,12 @@ export default function WorkspaceOpen() {
         <div className="flex min-h-0 flex-1 flex-col rounded-card-lg border border-line bg-rail">
           <div className="t-label px-4 pt-4 pb-2 text-fg-muted">Content</div>
           <div className="min-h-0 flex-1 overflow-auto px-2 pb-2">
-            {!chapters && (
-              <div className="grid place-items-center py-8">
-                <Spinner />
-              </div>
-            )}
+            {!chapters && <SkeletonList count={5} rowHeight={40} className="px-2 py-2" />}
             {chapters?.map((ch, idx) => {
               const expanded = openChapters[ch.id] ?? true;
               return (
                 <div key={ch.id} className="mb-0.5">
-                  <div className="hover:bg-surface-hover-bg flex items-center gap-1 rounded-row px-2 py-1.5">
+                  <div className="flex items-center gap-1 rounded-row px-2 py-1.5 hover:bg-surface-hover-bg">
                     <button
                       onClick={() => setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))}
                       className="text-fg-muted"
@@ -139,18 +181,13 @@ export default function WorkspaceOpen() {
                   </div>
                   {expanded &&
                     filesFor(ch.id).map((f) => (
-                      <button
+                      <FileListItem
                         key={f.id}
-                        onClick={() => setOpenFileId(f.id)}
-                        className={cn(
-                          'ml-6 flex w-[calc(100%-1.5rem)] items-center gap-2 rounded-row px-2 py-1.5 text-left text-sm',
-                          openFileId === f.id
-                            ? 'bg-surface-hover-bg font-medium text-fg'
-                            : 'hover:bg-surface-hover-bg text-fg-secondary'
-                        )}
-                      >
-                        <Icon name="files" size={15} /> <span className="truncate">{f.name}</span>
-                      </button>
+                        file={f}
+                        active={openFileId === f.id}
+                        indent
+                        onOpen={setOpenFileId}
+                      />
                     ))}
                 </div>
               );
@@ -160,18 +197,12 @@ export default function WorkspaceOpen() {
               <div className="mt-2 mb-0.5">
                 <div className="t-label px-2 pb-1 text-fg-muted">Unfiled</div>
                 {unfiled.map((f) => (
-                  <button
+                  <FileListItem
                     key={f.id}
-                    onClick={() => setOpenFileId(f.id)}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-row px-2 py-1.5 text-left text-sm',
-                      openFileId === f.id
-                        ? 'bg-surface-hover-bg font-medium text-fg'
-                        : 'hover:bg-surface-hover-bg text-fg-secondary'
-                    )}
-                  >
-                    <Icon name="files" size={15} /> <span className="truncate">{f.name}</span>
-                  </button>
+                    file={f}
+                    active={openFileId === f.id}
+                    onOpen={setOpenFileId}
+                  />
                 ))}
               </div>
             )}
@@ -181,7 +212,7 @@ export default function WorkspaceOpen() {
               const n = prompt('New chapter name');
               if (n) addChapter.mutate(n);
             }}
-            className="hover:bg-surface-hover-bg m-2 flex items-center justify-center gap-2 rounded-button border border-dashed border-line-strong py-2 text-sm font-medium text-fg-secondary"
+            className="m-2 flex items-center justify-center gap-2 rounded-button border border-dashed border-line-strong py-2 text-sm font-medium text-fg-secondary hover:bg-surface-hover-bg"
           >
             <Icon name="plus" size={15} /> {m.action_add_chapter()}
           </button>
@@ -197,13 +228,29 @@ export default function WorkspaceOpen() {
           </Text>
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-6">
-          <FileViewer file={openFile ?? null} />
+          {openFile?.status === 'processing' ? (
+            <div className="grid h-full place-items-center text-fg-muted">
+              <div className="flex w-64 flex-col items-center gap-3">
+                <Icon name="sparkles" size={28} />
+                <Text variant="body" tone="muted">
+                  Processing {openFile.name}…
+                </Text>
+                <ProgressBar value={openFile.ingestPct ?? 0} showLabel className="w-full" />
+              </div>
+            </div>
+          ) : openFile?.status === 'failed' ? (
+            <div className="grid h-full place-items-center text-solid-error">
+              <Text variant="body">Processing failed for {openFile.name}.</Text>
+            </div>
+          ) : (
+            <FileViewer file={openFile ?? null} />
+          )}
         </div>
-      </PanelWithInvertedRadius>
+      </Panel>
 
       {/* Right column: top bar + AI */}
-      <RightRail width={380}>
-        <TopInsetBar />
+      <RightRail className="w-80 xl:w-120">
+        <TopInsetBar className="w-full" />
         <Panel className="min-h-0 flex-1">
           <div className="flex items-center justify-between border-b border-divider px-3 py-2.5">
             <SegmentedControl
@@ -223,14 +270,14 @@ export default function WorkspaceOpen() {
               <GeneratePanel workspaceId={workspaceId} chapters={chapters ?? []} />
             )}
           </div>
-        </PanelWithInvertedRadius>
+        </Panel>
       </RightRail>
 
       <AddSourceModal
         open={adding}
         onClose={() => setAdding(false)}
         chapters={chapters ?? []}
-        onAdd={(list) => list.forEach((f) => addSource.mutate(f))}
+        onAdd={(list) => list.forEach((f) => upload.mutate(f))}
       />
     </div>
   );

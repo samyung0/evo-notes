@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Icon, Spinner, Text } from '@/components/ui';
+import { Icon, Skeleton, Text } from '@/components/ui';
 import type { SourceFile } from '@/api/types';
 
 const PdfView = lazy(() => import('./PdfView'));
@@ -20,13 +20,7 @@ export function FileViewer({ file }: { file: SourceFile | null }) {
 
   if (file.kind === 'pdf' && file.url) {
     return (
-      <Suspense
-        fallback={
-          <div className="grid h-full place-items-center">
-            <Spinner />
-          </div>
-        }
-      >
+      <Suspense fallback={<Skeleton className="h-full min-h-[50vh] w-full" />}>
         <PdfView url={file.url} />
       </Suspense>
     );

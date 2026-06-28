@@ -1,8 +1,43 @@
 import { cn } from '@/lib/cn';
+import { cva, type VariantProps } from 'class-variance-authority';
 
 type Option = string | { value: string; label: string };
 
-export interface SegmentedControlProps {
+const segmentedVariants = cva('inline-flex p-[3px]', {
+  variants: {
+    variant: {
+      solid: 'rounded-pill border border-line bg-surface',
+      ghost: 'rounded-row',
+    },
+  },
+  defaultVariants: {
+    variant: 'solid',
+  },
+});
+
+const segmentVariants = cva('font-semibold transition-colors', {
+  variants: {
+    variant: {
+      solid: 'rounded-pill',
+      ghost: 'rounded-row',
+    },
+    size: {
+      sm: 'px-[15px] py-2 text-[12.5px]',
+      md: 'px-[19px] py-[11px] text-sm',
+    },
+    active: {
+      true: 'bg-action text-action-fg shadow-chip',
+      false: 'bg-transparent text-fg-muted hover:text-fg',
+    },
+  },
+  defaultVariants: {
+    variant: 'solid',
+    size: 'md',
+    active: false,
+  },
+});
+
+export interface SegmentedControlProps extends VariantProps<typeof segmentedVariants> {
   options: Option[];
   value: string;
   onChange?: (value: string) => void;
@@ -17,12 +52,11 @@ export function SegmentedControl({
   value,
   onChange,
   size = 'md',
+  variant = 'solid',
   className,
 }: SegmentedControlProps) {
   return (
-    <div
-      className={cn('inline-flex rounded-pill border border-line bg-surface p-[3px]', className)}
-    >
+    <div className={cn(segmentedVariants({ variant }), className)}>
       {options.map((opt) => {
         const o = norm(opt);
         const active = o.value === value;
@@ -30,13 +64,7 @@ export function SegmentedControl({
           <button
             key={o.value}
             onClick={() => onChange?.(o.value)}
-            className={cn(
-              'rounded-pill font-semibold transition-colors',
-              size === 'sm' ? 'px-[15px] py-2 text-[12.5px]' : 'px-[19px] py-[11px] text-sm',
-              active
-                ? 'bg-action text-action-fg shadow-chip'
-                : 'bg-transparent text-fg-muted hover:text-fg'
-            )}
+            className={segmentVariants({ variant, size, active })}
           >
             {o.label}
           </button>

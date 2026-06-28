@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/evonotes/server/internal/blob"
 	"github.com/evonotes/server/internal/httpapi"
 	"github.com/evonotes/server/internal/pipeline"
@@ -52,6 +54,19 @@ func main() {
 		log.Printf("pipeline at %s", u)
 	}
 
+	// Redis is optional: nil → ingest-progress SSE endpoint returns 503. The
+	// Python worker publishes progress here; we fan it out to the browser.
+	var rdb *redis.Client
+	if u := env("REDIS_URL", ""); u != "" {
+		opt, err := redis.ParseURL(u)
+		if err != nil {
+			log.Fatalf("redis url: %v", err)
+		}
+		rdb = redis.NewClient(opt)
+		defer rdb.Close()
+		log.Printf("redis at %s", opt.Addr)
+	}
+
 	if env("MIGRATE", "true") == "true" {
 		if err := st.Migrate(ctx); err != nil {
 			log.Fatalf("migrate: %v", err)
@@ -61,7 +76,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.New(st, blobStore, pipe, parser, engine),
+		Handler:           httpapi.New(st, blobStore, pipe, rdb, parser, engine),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

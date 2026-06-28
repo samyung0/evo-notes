@@ -1,8 +1,8 @@
-"""Evo Notes parser + RAG pipeline.
+"""Evo Notes RAG pipeline (RAG-Anything + official LightRAG).
 
-Pluggable parsers (MinerU / Docling) and RAG engines (LightRAG / LinearRAG)
-behind small interfaces, selected by config. A CLI benchmarks each in
-isolation; deployment pins one parser + one engine.
+Two runtime roles share this package (compose picks the command):
+- ``pipeline.ingest.worker``   — claims ingest jobs, parses on Modal, builds the
+  LightRAG knowledge graph, publishes progress to Redis.
+- ``pipeline.retrieve.service`` — FastAPI chat/generate over the per-workspace
+  LightRAG instances.
 """
-
-__version__ = "0.1.0"

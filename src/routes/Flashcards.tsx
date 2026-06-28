@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
-import { Panel, PageHeader } from '@/components/app/layout';
-import { Card, Icon, IconButton, ProgressBar, Spinner, Text } from '@/components/ui';
-import { colorPair } from '@/lib/workspaceColor';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
+import { Card, Icon, IconButton, ProgressBar, SkeletonCardGrid, Text } from '@/components/ui';
+import { userColorPair } from '@/lib/workspaceColor';
 import { useDecks } from '@/api/hooks';
 import { m } from '@/i18n';
 
@@ -15,13 +15,11 @@ export default function Flashcards() {
       />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {isLoading ? (
-          <div className="grid place-items-center py-16">
-            <Spinner />
-          </div>
+          <SkeletonCardGrid count={6} cardHeight={190} />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {data?.map((d) => {
-              const c = colorPair(d.color);
+              const c = userColorPair(d.color);
               return (
                 <Link
                   key={d.id}

@@ -64,3 +64,15 @@ export function hourOf(iso: string): number {
   const d = new Date(iso);
   return d.getHours() + d.getMinutes() / 60;
 }
+
+/** "1 AM", "12 PM" — bare-hour label for the time gutter. */
+export function fmtHour(h: number): string {
+  const ap = h % 24 < 12 ? 'AM' : 'PM';
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return `${hh} ${ap}`;
+}
+
+/** Midnight of the given date — strips the time component. */
+export function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}

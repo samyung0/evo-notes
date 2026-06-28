@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { useDebounced } from '@/lib/useDebounced';
 import { useOutsideClick } from '@/lib/useOutsideClick';
@@ -9,7 +9,8 @@ import {
   Icon,
   IconButton,
   Input,
-  Spinner,
+  Menu,
+  SkeletonList,
   DialogClose,
   DialogContent,
   DialogTitle,
@@ -82,11 +83,7 @@ function SearchButton() {
               </DialogClose>
             </div>
             <div className="relative min-h-40 flex-1 overflow-auto py-1">
-              {isFetching && (
-                <div className="absolute inset-0 flex items-center justify-center text-center text-sm text-fg-muted">
-                  <Spinner size={22} className="-translate-y-1/2" />
-                </div>
-              )}
+              {isFetching && <SkeletonList count={5} rowHeight={48} className="p-1" />}
               {!isFetching && !query && (
                 <div className="t-body absolute inset-0 flex items-center justify-center text-center text-fg-muted">
                   <span className="-translate-y-1/2">{m.search_result_placeholder()}</span>
@@ -182,12 +179,13 @@ function NotificationsBell() {
 }
 
 function ProfilePill() {
-  const [open, setOpen] = useState(false);
   const { data: me } = useMe();
+  const navigate = useNavigate();
 
   return (
-    <Popover open={open} onOpenChange={(next) => setOpen(next)}>
-      <PopoverTrigger asChild>
+    <Menu
+      align="end"
+      trigger={
         <button className="flex items-center gap-2.5 rounded-card bg-surface py-1 pr-3 pl-1 hover:bg-surface-hover-bg lg:rounded-pill">
           <Avatar name={me?.name} src={me?.avatarUrl} size="md" />
           <span className="text-left">
@@ -196,29 +194,25 @@ function ProfilePill() {
           </span>
           <Icon name="chevronDown" size={16} className="text-fg-muted" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent alignWidthToTrigger>
-        <Card radius="row" border="solid" className="block p-1">
-          <Link
-            to="/profile"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-row px-3 py-2 hover:bg-surface-hover-bg"
-          >
-            <Icon name="profile" size={16} /> {m.profile_menu_profile()}
-          </Link>
-          <Link
-            to="/settings"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-row px-3 py-2 hover:bg-surface-hover-bg"
-          >
-            <Icon name="settings" size={16} /> {m.profile_menu_settings()}
-          </Link>
-          <button className="flex w-full items-center gap-2.5 rounded-row px-3 py-2 text-tint-error-fg hover:bg-tint-error">
-            <Icon name="logout" size={16} /> {m.profile_menu_logout()}
-          </button>
-        </Card>
-      </PopoverContent>
-    </Popover>
+      }
+      items={[
+        {
+          label: m.profile_menu_profile(),
+          icon: 'profile',
+          onClick: () => navigate({ to: '/profile' }),
+        },
+        {
+          label: m.profile_menu_settings(),
+          icon: 'settings',
+          onClick: () => navigate({ to: '/settings' }),
+        },
+        {
+          label: m.profile_menu_logout(),
+          icon: 'logout',
+          danger: true,
+        },
+      ]}
+    />
   );
 }
 

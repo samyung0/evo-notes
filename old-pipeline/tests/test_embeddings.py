@@ -2,7 +2,7 @@
 import math
 import unittest
 
-from pipeline.config import EMBED_DIM
+from pipeline.config import EMBED_DIM, models
 from pipeline.llm.embeddings import HashEmbedder, get_embedder, vec_literal
 
 
@@ -13,6 +13,11 @@ class TestEmbeddings(unittest.TestCase):
     def test_dimension(self):
         v = self.emb.embed(["hello world"])[0]
         self.assertEqual(len(v), EMBED_DIM)
+
+    def test_embed_dim_matches_active_spec(self):
+        # EMBED_DIM must track the active embedding model's spec so the hash/remote
+        # embedders and the migration's halfvec(N) stay in sync.
+        self.assertEqual(EMBED_DIM, models.embedding_dim())
 
     def test_deterministic(self):
         a = self.emb.embed(["mitochondria produce atp"])[0]

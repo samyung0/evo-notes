@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Panel, PageHeader } from '@/components/app/layout';
-import { Badge, Card, Icon, Modal, Spinner, Text } from '@/components/ui';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
+import { Badge, Card, Icon, Modal, SkeletonCardGrid, Text } from '@/components/ui';
 import { useAllFiles } from '@/api/hooks';
 import { FileViewer } from '@/features/files/FileViewer';
 import type { SourceFile } from '@/api/types';
@@ -15,9 +15,7 @@ export default function Files() {
       <PageHeader title={m.nav_files()} />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {isLoading ? (
-          <div className="grid place-items-center py-16">
-            <Spinner />
-          </div>
+          <SkeletonCardGrid count={6} cardHeight={72} />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data?.map((f) => (

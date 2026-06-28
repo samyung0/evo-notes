@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/evonotes/server/internal/blob"
 	"github.com/evonotes/server/internal/pipeline"
@@ -26,14 +27,15 @@ type api struct {
 	s      *store.Store
 	blob   blob.Store
 	pipe   *pipeline.Client // nil → chat/generate use local placeholders
+	rdb    *redis.Client    // nil → ingest-events SSE disabled
 	parser string           // default parser pinned at deploy (EVO_PARSER)
 	engine string           // default engine pinned at deploy (EVO_ENGINE)
 }
 
 // New builds the full HTTP handler: CORS, health check, and the /api routes
 // that mirror src/mocks/handlers.ts 1:1.
-func New(s *store.Store, b blob.Store, pipe *pipeline.Client, parser, engine string) http.Handler {
-	a := &api{s: s, blob: b, pipe: pipe, parser: parser, engine: engine}
+func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client, parser, engine string) http.Handler {
+	a := &api{s: s, blob: b, pipe: pipe, rdb: rdb, parser: parser, engine: engine}
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
@@ -63,6 +65,7 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, parser, engine str
 			r.Post("/{id}/chapters/reorder", a.reorderChapters)
 			r.Get("/{id}/files", a.listWorkspaceFiles)
 			r.Post("/{id}/sources", a.addSource)
+			r.Get("/{id}/ingest-events", a.ingestEvents)
 			r.Post("/{id}/chat", a.chat)
 			r.Post("/{id}/generate", a.generate)
 		})

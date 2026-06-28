@@ -12,8 +12,10 @@ const iconButtonVariants = cva(
         dark: 'bg-action text-action-fg hover:bg-action-hover',
         accent: 'bg-accent text-accent-fg hover:bg-accent-hover',
         neutral: 'bg-surface text-surface-fg hover:bg-surface-hover-bg',
+        gray: 'bg-page text-surface-dark-fg hover:bg-surface-dark',
         ghost: 'bg-transparent text-fg',
         outline: 'border border-line bg-transparent text-fg hover:bg-surface-hover-bg',
+        'black-outline': 'border border-fg bg-transparent text-fg hover:bg-fg hover:text-page',
       },
       size: {
         sm: '[&>svg]:size-4.8 size-9 rounded-input',

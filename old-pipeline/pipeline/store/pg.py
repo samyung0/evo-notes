@@ -65,6 +65,22 @@ class PgCorpus:
     def passages_for_concepts(self, ws: str, concept_ids: Sequence[str], limit: int) -> List[Dict[str, Any]]:
         return db.passages_for_concepts(self.cur, ws, list(concept_ids), limit)
 
+    # ------------------------------------------------- reads (LightRAG graph)
+    def document_passages(self, doc_id: str) -> List[Tuple[str, str]]:
+        return db.document_passages(self.cur, doc_id)
+
+    def entity_search(self, ws: str, qvec: Sequence[float], k: int) -> List[Tuple[str, str, float]]:
+        return db.entity_search(self.cur, ws, vec_literal(qvec), k)
+
+    def relation_search(self, ws: str, qvec: Sequence[float], k: int) -> List[Tuple[str, str, str, float]]:
+        return db.relation_search(self.cur, ws, vec_literal(qvec), k)
+
+    def relation_neighbors_lr(self, ws: str, entity_ids: Sequence[str]) -> List[Tuple[str, float]]:
+        return db.relation_neighbors_lr(self.cur, ws, list(entity_ids))
+
+    def passages_for_entities(self, ws: str, entity_ids: Sequence[str], limit: int) -> List[Dict[str, Any]]:
+        return db.passages_for_entities(self.cur, ws, list(entity_ids), limit)
+
     # ----------------------------------------------------------- writes
     def reset_document(self, file_id: str) -> None:
         db.reset_document(self.cur, file_id)
@@ -98,3 +114,16 @@ class PgCorpus:
 
     def add_relation(self, ws: str, src: str, dst: str, weight: float = 1.0) -> None:
         db.add_relation(self.cur, ws, src, dst, weight)
+
+    # ----------------------------------------------- writes (LightRAG graph)
+    def reset_lightrag(self, ws: str, file_id: str) -> None:
+        db.reset_lightrag(self.cur, ws, file_id)
+
+    def upsert_entity(self, ws: str, name: str, etype: str, description: str, emb: Sequence[float]) -> str:
+        return db.upsert_entity(self.cur, ws, name, etype, description, vec_literal(emb))
+
+    def link_passage_entity(self, passage_id: str, entity_id: str, weight: float = 1.0) -> None:
+        db.link_passage_entity(self.cur, passage_id, entity_id, weight)
+
+    def add_lr_relation(self, ws: str, src: str, dst: str, description: str, keywords: List[str], weight: float, emb: Sequence[float]) -> None:
+        db.add_lr_relation(self.cur, ws, src, dst, description, keywords, weight, vec_literal(emb))
