@@ -84,14 +84,18 @@ type Deck struct {
 	Color         string `json:"color"`
 	CardCount     int    `json:"cardCount"`
 	KnownPct      int    `json:"knownPct"`
+	DueCount      int    `json:"dueCount"`
 }
 
+// Srs is the FSRS scheduling state persisted as jsonb; the shape mirrors
+// SrsState in src/api/types.ts (the frontend owns the algorithm).
 type Flashcard struct {
-	ID     string `json:"id"`
-	DeckID string `json:"deckId"`
-	Front  string `json:"front"`
-	Back   string `json:"back"`
-	Known  bool   `json:"known"`
+	ID     string          `json:"id"`
+	DeckID string          `json:"deckId"`
+	Front  string          `json:"front"`
+	Back   string          `json:"back"`
+	Known  bool            `json:"known"`
+	Srs    json.RawMessage `json:"srs"`
 }
 
 type Label struct {

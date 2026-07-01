@@ -1,5 +1,6 @@
 import { cn } from '@/lib/cn';
 import { Badge, Icon, Text } from '@/components/ui';
+import { LEVEL_LABEL, LEVEL_TONE } from '@/lib/levels';
 import type { Question } from '@/api/types';
 import type { Answer } from './grade';
 
@@ -15,17 +16,8 @@ export function QuestionRunner({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-2">
-        <Badge
-          tone={
-            question.difficulty === 'easy'
-              ? 'success'
-              : question.difficulty === 'medium'
-                ? 'warning'
-                : 'error'
-          }
-          size="sm"
-        >
-          {question.difficulty}
+        <Badge tone={LEVEL_TONE[question.level]} size="sm">
+          {LEVEL_LABEL[question.level]}
         </Badge>
         <Text variant="subtitle" className="flex-1">
           {question.prompt}

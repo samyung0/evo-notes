@@ -16,6 +16,7 @@ import type {
   Label,
   AppNotification,
   PlanTier,
+  Question,
   Quiz,
   SearchResult,
   SourceFile,
@@ -360,6 +361,22 @@ export const attemptsQuery = () =>
     queryFn: () => api.get<Attempt[]>('/attempts'),
   });
 export const useAttempts = () => useQuery(attemptsQuery());
+
+/** Ad-hoc quiz built from recently-missed questions. */
+export const mistakesQuery = () =>
+  queryOptions({
+    queryKey: qk.mistakes,
+    queryFn: () => api.get<Quiz>('/mistakes'),
+  });
+export const useMistakes = () => useQuery(mistakesQuery());
+
+export function useCreateQuiz() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<Quiz>) => api.post<Quiz>('/quizzes', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.quizzes }),
+  });
+}
 export function useUpdateQuiz() {
   const qc = useQueryClient();
   return useMutation({
@@ -381,9 +398,21 @@ export function useDeleteQuiz() {
 export function useSubmitAttempt() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ quizId, correct, total }: { quizId: string; correct: number; total: number }) =>
-      api.post<Attempt>(`/quizzes/${quizId}/attempts`, { correct, total }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.attempts }),
+    mutationFn: ({
+      quizId,
+      correct,
+      total,
+      wrong,
+    }: {
+      quizId: string;
+      correct: number;
+      total: number;
+      wrong?: Question[];
+    }) => api.post<Attempt>(`/quizzes/${quizId}/attempts`, { correct, total, wrong }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.attempts });
+      qc.invalidateQueries({ queryKey: qk.mistakes });
+    },
   });
 }
 
@@ -391,6 +420,37 @@ export function useSubmitAttempt() {
 export const decksQuery = () =>
   queryOptions({ queryKey: qk.decks, queryFn: () => api.get<Deck[]>('/decks') });
 export const useDecks = () => useQuery(decksQuery());
+
+export function useCreateDeck() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<Deck>) => api.post<Deck>('/decks', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.decks }),
+  });
+}
+export function useCreateCard(deckId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { front: string; back: string }) =>
+      api.post<Flashcard>(`/decks/${deckId}/cards`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.cards(deckId) });
+      qc.invalidateQueries({ queryKey: qk.deck(deckId) });
+      qc.invalidateQueries({ queryKey: qk.decks });
+    },
+  });
+}
+export function useDeleteCard(deckId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del<void>(`/cards/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.cards(deckId) });
+      qc.invalidateQueries({ queryKey: qk.deck(deckId) });
+      qc.invalidateQueries({ queryKey: qk.decks });
+    },
+  });
+}
 
 export const deckQuery = (id: string) =>
   queryOptions({
@@ -412,7 +472,23 @@ export function useUpdateCard(deckId: string) {
   return useMutation({
     mutationFn: ({ id, ...body }: Partial<Flashcard> & { id: string }) =>
       api.patch<Flashcard>(`/cards/${id}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.cards(deckId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.cards(deckId) });
+      qc.invalidateQueries({ queryKey: qk.deck(deckId) });
+      qc.invalidateQueries({ queryKey: qk.decks });
+    },
+  });
+}
+/** Persist an SRS review result for a card (updates scheduling + known flag). */
+export function useReviewCard(deckId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, srs, known }: Pick<Flashcard, 'id' | 'srs' | 'known'>) =>
+      api.patch<Flashcard>(`/cards/${id}`, { srs, known }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.deck(deckId) });
+      qc.invalidateQueries({ queryKey: qk.decks });
+    },
   });
 }
 

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -109,6 +110,8 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 		r.Get("/files/{id}/raw", a.getFileRaw)
 
 		r.Get("/quizzes", a.listQuizzes)
+		r.Post("/quizzes", a.createQuiz)
+		r.Get("/mistakes", a.mistakes)
 		r.Get("/quizzes/{id}", a.getQuiz)
 		r.Patch("/quizzes/{id}", a.updateQuiz)
 		r.Delete("/quizzes/{id}", a.deleteQuiz)
@@ -116,9 +119,12 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 		r.Get("/attempts", a.listAttempts)
 
 		r.Get("/decks", a.listDecks)
+		r.Post("/decks", a.createDeck)
 		r.Get("/decks/{id}", a.getDeck)
 		r.Get("/decks/{id}/cards", a.listCards)
+		r.Post("/decks/{id}/cards", a.createCard)
 		r.Patch("/cards/{id}", a.updateCard)
+		r.Delete("/cards/{id}", a.deleteCard)
 
 		r.Get("/events", a.listEvents)
 		r.Post("/events", a.createEvent)
@@ -571,7 +577,58 @@ func (a *api) listQuizzes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) getQuiz(w http.ResponseWriter, r *http.Request) {
+	// "review_mistakes" is a virtual quiz assembled from the user's mistakes pool.
+	if id(r) == "review_mistakes" {
+		a.mistakes(w, r)
+		return
+	}
 	res, err := a.s.GetQuiz(r.Context(), id(r))
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, 200, res)
+}
+
+// createQuiz makes an empty quiz (for the "New quiz" editor). With no workspace
+// supplied it attaches to the user's most recent one so it lists correctly.
+func (a *api) createQuiz(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Name         string          `json:"name"`
+		WorkspaceID  string          `json:"workspaceId"`
+		Chapters     []string        `json:"chapters"`
+		Questions    json.RawMessage `json:"questions"`
+		Privacy      string          `json:"privacy"`
+		TimeLimitMin *int            `json:"timeLimitMin"`
+	}
+	_ = decode(r, &b)
+	if b.Name == "" {
+		b.Name = "Untitled quiz"
+	}
+	if b.Privacy == "" {
+		b.Privacy = "private"
+	}
+	wsID, wsName := b.WorkspaceID, "Workspace"
+	if wsID == "" {
+		if list, err := a.s.ListWorkspaces(r.Context(), uid(r), "", "", "", ""); err == nil && len(list) > 0 {
+			wsID, wsName = list[0].ID, list[0].Name
+		}
+	} else if ws, err := a.s.GetWorkspace(r.Context(), uid(r), wsID, false); err == nil {
+		wsName = ws.Name
+	}
+	res, err := a.s.CreateQuiz(r.Context(), store.Quiz{
+		Name: b.Name, WorkspaceID: wsID, WorkspaceName: wsName, Chapters: b.Chapters,
+		Questions: b.Questions, Privacy: b.Privacy, TimeLimitMin: b.TimeLimitMin,
+	})
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, 201, res)
+}
+
+func (a *api) mistakes(w http.ResponseWriter, r *http.Request) {
+	res, err := a.s.MistakesQuiz(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -612,19 +669,42 @@ func (a *api) listAttempts(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) createAttempt(w http.ResponseWriter, r *http.Request) {
 	var b struct {
-		Correct int `json:"correct"`
-		Total   int `json:"total"`
+		Correct int               `json:"correct"`
+		Total   int               `json:"total"`
+		Wrong   []json.RawMessage `json:"wrong"`
 	}
 	if err := decode(r, &b); err != nil {
 		a.fail(w, err)
 		return
 	}
-	res, err := a.s.CreateAttempt(r.Context(), id(r), b.Correct, b.Total)
+	quizID := id(r)
+	if len(b.Wrong) > 0 {
+		_ = a.s.AddMistakes(r.Context(), uid(r), b.Wrong)
+	}
+	// A review-mistakes attempt prunes everything answered correctly this round:
+	// only the questions still in b.Wrong remain in the pool.
+	if quizID == "review_mistakes" {
+		_ = a.s.ClearMistakesExcept(r.Context(), uid(r), questionIDs(b.Wrong))
+	}
+	res, err := a.s.CreateAttempt(r.Context(), quizID, b.Correct, b.Total)
 	if err != nil {
 		a.fail(w, err)
 		return
 	}
 	writeJSON(w, 201, res)
+}
+
+func questionIDs(raw []json.RawMessage) []string {
+	ids := make([]string, 0, len(raw))
+	for _, r := range raw {
+		var head struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(r, &head) == nil && head.ID != "" {
+			ids = append(ids, head.ID)
+		}
+	}
+	return ids
 }
 
 /* ---------------------------------------------------------- flashcard handlers */
@@ -645,6 +725,43 @@ func (a *api) getDeck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, res)
+}
+
+func (a *api) createDeck(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Name        string `json:"name"`
+		Color       string `json:"color"`
+		WorkspaceID string `json:"workspaceId"`
+	}
+	_ = decode(r, &b)
+	res, err := a.s.CreateDeck(r.Context(), uid(r), b.Name, b.Color, b.WorkspaceID)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, 201, res)
+}
+
+func (a *api) createCard(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Front string `json:"front"`
+		Back  string `json:"back"`
+	}
+	_ = decode(r, &b)
+	res, err := a.s.CreateCard(r.Context(), id(r), b.Front, b.Back)
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, 201, res)
+}
+
+func (a *api) deleteCard(w http.ResponseWriter, r *http.Request) {
+	if err := a.s.DeleteCard(r.Context(), id(r)); err != nil {
+		a.fail(w, err)
+		return
+	}
+	noContent(w)
 }
 
 func (a *api) listCards(w http.ResponseWriter, r *http.Request) {
@@ -866,9 +983,33 @@ type generateOpts struct {
 	Count        int      `json:"count"`
 	Style        string   `json:"style"`
 	Types        []string `json:"types"`
-	Difficulty   []string `json:"difficulty"`
+	Levels       []string `json:"levels"`      // cognitive levels: recall|application|analysis
+	Difficulty   []string `json:"difficulty"`  // legacy alias, still accepted
 	Chapters     []string `json:"chapters"`
 	TimeLimitMin *int     `json:"timeLimitMin"`
+}
+
+// cognitiveLevels resolves the requested levels, accepting the legacy
+// difficulty field and mapping its values onto the new labels.
+func (o generateOpts) cognitiveLevels() []string {
+	if len(o.Levels) > 0 {
+		return o.Levels
+	}
+	if len(o.Difficulty) > 0 {
+		mapped := make([]string, 0, len(o.Difficulty))
+		for _, d := range o.Difficulty {
+			switch d {
+			case "easy":
+				mapped = append(mapped, "recall")
+			case "hard":
+				mapped = append(mapped, "analysis")
+			default:
+				mapped = append(mapped, "application")
+			}
+		}
+		return mapped
+	}
+	return []string{"recall", "application"}
 }
 
 func (a *api) generate(w http.ResponseWriter, r *http.Request) {
@@ -902,7 +1043,7 @@ func (a *api) generate(w http.ResponseWriter, r *http.Request) {
 func (a *api) generateViaPipe(ctx context.Context, wsID, wsName string, opts *generateOpts) (any, bool) {
 	body := map[string]any{
 		"workspaceId": wsID, "kind": opts.Kind, "length": opts.Length, "format": opts.Format,
-		"count": opts.Count, "style": opts.Style, "types": opts.Types, "difficulty": opts.Difficulty,
+		"count": opts.Count, "style": opts.Style, "types": opts.Types, "levels": opts.cognitiveLevels(),
 		"chapters": opts.Chapters, "timeLimitMin": opts.TimeLimitMin,
 	}
 	raw, err := a.pipe.PostRaw(ctx, "/generate", body)
@@ -965,7 +1106,8 @@ func (a *api) generateLocal(ctx context.Context, wsID, wsName string, opts gener
 		for i := 0; i < n; i++ {
 			cards = append(cards, map[string]any{
 				"id": randID("c"), "deckId": "generated",
-				"front": fmt.Sprintf("Term %d", i+1), "back": fmt.Sprintf("Definition for term %d.", i+1), "known": false,
+				"front": fmt.Sprintf("Term %d", i+1), "back": fmt.Sprintf("Definition for term %d.", i+1),
+				"known": false, "srs": newSrsMap(),
 			})
 		}
 		return map[string]any{"kind": "flashcards", "cards": cards}, nil
@@ -981,6 +1123,15 @@ func (a *api) generateLocal(ctx context.Context, wsID, wsName string, opts gener
 	}
 }
 
+// newSrsMap returns a fresh FSRS "new" state (due now) matching SrsState in
+// src/api/types.ts, for generated flashcard previews.
+func newSrsMap() map[string]any {
+	return map[string]any{
+		"due": time.Now().UTC().Format(time.RFC3339Nano), "stability": 0, "difficulty": 0,
+		"elapsed_days": 0, "scheduled_days": 0, "reps": 0, "lapses": 0, "state": 0, "learning_steps": 0,
+	}
+}
+
 // buildQuestions mirrors the generator in src/mocks/handlers.ts so generated
 // quizzes match the QuestionRunner's expected shapes for every type.
 func buildQuestions(opts generateOpts) json.RawMessage {
@@ -988,10 +1139,7 @@ func buildQuestions(opts generateOpts) json.RawMessage {
 	if len(types) == 0 {
 		types = []string{"mcq"}
 	}
-	diffs := opts.Difficulty
-	if len(diffs) == 0 {
-		diffs = []string{"medium"}
-	}
+	levels := opts.cognitiveLevels()
 	n := opts.Count
 	if n <= 0 {
 		n = 5
@@ -999,8 +1147,8 @@ func buildQuestions(opts generateOpts) json.RawMessage {
 	arr := make([]map[string]any, 0, n)
 	for i := 0; i < n; i++ {
 		t := types[i%len(types)]
-		d := diffs[i%len(diffs)]
-		q := map[string]any{"id": randID("q"), "type": t, "difficulty": d, "prompt": fmt.Sprintf("Generated %s question %d?", t, i+1)}
+		lvl := levels[i%len(levels)]
+		q := map[string]any{"id": randID("q"), "type": t, "level": lvl, "prompt": fmt.Sprintf("Generated %s question %d?", t, i+1)}
 		switch t {
 		case "boolean":
 			q["correct"] = true

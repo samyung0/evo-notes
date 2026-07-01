@@ -3,7 +3,8 @@ import { Link } from '@tanstack/react-router';
 import { Button, Icon, Spinner, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { useGenerate } from '@/api/hooks';
-import type { Chapter, GenerateOptions, Quiz, QuestionType, Difficulty } from '@/api/types';
+import { LEVELS, LEVEL_LABEL } from '@/lib/levels';
+import type { Chapter, GenerateOptions, Quiz, QuestionType, CognitiveLevel } from '@/api/types';
 import { m } from '@/i18n';
 
 type Mode = 'summary' | 'flashcards' | 'quiz';
@@ -25,7 +26,6 @@ const Q_TYPE_LABEL: Record<QuestionType, string> = {
   matching: 'Matching',
   ordering: 'Ordering',
 };
-const DIFFS: Difficulty[] = ['easy', 'medium', 'hard'];
 
 function Chip({
   active,
@@ -72,7 +72,7 @@ export function GeneratePanel({
   const [style, setStyle] = useState<'term-def' | 'qa' | 'cloze'>('term-def');
   // quiz
   const [types, setTypes] = useState<QuestionType[]>(['mcq', 'boolean']);
-  const [diffs, setDiffs] = useState<Difficulty[]>(['easy', 'medium']);
+  const [levels, setLevels] = useState<CognitiveLevel[]>(['recall', 'application']);
 
   function run() {
     if (!mode) return;
@@ -86,7 +86,7 @@ export function GeneratePanel({
         kind: 'quiz',
         count,
         types,
-        difficulty: diffs,
+        levels,
         chapters: chapterNames,
       };
     gen.mutate(opts, { onSuccess: (r) => setResult(r) });
@@ -217,18 +217,20 @@ export function GeneratePanel({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Text variant="label" tone="muted">
-                  Difficulty
+                  Cognitive level
                 </Text>
                 <div className="flex flex-wrap gap-1.5">
-                  {DIFFS.map((d) => (
+                  {LEVELS.map((lvl) => (
                     <Chip
-                      key={d}
-                      active={diffs.includes(d)}
+                      key={lvl}
+                      active={levels.includes(lvl)}
                       onClick={() =>
-                        setDiffs((s) => (s.includes(d) ? s.filter((x) => x !== d) : [...s, d]))
+                        setLevels((s) =>
+                          s.includes(lvl) ? s.filter((x) => x !== lvl) : [...s, lvl]
+                        )
                       }
                     >
-                      {d}
+                      {LEVEL_LABEL[lvl]}
                     </Chip>
                   ))}
                 </div>

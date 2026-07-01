@@ -1,17 +1,35 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
-import { Card, Icon, IconButton, ProgressBar, SkeletonCardGrid, Text } from '@/components/ui';
+import { Badge, Card, Icon, IconButton, ProgressBar, SkeletonCardGrid, Text } from '@/components/ui';
 import { userColorPair } from '@/lib/workspaceColor';
-import { useDecks } from '@/api/hooks';
+import { useCreateDeck, useDecks } from '@/api/hooks';
 import { m } from '@/i18n';
 
 export default function Flashcards() {
   const { data, isLoading } = useDecks();
+  const createDeck = useCreateDeck();
+  const navigate = useNavigate();
+
+  function newDeck() {
+    createDeck.mutate(
+      { name: 'New deck', color: 'purple' },
+      { onSuccess: (deck) => navigate({ to: '/flashcards/$deckId', params: { deckId: deck.id } }) }
+    );
+  }
+
   return (
     <PanelWithInvertedRadius>
       <PageHeader
         title={m.nav_flashcards()}
-        actions={<IconButton icon="plus" variant="dark" label="New deck" />}
+        actions={
+          <IconButton
+            icon="plus"
+            variant="dark"
+            label={m.flashcards_new_deck()}
+            onClick={newDeck}
+            disabled={createDeck.isPending}
+          />
+        }
       />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         {isLoading ? (
@@ -28,12 +46,19 @@ export default function Flashcards() {
                   preload="intent"
                 >
                   <Card interactive radius="card-lg" className="h-full p-5.5">
-                    <span
-                      className="flex h-11 w-11 items-center justify-center rounded-card"
-                      style={{ background: c.bg, color: c.fg }}
-                    >
-                      <Icon name="flashcards" size={20} />
-                    </span>
+                    <div className="flex items-start justify-between">
+                      <span
+                        className="flex h-11 w-11 items-center justify-center rounded-card"
+                        style={{ background: c.bg, color: c.fg }}
+                      >
+                        <Icon name="flashcards" size={20} />
+                      </span>
+                      {d.dueCount > 0 && (
+                        <Badge tone="accent-1" size="sm">
+                          {m.flashcards_due_count({ count: d.dueCount })}
+                        </Badge>
+                      )}
+                    </div>
                     <Text variant="card-title" className="mt-3 truncate">
                       {d.name}
                     </Text>

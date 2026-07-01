@@ -5,6 +5,7 @@ import { Button, Icon, ProgressBar, Skeleton, Text } from '@/components/ui';
 import { useQuiz, useSubmitAttempt } from '@/api/hooks';
 import { QuestionRunner } from '@/features/quizzes/QuestionRunner';
 import { emptyAnswer, gradeQuestion, type Answer } from '@/features/quizzes/grade';
+import { m } from '@/i18n';
 
 export default function QuizAttempt() {
   const params = useParams({ strict: false });
@@ -32,11 +33,29 @@ export default function QuizAttempt() {
     );
   }
 
+  if (!quiz.questions.length) {
+    return (
+      <PanelWithInvertedRadius>
+        <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center gap-4 px-6 text-center">
+          <span className="flex h-16 w-16 items-center justify-center rounded-card-lg bg-tint-success text-tint-success-fg">
+            <Icon name="check" size={30} />
+          </span>
+          <Text variant="section">{m.quiz_no_questions()}</Text>
+          <Link to="/quizzes" preload="intent">
+            <Button iconLeft="chevronLeft">{m.quiz_back()}</Button>
+          </Link>
+        </div>
+      </PanelWithInvertedRadius>
+    );
+  }
+
   const q = quiz.questions[idx];
   const answer = answers[q.id] ?? emptyAnswer(q);
 
   function finish() {
-    submit.mutate({ quizId, correct: score.correct, total: score.total });
+    if (!quiz) return;
+    const wrong = quiz.questions.filter((qq) => !gradeQuestion(qq, answers[qq.id]));
+    submit.mutate({ quizId, correct: score.correct, total: score.total, wrong });
     setDone(true);
   }
 
@@ -74,9 +93,16 @@ export default function QuizAttempt() {
                     size={16}
                     className={ok ? 'text-tint-success-fg' : 'text-tint-error-fg'}
                   />
-                  <Text variant="meta" className="flex-1">
-                    {i + 1}. {qq.prompt}
-                  </Text>
+                  <div className="flex-1">
+                    <Text variant="meta">
+                      {i + 1}. {qq.prompt}
+                    </Text>
+                    {!ok && qq.explanation && (
+                      <Text variant="meta" tone="muted" className="mt-1">
+                        {qq.explanation}
+                      </Text>
+                    )}
+                  </div>
                 </div>
               );
             })}

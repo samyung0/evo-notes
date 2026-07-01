@@ -99,12 +99,17 @@ export type QuestionType =
   | 'matching'
   | 'ordering';
 
-export type Difficulty = 'easy' | 'medium' | 'hard';
+/**
+ * Cognitive level of a question (a light Depth-of-Knowledge style tag). Replaces
+ * the old easy/medium/hard difficulty so students see *what kind* of thinking a
+ * question demands. Ordered from lowest to highest cognitive load.
+ */
+export type CognitiveLevel = 'recall' | 'application' | 'analysis';
 
 interface BaseQuestion {
   id: string;
   type: QuestionType;
-  difficulty: Difficulty;
+  level: CognitiveLevel;
   prompt: string;
   explanation?: string;
 }
@@ -168,13 +173,37 @@ export interface Deck {
   color: UserColor;
   cardCount: number;
   knownPct: number;
+  /** Cards whose SRS due date is now or in the past. Drives the study queue. */
+  dueCount: number;
 }
+
+/**
+ * Serialized FSRS scheduling state for a single card. Dates are ISO strings so
+ * the state round-trips cleanly through JSON / the mock API; the SRS helpers in
+ * `@/lib/srs` convert to/from the `ts-fsrs` `Card` shape.
+ */
+export interface SrsState {
+  due: string; // ISO — when the card is next due
+  stability: number;
+  difficulty: number;
+  elapsed_days: number;
+  scheduled_days: number;
+  reps: number;
+  lapses: number;
+  /** ts-fsrs State enum: 0 New, 1 Learning, 2 Review, 3 Relearning. */
+  state: number;
+  last_review?: string; // ISO
+  learning_steps?: number;
+}
+
 export interface Flashcard {
   id: string;
   deckId: string;
   front: string;
   back: string;
+  /** Convenience flag mirrored from SRS (true once the card reaches Review). */
   known: boolean;
+  srs: SrsState;
 }
 
 /* ---------------- Schedule ---------------- */
@@ -246,7 +275,7 @@ export interface GenerateQuizOptions {
   kind: 'quiz';
   count: number;
   types: QuestionType[];
-  difficulty: Difficulty[];
+  levels: CognitiveLevel[];
   chapters: string[];
   timeLimitMin?: number;
 }

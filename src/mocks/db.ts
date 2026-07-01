@@ -13,15 +13,36 @@ import type {
   Label,
   PublicQuiz,
   PublicWorkspace,
+  Question,
   Quiz,
   SourceFile,
+  SrsState,
   Task,
   ThinkingCanvas,
   User,
   Workspace,
 } from '@/api/types';
+import { isKnown, newSrsState, reviewSrs } from '@/lib/srs';
 
 export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
+
+/**
+ * Seed SRS scheduling state. Unknown cards stay due now (they surface in the
+ * study queue); "known" cards get a couple of Good reviews to push their due
+ * date out so they are not immediately due.
+ */
+function seedSrs(known: boolean): SrsState {
+  let s = newSrsState();
+  if (known) {
+    s = reviewSrs(s, 'good');
+    s = reviewSrs(s, 'good');
+  }
+  return s;
+}
+function seedCard(id: string, deckId: string, front: string, back: string, known: boolean): Flashcard {
+  const srs = seedSrs(known);
+  return { id, deckId, front, back, known: isKnown(srs), srs };
+}
 
 const now = Date.now();
 const days = (n: number) => new Date(now - n * 86_400_000).toISOString();
@@ -233,7 +254,7 @@ export const quizzes: Quiz[] = [
       {
         id: 'q1',
         type: 'mcq',
-        difficulty: 'easy',
+        level: 'recall',
         prompt: 'Which organelle is the powerhouse of the cell?',
         options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'],
         correct: [1],
@@ -242,14 +263,14 @@ export const quizzes: Quiz[] = [
       {
         id: 'q2',
         type: 'boolean',
-        difficulty: 'easy',
+        level: 'recall',
         prompt: 'The cell membrane is a phospholipid bilayer.',
         correct: true,
       },
       {
         id: 'q3',
         type: 'multi',
-        difficulty: 'medium',
+        level: 'application',
         prompt: 'Select all that are membrane-bound organelles.',
         options: ['Ribosome', 'Nucleus', 'Mitochondria', 'Cytosol'],
         correct: [1, 2],
@@ -257,21 +278,21 @@ export const quizzes: Quiz[] = [
       {
         id: 'q4',
         type: 'fill',
-        difficulty: 'medium',
+        level: 'application',
         prompt: 'The diffusion of water across a membrane is called ____.',
         accepted: ['osmosis'],
       },
       {
         id: 'q5',
         type: 'ordering',
-        difficulty: 'hard',
+        level: 'analysis',
         prompt: 'Order the path of protein secretion.',
         items: ['Ribosome', 'Rough ER', 'Golgi apparatus', 'Vesicle', 'Cell membrane'],
       },
       {
         id: 'q6',
         type: 'matching',
-        difficulty: 'medium',
+        level: 'application',
         prompt: 'Match the organelle to its function.',
         pairs: [
           { left: 'Nucleus', right: 'Stores DNA' },
@@ -293,7 +314,7 @@ export const quizzes: Quiz[] = [
       {
         id: 'q7',
         type: 'mcq',
-        difficulty: 'medium',
+        level: 'application',
         prompt: 'A cross between Aa × Aa gives what genotype ratio?',
         options: ['1:2:1', '3:1', '1:1', '9:3:3:1'],
         correct: [0],
@@ -301,7 +322,7 @@ export const quizzes: Quiz[] = [
       {
         id: 'q8',
         type: 'short',
-        difficulty: 'hard',
+        level: 'analysis',
         prompt: 'Define a dominant allele in one sentence.',
         accepted: ['an allele expressed in the phenotype even when only one copy is present'],
       },
@@ -319,7 +340,7 @@ export const quizzes: Quiz[] = [
       {
         id: 'q9',
         type: 'mcq',
-        difficulty: 'medium',
+        level: 'application',
         prompt: '∫ x·eˣ dx is best solved by…',
         options: ['Substitution', 'Integration by parts', 'Partial fractions', 'Trig substitution'],
         correct: [1],
@@ -327,7 +348,7 @@ export const quizzes: Quiz[] = [
       {
         id: 'q10',
         type: 'boolean',
-        difficulty: 'easy',
+        level: 'recall',
         prompt: '∫ 1/x dx = ln|x| + C',
         correct: true,
       },
@@ -380,6 +401,7 @@ export const decks: Deck[] = [
     color: 'green',
     cardCount: 32,
     knownPct: 80,
+    dueCount: 0,
   },
   {
     id: 'dk_2',
@@ -389,6 +411,7 @@ export const decks: Deck[] = [
     color: 'purple',
     cardCount: 24,
     knownPct: 55,
+    dueCount: 0,
   },
   {
     id: 'dk_3',
@@ -398,47 +421,29 @@ export const decks: Deck[] = [
     color: 'amber',
     cardCount: 40,
     knownPct: 30,
+    dueCount: 0,
   },
 ];
 
 export const cards: Flashcard[] = [
-  {
-    id: 'c_1',
-    deckId: 'dk_1',
-    front: 'Mitochondria',
-    back: 'Powerhouse of the cell — produces ATP.',
-    known: true,
-  },
-  {
-    id: 'c_2',
-    deckId: 'dk_1',
-    front: 'Nucleus',
-    back: 'Stores DNA and controls cell activity.',
-    known: true,
-  },
-  {
-    id: 'c_3',
-    deckId: 'dk_1',
-    front: 'Ribosome',
-    back: 'Site of protein synthesis.',
-    known: false,
-  },
-  {
-    id: 'c_4',
-    deckId: 'dk_1',
-    front: 'Golgi apparatus',
-    back: 'Packages and ships proteins.',
-    known: false,
-  },
-  { id: 'c_5', deckId: 'dk_2', front: '∫ eˣ dx', back: 'eˣ + C', known: true },
-  {
-    id: 'c_6',
-    deckId: 'dk_2',
-    front: '∫ 1/x dx',
-    back: 'ln|x| + C',
-    known: false,
-  },
+  seedCard('c_1', 'dk_1', 'Mitochondria', 'Powerhouse of the cell — produces ATP.', true),
+  seedCard('c_2', 'dk_1', 'Nucleus', 'Stores DNA and controls cell activity.', true),
+  seedCard('c_3', 'dk_1', 'Ribosome', 'Site of protein synthesis.', false),
+  seedCard('c_4', 'dk_1', 'Golgi apparatus', 'Packages and ships proteins.', false),
+  seedCard('c_7', 'dk_1', 'Lysosome', 'Digests waste with hydrolytic enzymes.', false),
+  seedCard('c_8', 'dk_1', 'Endoplasmic reticulum', 'Rough ER makes proteins; smooth ER makes lipids.', false),
+  seedCard('c_5', 'dk_2', '∫ eˣ dx', 'eˣ + C', true),
+  seedCard('c_6', 'dk_2', '∫ 1/x dx', 'ln|x| + C', false),
+  seedCard('c_9', 'dk_2', '∫ cos x dx', 'sin x + C', false),
+  seedCard('c_10', 'dk_3', 'Fall of the Berlin Wall', '1989', false),
+  seedCard('c_11', 'dk_3', 'End of WWII', '1945', false),
 ];
+
+/**
+ * Pool of questions the user has recently missed (across quizzes). Feeds the
+ * "Review mistakes" quiz. Deduped by question id.
+ */
+export const mistakes: Question[] = [];
 
 export const labels: Label[] = [
   { id: 'lb_bio', name: 'Biology', color: 'green' },

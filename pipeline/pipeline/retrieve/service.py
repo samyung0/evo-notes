@@ -62,9 +62,48 @@ class GenerateReq(BaseModel):
     count: Optional[int] = None
     style: Optional[str] = None
     types: Optional[List[str]] = None
-    difficulty: Optional[List[str]] = None
+    levels: Optional[List[str]] = None  # cognitive levels: recall|application|analysis
+    difficulty: Optional[List[str]] = None  # legacy alias, still accepted
     chapters: Optional[List[str]] = None
     timeLimitMin: Optional[int] = None
+
+
+# Legacy easy/medium/hard -> cognitive level, so old callers keep working.
+_LEVEL_ALIASES = {"easy": "recall", "medium": "application", "hard": "analysis"}
+_VALID_LEVELS = {"recall", "application", "analysis"}
+
+# What each cognitive level asks the LLM to write, so questions have a purpose
+# instead of a vague difficulty knob.
+_LEVEL_GUIDE = (
+    "recall (remember a fact, term, or definition), "
+    "application (use a concept or procedure to solve a problem), "
+    "analysis (compare, break down, or reason about relationships between ideas)"
+)
+
+
+def _cognitive_levels(req: "GenerateReq") -> List[str]:
+    if req.levels:
+        return [lvl for lvl in req.levels if lvl in _VALID_LEVELS] or ["recall", "application"]
+    if req.difficulty:
+        return [_LEVEL_ALIASES.get(d, "application") for d in req.difficulty]
+    return ["recall", "application"]
+
+
+def _new_srs() -> dict:
+    """Fresh FSRS 'new' state matching SrsState in src/api/types.ts."""
+    from datetime import datetime, timezone
+
+    return {
+        "due": datetime.now(timezone.utc).isoformat(),
+        "stability": 0,
+        "difficulty": 0,
+        "elapsed_days": 0,
+        "scheduled_days": 0,
+        "reps": 0,
+        "lapses": 0,
+        "state": 0,
+        "learning_steps": 0,
+    }
 
 
 def _extract_json(text: str) -> Any:
@@ -139,6 +178,7 @@ async def generate(req: GenerateReq):
                 "front": str(item.get("front", "")),
                 "back": str(item.get("back", "")),
                 "known": False,
+                "srs": _new_srs(),
             }
             for item in data
             if isinstance(item, dict)
@@ -148,12 +188,16 @@ async def generate(req: GenerateReq):
     # quiz
     n = req.count or 5
     types = req.types or ["mcq"]
+    levels = _cognitive_levels(req)
     raw = await _answer(
         req.workspaceId,
         f"Create a {n}-question quiz from this workspace using question types {types}. "
+        'Tag each question with a cognitive "level" chosen from: '
+        f"{_LEVEL_GUIDE}. Aim for a mix across these levels: {levels}, and make each "
+        "question genuinely match the cognitive demand of its level. "
         "Return ONLY a JSON array of question objects. Each object has: "
         '"type" (one of mcq, multi, boolean, fill, short, ordering, matching), '
-        '"difficulty" (easy|medium|hard), "prompt", and the fields appropriate to its '
+        '"level" (recall|application|analysis), "prompt", and the fields appropriate to its '
         "type (mcq/multi: options[] + correct[] indices; boolean: correct bool; "
         "fill/short: accepted[]; ordering: items[] in order; matching: pairs[] of {left,right}).",
         cfg.query_model,
@@ -164,7 +208,10 @@ async def generate(req: GenerateReq):
         if not isinstance(item, dict):
             continue
         item.setdefault("id", db.uid("q"))
-        item.setdefault("difficulty", "medium")
+        # Tolerate models that still emit legacy difficulty.
+        if "level" not in item and "difficulty" in item:
+            item["level"] = _LEVEL_ALIASES.get(item.pop("difficulty"), "application")
+        item.setdefault("level", "application")
         questions.append(item)
     return {
         "kind": "quiz",

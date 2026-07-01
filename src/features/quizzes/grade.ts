@@ -2,9 +2,48 @@ import type { Question } from '@/api/types';
 
 export type Answer = number[] | boolean | string | string[] | Record<string, string>;
 
-const norm = (s: string) => s.trim().toLowerCase();
+/** Normalize for comparison: lowercase, collapse whitespace, strip punctuation. */
+const norm = (s: string) =>
+  s
+    .trim()
+    .toLowerCase()
+    .replace(/[.,/#!$%^&*;:{}=\-_`~()'"?]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const setEq = (a: number[], b: number[]) =>
   a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i]);
+
+/** Classic Levenshtein edit distance. */
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let cur = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/**
+ * Fuzzy string match tolerant of typos. Similarity is 1 - distance/maxLen.
+ * Very short answers (< 4 chars) must match exactly to avoid false positives.
+ */
+export function fuzzyMatch(a: string, b: string, threshold = 0.85): boolean {
+  const x = norm(a);
+  const y = norm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const maxLen = Math.max(x.length, y.length);
+  if (maxLen < 4) return x === y;
+  return 1 - levenshtein(x, y) / maxLen >= threshold;
+}
 
 export function gradeQuestion(q: Question, answer: Answer | undefined): boolean {
   if (answer == null) return false;
@@ -20,7 +59,7 @@ export function gradeQuestion(q: Question, answer: Answer | undefined): boolean 
       return answer === q.correct;
     case 'fill':
     case 'short':
-      return typeof answer === 'string' && q.accepted.some((a) => norm(a) === norm(answer));
+      return typeof answer === 'string' && q.accepted.some((a) => fuzzyMatch(a, answer));
     case 'ordering':
       return Array.isArray(answer) && (answer as string[]).join('|') === q.items.join('|');
     case 'matching': {

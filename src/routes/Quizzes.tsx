@@ -14,13 +14,41 @@ import {
   Tabs,
   Text,
 } from '@/components/ui';
-import { useAttempts, useDeleteQuiz, useQuizzes } from '@/api/hooks';
+import { useAttempts, useCreateQuiz, useDeleteQuiz, useMistakes, useQuizzes } from '@/api/hooks';
 import { useDialogs } from '@/stores/dialogs';
+import { cn } from '@/lib/cn';
 import type { Attempt, Quiz } from '@/api/types';
 import { m } from '@/i18n';
 
 function scoreTone(pct: number): 'success' | 'warning' | 'error' {
   return pct >= 70 ? 'success' : pct >= 55 ? 'warning' : 'error';
+}
+
+function ReviewMistakesCard() {
+  const { data: mistakes } = useMistakes();
+  const navigate = useNavigate();
+  const count = mistakes?.questions.length ?? 0;
+  return (
+    <Card
+      interactive={count > 0}
+      border="solid"
+      className={cn('gap-3 p-4.5 xl:p-5.5', count === 0 && 'opacity-60')}
+      onClick={() =>
+        count > 0 &&
+        navigate({ to: '/quizzes/$quizId/attempt', params: { quizId: 'review_mistakes' } })
+      }
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-error text-tint-error-fg">
+        <Icon name="help" size={20} />
+      </span>
+      <Text variant="card-title" className="mt-3 truncate">
+        {m.quiz_review_mistakes()}
+      </Text>
+      <Text variant="meta" tone="muted" className="mt-1">
+        {count > 0 ? m.quiz_review_mistakes_count({ count }) : m.quiz_review_mistakes_empty()}
+      </Text>
+    </Card>
+  );
 }
 
 function AllQuizzes() {
@@ -36,6 +64,7 @@ function AllQuizzes() {
   return (
     <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ReviewMistakesCard />
         {data?.map((q) => (
           <Card
             key={q.id}
@@ -193,11 +222,30 @@ function PastAttempts() {
 
 export default function Quizzes() {
   const [tab, setTab] = useState('all');
+  const createQuiz = useCreateQuiz();
+  const openQuizEdit = useDialogs((s) => s.openQuizEdit);
+
+  function newQuiz() {
+    createQuiz.mutate(
+      { name: 'Untitled quiz', questions: [] },
+      { onSuccess: (quiz) => openQuizEdit(quiz) }
+    );
+  }
+
   return (
     <PanelWithInvertedRadius>
       <PageHeader
         title={m.nav_quizzes()}
-        actions={<IconButton icon="plus" variant="gray" size="lg" label={m.action_new_quiz()} />}
+        actions={
+          <IconButton
+            icon="plus"
+            variant="gray"
+            size="lg"
+            label={m.action_new_quiz()}
+            onClick={newQuiz}
+            disabled={createQuiz.isPending}
+          />
+        }
       />
       <div className="px-6 pt-4">
         <Tabs

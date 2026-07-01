@@ -30,9 +30,10 @@ type QuizPatch struct {
 	TimeLimitMin *int             `json:"timeLimitMin"`
 }
 type CardPatch struct {
-	Front *string `json:"front"`
-	Back  *string `json:"back"`
-	Known *bool   `json:"known"`
+	Front *string          `json:"front"`
+	Back  *string          `json:"back"`
+	Known *bool            `json:"known"`
+	Srs   *json.RawMessage `json:"srs"`
 }
 type TaskPatch struct {
 	Title *string `json:"title"`
@@ -515,8 +516,11 @@ func (s *Store) CreateAttempt(ctx context.Context, quizID string, correct, total
 
 /* -------------------------------------------------------------- flashcards */
 
+// dueExpr counts a deck's cards whose next FSRS review is due now or earlier.
+const dueExpr = `(SELECT count(*) FROM cards c WHERE c.deck_id=d.id AND (c.srs->>'due')::timestamptz <= now())`
+
 func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
-	rows, err := s.pool.Query(ctx, `SELECT d.id, d.name, COALESCE(d.workspace_id,''), d.workspace_name, d.color, d.card_count, d.known_pct
+	rows, err := s.pool.Query(ctx, `SELECT d.id, d.name, COALESCE(d.workspace_id,''), d.workspace_name, d.color, d.card_count, d.known_pct, `+dueExpr+`
 		FROM decks d JOIN workspaces w ON w.id=d.workspace_id WHERE w.user_id=$1 ORDER BY d.name`, userID)
 	if err != nil {
 		return nil, err
@@ -525,7 +529,7 @@ func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
 	out := []Deck{}
 	for rows.Next() {
 		var d Deck
-		if err := rows.Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.CardCount, &d.KnownPct); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.CardCount, &d.KnownPct, &d.DueCount); err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -535,16 +539,41 @@ func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
 
 func (s *Store) GetDeck(ctx context.Context, id string) (Deck, error) {
 	var d Deck
-	err := s.pool.QueryRow(ctx, `SELECT id, name, COALESCE(workspace_id,''), workspace_name, color, card_count, known_pct FROM decks WHERE id=$1`, id).
-		Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.CardCount, &d.KnownPct)
+	err := s.pool.QueryRow(ctx, `SELECT d.id, d.name, COALESCE(d.workspace_id,''), d.workspace_name, d.color, d.card_count, d.known_pct, `+dueExpr+` FROM decks d WHERE d.id=$1`, id).
+		Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.CardCount, &d.KnownPct, &d.DueCount)
 	if isNoRows(err) {
 		return d, ErrNotFound
 	}
 	return d, err
 }
 
+// CreateDeck attaches to the given workspace (falling back to the user's most
+// recent one) so the deck shows up in ListDecks' owner-scoped join.
+func (s *Store) CreateDeck(ctx context.Context, userID, name, color, wsID string) (Deck, error) {
+	var wsName string
+	if wsID == "" {
+		if err := s.pool.QueryRow(ctx, `SELECT id, name FROM workspaces WHERE user_id=$1 ORDER BY last_accessed_at DESC LIMIT 1`, userID).Scan(&wsID, &wsName); err != nil {
+			return Deck{}, err
+		}
+	} else {
+		_ = s.pool.QueryRow(ctx, `SELECT name FROM workspaces WHERE id=$1`, wsID).Scan(&wsName)
+	}
+	if name == "" {
+		name = "New deck"
+	}
+	if color == "" {
+		color = "green"
+	}
+	id := uid("dk")
+	if _, err := s.pool.Exec(ctx, `INSERT INTO decks (id, name, workspace_id, workspace_name, color, card_count, known_pct) VALUES ($1,$2,$3,$4,$5,0,0)`,
+		id, name, wsID, wsName, color); err != nil {
+		return Deck{}, err
+	}
+	return s.GetDeck(ctx, id)
+}
+
 func (s *Store) ListCards(ctx context.Context, deckID string) ([]Flashcard, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, deck_id, front, back, known FROM cards WHERE deck_id=$1 ORDER BY id`, deckID)
+	rows, err := s.pool.Query(ctx, `SELECT id, deck_id, front, back, known, srs FROM cards WHERE deck_id=$1 ORDER BY id`, deckID)
 	if err != nil {
 		return nil, err
 	}
@@ -552,7 +581,7 @@ func (s *Store) ListCards(ctx context.Context, deckID string) ([]Flashcard, erro
 	out := []Flashcard{}
 	for rows.Next() {
 		var c Flashcard
-		if err := rows.Scan(&c.ID, &c.DeckID, &c.Front, &c.Back, &c.Known); err != nil {
+		if err := rows.Scan(&c.ID, &c.DeckID, &c.Front, &c.Back, &c.Known, &c.Srs); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -560,19 +589,137 @@ func (s *Store) ListCards(ctx context.Context, deckID string) ([]Flashcard, erro
 	return out, rows.Err()
 }
 
+func (s *Store) GetCard(ctx context.Context, id string) (Flashcard, error) {
+	var c Flashcard
+	err := s.pool.QueryRow(ctx, `SELECT id, deck_id, front, back, known, srs FROM cards WHERE id=$1`, id).
+		Scan(&c.ID, &c.DeckID, &c.Front, &c.Back, &c.Known, &c.Srs)
+	if isNoRows(err) {
+		return c, ErrNotFound
+	}
+	return c, err
+}
+
+func (s *Store) CreateCard(ctx context.Context, deckID, front, back string) (Flashcard, error) {
+	id := uid("c")
+	if _, err := s.pool.Exec(ctx, `INSERT INTO cards (id, deck_id, front, back, known, srs) VALUES ($1,$2,$3,$4,false,$5)`,
+		id, deckID, front, back, newSrsBytes()); err != nil {
+		return Flashcard{}, err
+	}
+	s.refreshDeckCounts(ctx, deckID)
+	return s.GetCard(ctx, id)
+}
+
 func (s *Store) UpdateCard(ctx context.Context, id string, p CardPatch) (Flashcard, error) {
-	ct, err := s.pool.Exec(ctx, `UPDATE cards SET front=COALESCE($2,front), back=COALESCE($3,back), known=COALESCE($4,known) WHERE id=$1`,
-		id, p.Front, p.Back, p.Known)
+	var srs []byte
+	if p.Srs != nil {
+		srs = []byte(*p.Srs)
+	}
+	ct, err := s.pool.Exec(ctx, `UPDATE cards SET front=COALESCE($2,front), back=COALESCE($3,back), known=COALESCE($4,known), srs=COALESCE($5,srs) WHERE id=$1`,
+		id, p.Front, p.Back, p.Known, srs)
 	if err != nil {
 		return Flashcard{}, err
 	}
 	if ct.RowsAffected() == 0 {
 		return Flashcard{}, ErrNotFound
 	}
-	var c Flashcard
-	err = s.pool.QueryRow(ctx, `SELECT id, deck_id, front, back, known FROM cards WHERE id=$1`, id).
-		Scan(&c.ID, &c.DeckID, &c.Front, &c.Back, &c.Known)
+	c, err := s.GetCard(ctx, id)
+	if err == nil {
+		s.refreshDeckCounts(ctx, c.DeckID)
+	}
 	return c, err
+}
+
+func (s *Store) DeleteCard(ctx context.Context, id string) error {
+	var deckID string
+	err := s.pool.QueryRow(ctx, `DELETE FROM cards WHERE id=$1 RETURNING deck_id`, id).Scan(&deckID)
+	if isNoRows(err) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	s.refreshDeckCounts(ctx, deckID)
+	return nil
+}
+
+// refreshDeckCounts recomputes the deck's cached card_count / known_pct after a
+// card is added or removed.
+func (s *Store) refreshDeckCounts(ctx context.Context, deckID string) {
+	_, _ = s.pool.Exec(ctx, `UPDATE decks d SET
+		card_count = (SELECT count(*) FROM cards c WHERE c.deck_id=d.id),
+		known_pct = COALESCE((SELECT round(100.0*count(*) FILTER (WHERE c.known)/NULLIF(count(*),0))::int FROM cards c WHERE c.deck_id=d.id), 0)
+		WHERE d.id=$1`, deckID)
+}
+
+// newSrsBytes returns a fresh FSRS "new" state (due now) matching SrsState in
+// src/api/types.ts. The frontend recomputes real intervals on each review.
+func newSrsBytes() []byte {
+	b, _ := json.Marshal(map[string]any{
+		"due":            time.Now().UTC().Format(time.RFC3339Nano),
+		"stability":      0,
+		"difficulty":     0,
+		"elapsed_days":   0,
+		"scheduled_days": 0,
+		"reps":           0,
+		"lapses":         0,
+		"state":          0,
+		"learning_steps": 0,
+	})
+	return b
+}
+
+/* ---------------------------------------------------------------- mistakes */
+
+// AddMistakes upserts each missed question into the user's mistakes pool so it
+// can be re-studied via the "Review mistakes" quiz.
+func (s *Store) AddMistakes(ctx context.Context, userID string, wrong []json.RawMessage) error {
+	for _, raw := range wrong {
+		var head struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(raw, &head) != nil || head.ID == "" {
+			continue
+		}
+		if _, err := s.pool.Exec(ctx, `INSERT INTO mistakes (user_id, question_id, question, updated_at)
+			VALUES ($1,$2,$3,now())
+			ON CONFLICT (user_id, question_id) DO UPDATE SET question=EXCLUDED.question, updated_at=now()`,
+			userID, head.ID, []byte(raw)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ClearMistakesExcept drops every mistake for the user that is NOT still in
+// keepIDs — i.e. the ones just answered correctly in a review session.
+func (s *Store) ClearMistakesExcept(ctx context.Context, userID string, keepIDs []string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM mistakes WHERE user_id=$1 AND NOT (question_id = ANY($2))`, userID, keepIDs)
+	return err
+}
+
+// MistakesQuiz assembles an ad-hoc quiz from the user's missed questions.
+func (s *Store) MistakesQuiz(ctx context.Context, userID string) (Quiz, error) {
+	rows, err := s.pool.Query(ctx, `SELECT question FROM mistakes WHERE user_id=$1 ORDER BY updated_at DESC`, userID)
+	if err != nil {
+		return Quiz{}, err
+	}
+	defer rows.Close()
+	items := []json.RawMessage{}
+	for rows.Next() {
+		var q json.RawMessage
+		if err := rows.Scan(&q); err != nil {
+			return Quiz{}, err
+		}
+		items = append(items, q)
+	}
+	if err := rows.Err(); err != nil {
+		return Quiz{}, err
+	}
+	questions, _ := json.Marshal(items)
+	return Quiz{
+		ID: "review_mistakes", Name: "Review mistakes", WorkspaceName: "",
+		Chapters: []string{}, Questions: questions, CreatedAt: time.Now().UTC(), Privacy: "private",
+	}, nil
 }
 
 /* ---------------------------------------------------------------- schedule */

@@ -1,5 +1,6 @@
 import type {
   Chapter,
+  Deck,
   Flashcard,
   GenerateOptions,
   Question,
@@ -12,6 +13,12 @@ import type {
 import { delay, http, HttpResponse } from 'msw';
 import * as db from './db';
 import { uid } from './db';
+import { isDue, isKnown, newSrsState } from '@/lib/srs';
+
+/** Recompute the live due-card count for a deck from its cards' SRS state. */
+function withDueCount(deck: Deck): Deck {
+  return { ...deck, dueCount: db.cards.filter((c) => c.deckId === deck.id && isDue(c.srs)).length };
+}
 
 const latency = () => delay(180 + Math.random() * 220);
 
@@ -316,16 +323,17 @@ export const handlers = [
         front: `Term ${i + 1}`,
         back: `Definition for term ${i + 1}.`,
         known: false,
+        srs: newSrsState(),
       }));
       return HttpResponse.json({ kind: 'flashcards', cards: seed });
     }
     // quiz
     const qs: Question[] = Array.from({ length: opts.count }, (_, i) => {
       const type = opts.types[i % opts.types.length] ?? 'mcq';
-      const difficulty = opts.difficulty[i % opts.difficulty.length] ?? 'medium';
+      const level = opts.levels[i % opts.levels.length] ?? 'application';
       const base = {
         id: uid('q'),
-        difficulty,
+        level,
         prompt: `Generated ${type} question ${i + 1}?`,
       };
       switch (type) {
@@ -385,8 +393,52 @@ export const handlers = [
     await latency();
     return HttpResponse.json(db.quizzes);
   }),
+  http.post('/api/quizzes', async ({ request }) => {
+    const body = (await request.json()) as Partial<Quiz>;
+    const ws = db.workspaces.find((w) => w.id === body.workspaceId) ?? db.workspaces[0];
+    const quiz: Quiz = {
+      id: uid('qz'),
+      name: body.name ?? 'Untitled quiz',
+      workspaceId: body.workspaceId ?? ws?.id ?? '',
+      workspaceName: ws?.name ?? '',
+      chapters: body.chapters ?? [],
+      questions: body.questions ?? [],
+      createdAt: new Date().toISOString(),
+      privacy: body.privacy ?? 'private',
+      timeLimitMin: body.timeLimitMin,
+    };
+    db.quizzes.unshift(quiz);
+    return HttpResponse.json(quiz, { status: 201 });
+  }),
+  /** Ad-hoc quiz built from the recently-missed question pool. */
+  http.get('/api/mistakes', async () => {
+    await latency();
+    const quiz: Quiz = {
+      id: 'review_mistakes',
+      name: 'Review mistakes',
+      workspaceId: '',
+      workspaceName: 'From your missed questions',
+      chapters: [],
+      questions: db.mistakes,
+      createdAt: new Date().toISOString(),
+      privacy: 'private',
+    };
+    return HttpResponse.json(quiz);
+  }),
   http.get('/api/quizzes/:id', async ({ params }) => {
     await latency();
+    if (params.id === 'review_mistakes') {
+      return HttpResponse.json({
+        id: 'review_mistakes',
+        name: 'Review mistakes',
+        workspaceId: '',
+        workspaceName: 'From your missed questions',
+        chapters: [],
+        questions: db.mistakes,
+        createdAt: new Date().toISOString(),
+        privacy: 'private',
+      } satisfies Quiz);
+    }
     const q = db.quizzes.find((x) => x.id === params.id);
     return q ? HttpResponse.json(q) : new HttpResponse(null, { status: 404 });
   }),
@@ -408,8 +460,27 @@ export const handlers = [
     );
   }),
   http.post('/api/quizzes/:id/attempts', async ({ params, request }) => {
-    const body = (await request.json()) as { correct: number; total: number };
+    const body = (await request.json()) as {
+      correct: number;
+      total: number;
+      wrong?: Question[];
+    };
     const quiz = db.quizzes.find((x) => x.id === params.id);
+    // Fold any missed questions into the review-mistakes pool (deduped by id).
+    if (body.wrong?.length) {
+      for (const q of body.wrong) {
+        const i = db.mistakes.findIndex((m) => m.id === q.id);
+        if (i >= 0) db.mistakes[i] = q;
+        else db.mistakes.push(q);
+      }
+    }
+    // Correctly answered review-mistakes questions leave the pool.
+    if (params.id === 'review_mistakes') {
+      const wrongIds = new Set((body.wrong ?? []).map((q) => q.id));
+      for (let i = db.mistakes.length - 1; i >= 0; i--) {
+        if (!wrongIds.has(db.mistakes[i].id)) db.mistakes.splice(i, 1);
+      }
+    }
     const at = {
       id: uid('at'),
       quizId: String(params.id),
@@ -428,22 +499,65 @@ export const handlers = [
   /* ---------------- flashcards ---------------- */
   http.get('/api/decks', async () => {
     await latency();
-    return HttpResponse.json(db.decks);
+    return HttpResponse.json(db.decks.map(withDueCount));
+  }),
+  http.post('/api/decks', async ({ request }) => {
+    const body = (await request.json()) as Partial<Deck>;
+    const ws = db.workspaces.find((w) => w.id === body.workspaceId);
+    const deck: Deck = {
+      id: uid('dk'),
+      name: body.name ?? 'Untitled deck',
+      workspaceId: body.workspaceId ?? '',
+      workspaceName: ws?.name ?? body.workspaceName ?? '',
+      color: body.color ?? 'green',
+      cardCount: 0,
+      knownPct: 0,
+      dueCount: 0,
+    };
+    db.decks.unshift(deck);
+    return HttpResponse.json(deck, { status: 201 });
   }),
   http.get('/api/decks/:id', async ({ params }) => {
     await latency();
     const d = db.decks.find((x) => x.id === params.id);
-    return d ? HttpResponse.json(d) : new HttpResponse(null, { status: 404 });
+    return d ? HttpResponse.json(withDueCount(d)) : new HttpResponse(null, { status: 404 });
   }),
   http.get('/api/decks/:id/cards', async ({ params }) => {
     await latency();
     return HttpResponse.json(db.cards.filter((c) => c.deckId === params.id));
   }),
+  http.post('/api/decks/:id/cards', async ({ params, request }) => {
+    const body = (await request.json()) as { front: string; back: string };
+    const srs = newSrsState();
+    const card: Flashcard = {
+      id: uid('c'),
+      deckId: String(params.id),
+      front: body.front ?? '',
+      back: body.back ?? '',
+      known: isKnown(srs),
+      srs,
+    };
+    db.cards.push(card);
+    const deck = db.decks.find((d) => d.id === params.id);
+    if (deck) deck.cardCount += 1;
+    return HttpResponse.json(card, { status: 201 });
+  }),
   http.patch('/api/cards/:id', async ({ params, request }) => {
     const c = db.cards.find((x) => x.id === params.id);
     if (!c) return new HttpResponse(null, { status: 404 });
     Object.assign(c, await request.json());
+    // Keep the derived known flag consistent with SRS state.
+    c.known = isKnown(c.srs);
     return HttpResponse.json(c);
+  }),
+  http.delete('/api/cards/:id', async ({ params }) => {
+    const i = db.cards.findIndex((x) => x.id === params.id);
+    if (i >= 0) {
+      const [removed] = db.cards.splice(i, 1);
+      const deck = db.decks.find((d) => d.id === removed.deckId);
+      if (deck) deck.cardCount = Math.max(0, deck.cardCount - 1);
+    }
+    return new HttpResponse(null, { status: 204 });
   }),
 
   /* ---------------- schedule ---------------- */

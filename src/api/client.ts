@@ -80,6 +80,7 @@ export const qk = {
   quizzes: ['quizzes'] as const,
   quiz: (id: string) => ['quiz', id] as const,
   attempts: ['attempts'] as const,
+  mistakes: ['mistakes'] as const,
   decks: ['decks'] as const,
   deck: (id: string) => ['deck', id] as const,
   cards: (deckId: string) => ['deck', deckId, 'cards'] as const,
