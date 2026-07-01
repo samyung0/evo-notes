@@ -13,7 +13,7 @@ const USER_COLOR_MAP: Record<UserColor, ColorPair> = {
   },
   purple: {
     bg: 'var(--solid-purple)',
-    fg: 'var(--solid-purple-fg)'
+    fg: 'var(--solid-purple-fg)',
   },
   blue: {
     bg: 'var(--solid-blue)',
@@ -31,9 +31,14 @@ const USER_COLOR_MAP: Record<UserColor, ColorPair> = {
     bg: 'var(--solid-graphite)',
     fg: 'var(--solid-graphite-fg)',
   },
+  transparent: {
+    bg: 'transparent',
+    fg: 'var(--color-fg)',
+  },
 };
 
-export const userColorPair = (c: UserColor): ColorPair => USER_COLOR_MAP[c] ?? USER_COLOR_MAP.graphite;
+export const userColorPair = (c: UserColor): ColorPair =>
+  USER_COLOR_MAP[c] ?? USER_COLOR_MAP.graphite;
 
 export const USER_COLORS: UserColor[] = [
   'green',
@@ -42,4 +47,5 @@ export const USER_COLORS: UserColor[] = [
   'amber',
   'coral',
   'graphite',
+  'transparent',
 ];

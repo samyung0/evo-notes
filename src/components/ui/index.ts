@@ -35,4 +35,4 @@ export {
   DrawerPortal,
   DrawerTrigger,
 } from './Drawer';
-export { WorkspaceCard } from './WorkspaceCard';
+export { WorkspaceCard, WorkspaceCardSkeleton } from './WorkspaceCard';

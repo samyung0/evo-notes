@@ -1,9 +1,11 @@
-// Package blob stores uploaded source bytes. Local disk now; the Store
-// interface lets an S3-compatible backend drop in later without touching
-// callers.
+// Package blob stores uploaded source bytes. Two backends implement Store:
+// Disk (local filesystem, the default for local dev) and S3 (any
+// S3-compatible object store — Backblaze B2 in production). main.go picks one
+// from BLOB_BACKEND; callers only ever see the Store interface.
 package blob
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +16,20 @@ type Store interface {
 	// and number of bytes written.
 	Put(id string, r io.Reader) (path string, size int64, err error)
 	Open(path string) (io.ReadCloser, error)
+}
+
+// Presigner is an optional Store capability. Object stores (S3/B2) can mint a
+// short-lived public URL so the gateway redirects the client straight to the
+// bucket instead of proxying bytes. Disk does not implement it, so callers must
+// type-assert and fall back to Open.
+type Presigner interface {
+	PresignGet(ctx context.Context, path string) (url string, err error)
+}
+
+// HealthChecker is an optional Store capability used at startup to fail fast on
+// a misconfigured bucket / bad credentials.
+type HealthChecker interface {
+	HealthCheck(ctx context.Context) error
 }
 
 type Disk struct{ dir string }

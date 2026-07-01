@@ -17,6 +17,7 @@ interface DialogState {
   taskEdit: Task | null;
   labelEdit: Label | null;
   eventForm: EventDraft | null;
+  addSource: { workspaceId: string } | null;
   confirm: ConfirmConfig | null;
 
   openWorkspaceForm: (workspace?: Workspace) => void;
@@ -25,6 +26,7 @@ interface DialogState {
   openTaskEdit: (task: Task) => void;
   openLabelEdit: (label: Label) => void;
   openEventForm: (draft?: EventDraft) => void;
+  openAddSource: (workspaceId: string) => void;
   openConfirm: (config: ConfirmConfig) => void;
 
   closeWorkspaceForm: () => void;
@@ -33,6 +35,7 @@ interface DialogState {
   closeTaskEdit: () => void;
   closeLabelEdit: () => void;
   closeEventForm: () => void;
+  closeAddSource: () => void;
   closeConfirm: () => void;
 }
 
@@ -43,6 +46,7 @@ export const useDialogs = create<DialogState>((set) => ({
   taskEdit: null,
   labelEdit: null,
   eventForm: null,
+  addSource: null,
   confirm: null,
 
   openWorkspaceForm: (workspace) => set({ workspaceForm: { workspace } }),
@@ -51,6 +55,7 @@ export const useDialogs = create<DialogState>((set) => ({
   openTaskEdit: (task) => set({ taskEdit: task }),
   openLabelEdit: (label) => set({ labelEdit: label }),
   openEventForm: (draft) => set({ eventForm: draft ?? {} }),
+  openAddSource: (workspaceId) => set({ addSource: { workspaceId } }),
   openConfirm: (config) => set({ confirm: config }),
 
   closeWorkspaceForm: () => set({ workspaceForm: null }),
@@ -59,5 +64,6 @@ export const useDialogs = create<DialogState>((set) => ({
   closeTaskEdit: () => set({ taskEdit: null }),
   closeLabelEdit: () => set({ labelEdit: null }),
   closeEventForm: () => set({ eventForm: null }),
+  closeAddSource: () => set({ addSource: null }),
   closeConfirm: () => set({ confirm: null }),
 }));

@@ -16,6 +16,8 @@ dependencies = [
   # Modal parse client + Redis progress + retrieval API.
   "requests>=2.31",
   "redis>=5.0",
+  # S3-compatible blob store (Backblaze B2) downloads in the ingest worker.
+  "boto3>=1.34",
   "fastapi>=0.110",
   "uvicorn[standard]>=0.29",
   "pydantic>=2",

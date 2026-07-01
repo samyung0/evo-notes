@@ -9,12 +9,14 @@ import (
 // existing frontend (camelCase, nullable fields as pointers).
 
 type User struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Email      string `json:"email"`
-	AvatarURL  string `json:"avatarUrl,omitempty"`
-	ClassLabel string `json:"classLabel,omitempty"`
-	Streak     int    `json:"streak"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	Email              string `json:"email"`
+	AvatarURL          string `json:"avatarUrl,omitempty"`
+	ClassLabel         string `json:"classLabel,omitempty"`
+	Streak             int    `json:"streak"`
+	PlanTier           string `json:"planTier"`
+	SubscriptionStatus string `json:"subscriptionStatus"`
 }
 
 type Workspace struct {

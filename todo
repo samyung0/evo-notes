@@ -1,16 +1,16 @@
 low priority:
-use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc)
-in search results, display user color for that worksapce/item etc instead of just gray
+
+1. use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc)
+2. in calendar page, use grey button with text add event and move the button to the right hand side (prob need to set width of container using sth like calc(100% - var(--topinsetbar-width-sthth)))
+3. work on thinkg space
+4. check all the skeleton loaders look ok
+5. check that components are reused as much as possible (esp dialog ( to replace modals), popover, and buttons)
+6. paraglide check for any missed text that is not being translated (few in workspaces open walready)
+7. rewrite progress abr in cva
 
 high PRIORITIES:
 
-1. hint user of more data in workspaces:
-
-- dashbaord workspace item (use a -> see all at the end of item number 10, so limit max 9 items)
-- daashboard task (use ... ellipses after item 4)
-
-2. use skeleton instead of loaders
-
-3. tasks in dashboard: optimistic updates
-
-4. move dialogs/modals to app root and use global state (zustand or something lightweight) to control the state of these dialogs (e.g. edit dialogs from action menus)
+1. in dashboard, change the mini calendar so that every hour shows (similar to how the timegrid does it, and include the hover and click to add event directly on the schedule)
+2. in workspaces (change color filter to a general filter with a color section and a tag section (limit max height of the popover))
+3. in calendar page timegrid component, use a kind of striped background when adding events directly by hovering/clicking on the calendar (lighter vs darker gray for hovering/selected) use thick border
+4. unify modals/dialogs designs (with the search icon dialog in topbar as base)

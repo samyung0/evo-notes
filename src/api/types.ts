@@ -2,11 +2,15 @@
    Domain types — shared by the mock API, query hooks, and UI.
    ============================================================ */
 
-export type UserColor = 'green' | 'purple' | 'blue' | 'amber' | 'coral' | 'graphite';
+export type UserColor =
+  'green' | 'purple' | 'blue' | 'amber' | 'coral' | 'graphite' | 'transparent';
 
 export type SystemColor = 'success' | 'info' | 'warning' | 'error' | 'accent-1' | 'accent-2';
 
 export type Privacy = 'private' | 'public' | 'link';
+
+export type PlanTier = 'free' | 'pro' | 'team';
+export type SubscriptionStatus = 'none' | 'active' | 'past_due' | 'canceled' | 'trialing';
 
 export interface User {
   id: string;
@@ -16,6 +20,19 @@ export interface User {
   classLabel?: string;
   /** Consecutive days logged in. 0 = brand new. */
   streak: number;
+  planTier: PlanTier;
+  subscriptionStatus: SubscriptionStatus;
+}
+
+export interface BillingInfo {
+  planTier: PlanTier;
+  subscriptionStatus: SubscriptionStatus;
+  renewalAt?: string;
+}
+
+export interface IntegrationsStatus {
+  google: boolean;
+  microsoft: boolean;
 }
 
 export interface Workspace {
@@ -116,11 +133,7 @@ export interface OrderingQuestion extends BaseQuestion {
   items: string[];
 }
 export type Question =
-  | ChoiceQuestion
-  | BooleanQuestion
-  | TextQuestion
-  | MatchingQuestion
-  | OrderingQuestion;
+  ChoiceQuestion | BooleanQuestion | TextQuestion | MatchingQuestion | OrderingQuestion;
 
 export interface Quiz {
   id: string;
@@ -212,6 +225,8 @@ export interface SearchResult {
   title: string;
   subtitle?: string;
   href: string;
+  /** User color of the owning workspace/label/deck — drives the result icon tint. */
+  color?: UserColor;
 }
 
 /* ---------------- Generate ---------------- */
@@ -236,9 +251,7 @@ export interface GenerateQuizOptions {
   timeLimitMin?: number;
 }
 export type GenerateOptions =
-  | GenerateSummaryOptions
-  | GenerateFlashcardsOptions
-  | GenerateQuizOptions;
+  GenerateSummaryOptions | GenerateFlashcardsOptions | GenerateQuizOptions;
 
 export interface PublicWorkspace extends Workspace {
   author: string;

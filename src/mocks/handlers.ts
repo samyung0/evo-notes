@@ -51,16 +51,20 @@ export const handlers = [
           title: w.name,
           subtitle: w.tags.join(' · '),
           href: `/workspaces/${w.id}`,
+          color: w.color,
         });
     for (const f of db.files)
-      if (f.name.toLowerCase().includes(q))
+      if (f.name.toLowerCase().includes(q)) {
+        const ws = db.workspaces.find((w) => w.id === f.workspaceId);
         results.push({
           id: f.id,
           kind: 'file',
           title: f.name,
-          subtitle: db.workspaces.find((w) => w.id === f.workspaceId)?.name,
+          subtitle: ws?.name,
           href: `/workspaces/${f.workspaceId}?file=${f.id}`,
+          color: ws?.color,
         });
+      }
     for (const e of db.events)
       if (e.title.toLowerCase().includes(q))
         results.push({
@@ -69,6 +73,7 @@ export const handlers = [
           title: e.title,
           subtitle: e.location,
           href: '/schedule',
+          color: db.labels.find((l) => l.id === e.labelIds[0])?.color,
         });
     for (const d of db.decks)
       if (d.name.toLowerCase().includes(q))
@@ -78,6 +83,7 @@ export const handlers = [
           title: d.name,
           subtitle: d.workspaceName,
           href: `/flashcards/${d.id}`,
+          color: d.color,
         });
     for (const c of db.canvases)
       if (c.name.toLowerCase().includes(q))
@@ -542,6 +548,66 @@ export const handlers = [
   http.get('/api/explore/quizzes', async () => {
     await latency();
     return HttpResponse.json(db.publicQuizzes);
+  }),
+
+  /* ---------------- billing ---------------- */
+  http.get('/api/billing', async () => {
+    await latency();
+    return HttpResponse.json({
+      planTier: db.user.planTier,
+      subscriptionStatus: db.user.subscriptionStatus,
+    });
+  }),
+  http.post('/api/billing/checkout', async ({ request }) => {
+    await latency();
+    const body = (await request.json()) as { planTier: string };
+    return HttpResponse.json({ url: `/subscription?mock_checkout=${body.planTier}` });
+  }),
+  http.post('/api/billing/portal', async () => {
+    await latency();
+    return HttpResponse.json({ url: '/subscription?mock_portal=1' });
+  }),
+
+  /* ---------------- integrations ---------------- */
+  http.get('/api/integrations', async () => {
+    await latency();
+    return HttpResponse.json({ google: false, microsoft: false });
+  }),
+  http.get('/api/integrations/google/picker-token', async () => {
+    await latency();
+    return HttpResponse.json({ accessToken: 'mock-google-token' });
+  }),
+  http.get('/api/integrations/microsoft/recent', async () => {
+    await latency();
+    return HttpResponse.json([
+      { id: 'ms_file_1', name: 'Biology Notes.docx' },
+      { id: 'ms_file_2', name: 'Lab Report.pdf' },
+    ]);
+  }),
+  http.post('/api/workspaces/:id/sources/import', async ({ params, request }) => {
+    await latency();
+    const wsId = params.id as string;
+    const body = (await request.json()) as {
+      provider: string;
+      fileIds: string[];
+      chapterId?: string | null;
+    };
+    const created = body.fileIds.map((fid, i) => {
+      const f = {
+        id: uid('f'),
+        workspaceId: wsId,
+        chapterId: body.chapterId ?? null,
+        name: `${body.provider}-import-${i + 1}.pdf`,
+        kind: 'pdf' as const,
+        sizeKb: 512,
+        addedAt: new Date().toISOString(),
+        status: 'processing' as const,
+        ingestPct: 0,
+      };
+      db.files.unshift(f);
+      return f;
+    });
+    return HttpResponse.json(created, { status: 201 });
   }),
 ];
 

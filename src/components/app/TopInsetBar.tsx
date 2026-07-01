@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useClerk } from '@clerk/react';
 import { cn } from '@/lib/cn';
+import { userColorPair } from '@/lib/workspaceColor';
 import { useDebounced } from '@/lib/useDebounced';
 import { useOutsideClick } from '@/lib/useOutsideClick';
 import {
@@ -21,6 +23,7 @@ import {
   PopoverContent,
 } from '@/components/ui';
 import { useMe, useNotifications, useSearch, useMarkNotificationsRead } from '@/api/hooks';
+import { USE_MSW } from '@/api/auth';
 import type { SearchKind } from '@/api/types';
 import { m } from '@/i18n';
 import { MobileNav } from './Sidebar';
@@ -95,7 +98,9 @@ function SearchButton() {
                 </div>
               )}
               {!isFetching &&
-                data?.map((r) => (
+                data?.map((r) => {
+                  const c = r.color ? userColorPair(r.color) : null;
+                  return (
                   <button
                     key={`${r.kind}-${r.id}`}
                     onClick={() => {
@@ -104,7 +109,10 @@ function SearchButton() {
                     }}
                     className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover-bg"
                   >
-                    <span className="flex h-8 w-8 items-center justify-center rounded-row bg-surface-hover-bg text-fg-secondary">
+                    <span
+                      className="flex h-8 w-8 items-center justify-center rounded-row bg-surface-hover-bg text-fg-secondary"
+                      style={c ? { background: c.bg, color: c.fg } : undefined}
+                    >
                       <Icon name={KIND_ICON[r.kind]} size={16} />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -114,7 +122,8 @@ function SearchButton() {
                       )}
                     </span>
                   </button>
-                ))}
+                  );
+                })}
             </div>
           </div>
         </Card>
@@ -178,7 +187,7 @@ function NotificationsBell() {
   );
 }
 
-function ProfilePill() {
+function ProfilePillInner({ onLogout }: { onLogout?: () => void }) {
   const { data: me } = useMe();
   const navigate = useNavigate();
 
@@ -190,7 +199,6 @@ function ProfilePill() {
           <Avatar name={me?.name} src={me?.avatarUrl} size="md" />
           <span className="text-left">
             <span className="block font-bold">{me?.name ?? '—'}</span>
-            {/* <span className="block text-[11px] leading-tight text-fg-muted">{me?.classLabel}</span> */}
           </span>
           <Icon name="chevronDown" size={16} className="text-fg-muted" />
         </button>
@@ -202,6 +210,11 @@ function ProfilePill() {
           onClick: () => navigate({ to: '/profile' }),
         },
         {
+          label: m.profile_menu_subscription(),
+          icon: 'settings',
+          onClick: () => navigate({ to: '/subscription' }),
+        },
+        {
           label: m.profile_menu_settings(),
           icon: 'settings',
           onClick: () => navigate({ to: '/settings' }),
@@ -210,10 +223,21 @@ function ProfilePill() {
           label: m.profile_menu_logout(),
           icon: 'logout',
           danger: true,
+          onClick: onLogout,
         },
       ]}
     />
   );
+}
+
+function ClerkProfilePill() {
+  const { signOut } = useClerk();
+  return <ProfilePillInner onLogout={() => void signOut()} />;
+}
+
+function ProfilePill() {
+  if (USE_MSW) return <ProfilePillInner />;
+  return <ClerkProfilePill />;
 }
 
 export function TopInsetBar({ className }: { className?: string }) {

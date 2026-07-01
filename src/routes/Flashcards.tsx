@@ -27,7 +27,7 @@ export default function Flashcards() {
                   params={{ deckId: d.id }}
                   preload="intent"
                 >
-                  <Card interactive padding={18} radius="card-lg" className="h-full">
+                  <Card interactive radius="card-lg" className="h-full p-5.5">
                     <span
                       className="flex h-11 w-11 items-center justify-center rounded-card"
                       style={{ background: c.bg, color: c.fg }}

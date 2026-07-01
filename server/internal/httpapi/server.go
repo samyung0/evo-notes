@@ -18,24 +18,44 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/evonotes/server/internal/auth"
+	"github.com/evonotes/server/internal/billing"
 	"github.com/evonotes/server/internal/blob"
+	"github.com/evonotes/server/internal/integrations"
 	"github.com/evonotes/server/internal/pipeline"
 	"github.com/evonotes/server/internal/store"
 )
 
+// Config holds gateway settings for auth, billing, and OAuth.
+type Config struct {
+	ClerkSecretKey      string
+	ClerkWebhookSecret  string
+	AuthDisabled        bool
+	DevUserID           string
+	StripeSecretKey     string
+	StripeWebhookSecret string
+	StripePricePro      string
+	StripePriceTeam     string
+	AppURL              string
+	OAuth               integrations.OAuthConfig
+}
+
 type api struct {
 	s      *store.Store
 	blob   blob.Store
-	pipe   *pipeline.Client // nil → chat/generate use local placeholders
-	rdb    *redis.Client    // nil → ingest-events SSE disabled
-	parser string           // default parser pinned at deploy (EVO_PARSER)
-	engine string           // default engine pinned at deploy (EVO_ENGINE)
+	pipe   *pipeline.Client
+	rdb    *redis.Client
+	parser string
+	engine string
+	cfg    Config
+	oauth  integrations.OAuthConfig
 }
 
 // New builds the full HTTP handler: CORS, health check, and the /api routes
 // that mirror src/mocks/handlers.ts 1:1.
-func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client, parser, engine string) http.Handler {
-	a := &api{s: s, blob: b, pipe: pipe, rdb: rdb, parser: parser, engine: engine}
+func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client, parser, engine string, cfg Config) http.Handler {
+	billing.Init(billing.Config{SecretKey: cfg.StripeSecretKey})
+	a := &api{s: s, blob: b, pipe: pipe, rdb: rdb, parser: parser, engine: engine, cfg: cfg, oauth: cfg.OAuth}
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
@@ -44,8 +64,18 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: false,
 	}))
+	r.Use(auth.Middleware(auth.Config{
+		SecretKey: cfg.ClerkSecretKey,
+		Disabled:  cfg.AuthDisabled,
+		DevUserID: cfg.DevUserID,
+		Store:     s,
+	}))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
+	r.Post("/webhooks/clerk", a.clerkWebhook)
+	r.Post("/webhooks/stripe", a.stripeWebhook)
+	r.Get("/api/integrations/google/callback", a.googleCallback)
+	r.Get("/api/integrations/microsoft/callback", a.microsoftCallback)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/me", a.me)
@@ -65,6 +95,7 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 			r.Post("/{id}/chapters/reorder", a.reorderChapters)
 			r.Get("/{id}/files", a.listWorkspaceFiles)
 			r.Post("/{id}/sources", a.addSource)
+			r.Post("/{id}/sources/import", a.importSources)
 			r.Get("/{id}/ingest-events", a.ingestEvents)
 			r.Post("/{id}/chat", a.chat)
 			r.Post("/{id}/generate", a.generate)
@@ -105,6 +136,17 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 
 		r.Get("/explore/workspaces", a.exploreWorkspaces)
 		r.Get("/explore/quizzes", a.exploreQuizzes)
+
+		r.Get("/billing", a.getBilling)
+		r.Post("/billing/checkout", a.billingCheckout)
+		r.Post("/billing/portal", a.billingPortal)
+
+		r.Get("/integrations", a.integrationsStatus)
+		r.Get("/integrations/google/connect", a.googleConnect)
+		r.Get("/integrations/google/picker-token", a.googlePickerToken)
+		r.Get("/integrations/microsoft/connect", a.microsoftConnect)
+		r.Get("/integrations/microsoft/recent", a.microsoftRecentFiles)
+		r.Delete("/integrations/{provider}", a.deleteIntegration)
 	})
 
 	return r
@@ -147,8 +189,10 @@ func randInt(min, max int) int {
 
 /* ----------------------------------------------------------- shell handlers */
 
+func uid(r *http.Request) string { return auth.UserID(r.Context()) }
+
 func (a *api) me(w http.ResponseWriter, r *http.Request) {
-	u, err := a.s.Me(r.Context())
+	u, err := a.s.Me(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -162,7 +206,7 @@ func (a *api) search(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, []store.SearchResult{})
 		return
 	}
-	res, err := a.s.Search(r.Context(), q)
+	res, err := a.s.Search(r.Context(), uid(r), q)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -171,7 +215,7 @@ func (a *api) search(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) notifications(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.Notifications(r.Context())
+	res, err := a.s.Notifications(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -180,7 +224,7 @@ func (a *api) notifications(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) markRead(w http.ResponseWriter, r *http.Request) {
-	if err := a.s.MarkNotificationsRead(r.Context()); err != nil {
+	if err := a.s.MarkNotificationsRead(r.Context(), uid(r)); err != nil {
 		a.fail(w, err)
 		return
 	}
@@ -191,7 +235,7 @@ func (a *api) markRead(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	res, err := a.s.ListWorkspaces(r.Context(), q.Get("q"), q.Get("sort"), q.Get("color"), q.Get("tag"))
+	res, err := a.s.ListWorkspaces(r.Context(), uid(r), q.Get("q"), q.Get("sort"), q.Get("color"), q.Get("tag"))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -200,7 +244,7 @@ func (a *api) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) getWorkspace(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.GetWorkspace(r.Context(), id(r), true)
+	res, err := a.s.GetWorkspace(r.Context(), uid(r), id(r), true)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -209,7 +253,7 @@ func (a *api) getWorkspace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) workspaceStats(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.WorkspaceStats(r.Context(), id(r))
+	res, err := a.s.WorkspaceStats(r.Context(), uid(r), id(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -237,7 +281,7 @@ func (a *api) createWorkspace(w http.ResponseWriter, r *http.Request) {
 	if b.Tags == nil {
 		b.Tags = []string{}
 	}
-	res, err := a.s.CreateWorkspace(r.Context(), b.Name, b.Color, b.Privacy, b.Tags)
+	res, err := a.s.CreateWorkspace(r.Context(), uid(r), b.Name, b.Color, b.Privacy, b.Tags)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -251,7 +295,7 @@ func (a *api) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, err)
 		return
 	}
-	res, err := a.s.UpdateWorkspace(r.Context(), id(r), p)
+	res, err := a.s.UpdateWorkspace(r.Context(), uid(r), id(r), p)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -260,7 +304,7 @@ func (a *api) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) deleteWorkspace(w http.ResponseWriter, r *http.Request) {
-	if err := a.s.DeleteWorkspace(r.Context(), id(r)); err != nil {
+	if err := a.s.DeleteWorkspace(r.Context(), uid(r), id(r)); err != nil {
 		a.fail(w, err)
 		return
 	}
@@ -269,8 +313,20 @@ func (a *api) deleteWorkspace(w http.ResponseWriter, r *http.Request) {
 
 /* --------------------------------------------------- chapter/file handlers */
 
+func (a *api) assertWS(w http.ResponseWriter, r *http.Request, wsID string) bool {
+	if err := a.s.AssertWorkspaceOwner(r.Context(), uid(r), wsID); err != nil {
+		a.fail(w, err)
+		return false
+	}
+	return true
+}
+
 func (a *api) listChapters(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListChapters(r.Context(), id(r))
+	wsID := id(r)
+	if !a.assertWS(w, r, wsID) {
+		return
+	}
+	res, err := a.s.ListChapters(r.Context(), wsID)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -279,11 +335,15 @@ func (a *api) listChapters(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) addChapter(w http.ResponseWriter, r *http.Request) {
+	wsID := id(r)
+	if !a.assertWS(w, r, wsID) {
+		return
+	}
 	var b struct {
 		Name string `json:"name"`
 	}
 	_ = decode(r, &b)
-	res, err := a.s.AddChapter(r.Context(), id(r), b.Name)
+	res, err := a.s.AddChapter(r.Context(), wsID, b.Name)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -306,6 +366,9 @@ func (a *api) updateChapter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) reorderChapters(w http.ResponseWriter, r *http.Request) {
+	if !a.assertWS(w, r, id(r)) {
+		return
+	}
 	var b struct {
 		IDs []string `json:"ids"`
 	}
@@ -329,7 +392,7 @@ func (a *api) deleteChapter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listAllFiles(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListFiles(r.Context(), "")
+	res, err := a.s.ListFiles(r.Context(), uid(r), "")
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -338,7 +401,11 @@ func (a *api) listAllFiles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listWorkspaceFiles(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListFiles(r.Context(), id(r))
+	wsID := id(r)
+	if !a.assertWS(w, r, wsID) {
+		return
+	}
+	res, err := a.s.ListFiles(r.Context(), uid(r), wsID)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -359,6 +426,9 @@ func (a *api) getFile(w http.ResponseWriter, r *http.Request) {
 // file 'processing', enqueues an ingest job) and the mock-compatible JSON
 // metadata path (no bytes, lands 'ready').
 func (a *api) addSource(w http.ResponseWriter, r *http.Request) {
+	if !a.assertWS(w, r, id(r)) {
+		return
+	}
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		a.uploadSource(w, r)
 		return
@@ -433,6 +503,18 @@ func (a *api) getFileRaw(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case blobPath != "" && a.blob != nil:
+		// Object stores (S3/B2) redirect to a short-lived presigned URL so the
+		// bytes never proxy through the gateway. Disk has no presigner and
+		// streams inline.
+		if p, ok := a.blob.(blob.Presigner); ok {
+			signed, err := p.PresignGet(r.Context(), blobPath)
+			if err != nil {
+				a.fail(w, err)
+				return
+			}
+			http.Redirect(w, r, signed, http.StatusFound)
+			return
+		}
 		rc, err := a.blob.Open(blobPath)
 		if err != nil {
 			a.fail(w, err)
@@ -480,7 +562,7 @@ func contentType(kind string) string {
 /* ------------------------------------------------------- quiz/attempt handlers */
 
 func (a *api) listQuizzes(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListQuizzes(r.Context())
+	res, err := a.s.ListQuizzes(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -520,7 +602,7 @@ func (a *api) deleteQuiz(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listAttempts(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListAttempts(r.Context())
+	res, err := a.s.ListAttempts(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -548,7 +630,7 @@ func (a *api) createAttempt(w http.ResponseWriter, r *http.Request) {
 /* ---------------------------------------------------------- flashcard handlers */
 
 func (a *api) listDecks(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListDecks(r.Context())
+	res, err := a.s.ListDecks(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -591,7 +673,7 @@ func (a *api) updateCard(w http.ResponseWriter, r *http.Request) {
 /* ------------------------------------------------------------ schedule handlers */
 
 func (a *api) listEvents(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListEvents(r.Context())
+	res, err := a.s.ListEvents(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -605,7 +687,7 @@ func (a *api) createEvent(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, err)
 		return
 	}
-	res, err := a.s.CreateEvent(r.Context(), e)
+	res, err := a.s.CreateEvent(r.Context(), uid(r), e)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -647,7 +729,7 @@ func (a *api) listLabels(w http.ResponseWriter, r *http.Request) {
 /* ---------------------------------------------------------------- task handlers */
 
 func (a *api) listTasks(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListTasks(r.Context())
+	res, err := a.s.ListTasks(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -672,7 +754,7 @@ func (a *api) updateTask(w http.ResponseWriter, r *http.Request) {
 /* ------------------------------------------------------------ thinking handlers */
 
 func (a *api) listCanvases(w http.ResponseWriter, r *http.Request) {
-	res, err := a.s.ListCanvases(r.Context())
+	res, err := a.s.ListCanvases(r.Context(), uid(r))
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -694,7 +776,7 @@ func (a *api) createCanvas(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 	_ = decode(r, &b)
-	res, err := a.s.CreateCanvas(r.Context(), b.Name)
+	res, err := a.s.CreateCanvas(r.Context(), uid(r), b.Name)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -761,7 +843,7 @@ func (a *api) chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fallback placeholder (pipeline unreachable).
-	files, _ := a.s.ListFiles(r.Context(), id(r))
+	files, _ := a.s.ListFiles(r.Context(), uid(r), id(r))
 	if len(files) > 2 {
 		files = files[:2]
 	}
@@ -797,7 +879,7 @@ func (a *api) generate(w http.ResponseWriter, r *http.Request) {
 	}
 	wsID := id(r)
 	wsName := "Workspace"
-	if ws, err := a.s.GetWorkspace(r.Context(), wsID, false); err == nil {
+	if ws, err := a.s.GetWorkspace(r.Context(), uid(r), wsID, false); err == nil {
 		wsName = ws.Name
 	}
 

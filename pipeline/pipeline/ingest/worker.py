@@ -17,7 +17,7 @@ import asyncio
 import logging
 
 from ..config import cfg
-from ..store import db
+from ..store import db, blobstore
 from ..rag import mineru_client, progress
 from ..rag.cache import RagCache
 from ..rag.factory import build_ingest_rag
@@ -79,20 +79,23 @@ async def process_job(cache: RagCache, job: dict) -> None:
     name = await asyncio.to_thread(_read_name, file_id)
     progress.publish(ws, file_id, "queued", 5)
 
-    # 1. Obtain a MinerU-style content list. Plain text/markdown is trivial and
-    #    skips the GPU; everything else is parsed on Modal (GPU MineRU).
-    image_dir: str | None = None
-    if kind in {"txt", "md"}:
-        progress.publish(ws, file_id, "parsing", 15)
-        content_list = await asyncio.to_thread(_read_text_content, blob_path)
-    else:
-        progress.publish(ws, file_id, "parsing", 15)
-        content_list, image_dir = await asyncio.to_thread(
-            mineru_client.parse, blob_path, name
-        )
-    progress.publish(ws, file_id, "parsed", 45)
+    # Resolve the stored blobPath to a readable local file. Disk backend returns
+    # the shared-volume path unchanged; B2/S3 downloads the object to a temp file.
+    local_path, blob_cleanup = await asyncio.to_thread(blobstore.fetch_local, blob_path)
 
+    image_dir: str | None = None
     try:
+        # 1. Obtain a MinerU-style content list. Plain text/markdown is trivial
+        #    and skips the GPU; everything else is parsed on Modal (GPU MineRU).
+        progress.publish(ws, file_id, "parsing", 15)
+        if kind in {"txt", "md"}:
+            content_list = await asyncio.to_thread(_read_text_content, local_path)
+        else:
+            content_list, image_dir = await asyncio.to_thread(
+                mineru_client.parse, local_path, name
+            )
+        progress.publish(ws, file_id, "parsed", 45)
+
         # 2. Build / fetch the workspace's RAGAnything and ingest.
         rag = await cache.get(ws)
         progress.publish(ws, file_id, "indexing", 55)
@@ -106,6 +109,7 @@ async def process_job(cache: RagCache, job: dict) -> None:
         progress.publish(ws, file_id, "done", 100, status="ready")
     finally:
         await asyncio.to_thread(mineru_client.cleanup, image_dir)
+        await asyncio.to_thread(blob_cleanup)
 
 
 async def main_async() -> None:

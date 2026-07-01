@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
+import { features } from '@/lib/features';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { m } from '@/i18n';
@@ -18,15 +19,19 @@ function items(): { general: NavItem[]; tools: NavItem[] } {
     general: [
       { to: '/', label: m.nav_dashboard(), icon: 'dashboard', exact: true },
       { to: '/workspaces', label: m.nav_workspaces(), icon: 'workspaces' },
-      { to: '/quizzes', label: m.nav_quizzes(), icon: 'quiz' },
       { to: '/schedule', label: m.nav_schedule(), icon: 'schedule' },
-      { to: '/explore', label: m.nav_explore(), icon: 'globe' },
+      ...(features.explore
+        ? [{ to: '/explore', label: m.nav_explore(), icon: 'globe' as IconName }]
+        : []),
     ],
     tools: [
+      { to: '/quizzes', label: m.nav_quizzes(), icon: 'quiz' },
       { to: '/flashcards', label: m.nav_flashcards(), icon: 'flashcards' },
       { to: '/files', label: m.nav_files(), icon: 'files' },
       { to: '/tasks', label: m.nav_tasks(), icon: 'tasks' },
-      { to: '/thinking', label: m.nav_thinking(), icon: 'notes' },
+      ...(features.thinking
+        ? [{ to: '/thinking', label: m.nav_thinking(), icon: 'notes' as IconName }]
+        : []),
     ],
   };
 }
@@ -89,7 +94,7 @@ export function Sidebar({
         asChild
         theme="gray"
         radius="row"
-        className="m-2.5 mr-0 flex w-15 shrink-0 items-center gap-1.5 overflow-y-auto px-0 py-4"
+        className="m-2.5 mr-0 flex w-15 shrink-0 items-stretch gap-0 overflow-y-auto px-2.5 py-4"
       >
         <nav>
           <LogoMark size={36} />
@@ -97,7 +102,7 @@ export function Sidebar({
           {nav.general.map((i) => (
             <Row key={i.to} item={i} active={isActive(pathname, i)} collapsed />
           ))}
-          <div className="my-1.5 h-px w-6 bg-divider" />
+          <div className="h-2" />
           {nav.tools.map((i) => (
             <Row key={i.to} item={i} active={isActive(pathname, i)} collapsed />
           ))}

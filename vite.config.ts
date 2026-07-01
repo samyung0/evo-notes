@@ -1,8 +1,8 @@
-import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import { defineConfig, loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -25,6 +25,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: parseInt(env.VITE_PORT) || 5173,
       open: true,
+      watch: {
+        ignored: ['**/pipeline/**', '**/old-pipeline/**', '**/server/**', '**/dist/**'],
+      },
       // When MSW is disabled (VITE_USE_MSW=false) /api hits the Go gateway.
       // With MSW on, the service worker intercepts before the proxy, so this is
       // harmless either way.

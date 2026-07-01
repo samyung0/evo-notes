@@ -117,7 +117,7 @@ export default function Workspaces() {
         {isLoading ? (
           <SkeletonCardGrid count={9} />
         ) : (
-          <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+          <div className="grid w-full auto-rows-fr grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
             {data?.map((w) => (
               <WorkspaceCard key={w.id} workspace={w} />
             ))}
@@ -126,13 +126,11 @@ export default function Workspaces() {
               radius="card-lg"
               interactive
               onClick={() => openWorkspaceForm()}
-              className="items-center justify-center"
+              className="min-h-40 items-center justify-center"
             >
               <span className="flex flex-col items-center gap-2 text-fg-muted">
                 <Icon name="plus" size={24} />
-                <Text variant="meta" tone="muted">
-                  {m.action_new_workspace()}
-                </Text>
+                <span className="t-meta text-fg-muted">{m.action_new_workspace()}</span>
               </span>
             </Card>
           </div>

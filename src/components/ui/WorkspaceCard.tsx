@@ -4,16 +4,18 @@ import { Link } from '@tanstack/react-router';
 import { Badge } from './Badge';
 import { Card } from './Card';
 import { Icon } from './Icon';
+import { Skeleton } from './feedback';
 import { Menu } from '@/components/ui/Menu';
 import { m } from '@/i18n';
 import { useDeleteWorkspace } from '@/api/hooks';
 import { useDialogs } from '@/stores/dialogs';
+import { cn } from '@/lib/cn';
 
 export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const c = userColorPair(workspace.color);
   const del = useDeleteWorkspace();
   const openWorkspaceForm = useDialogs((s) => s.openWorkspaceForm);
-  const openWorkspaceStats = useDialogs((s) => s.openWorkspaceStats);
+  // const openWorkspaceStats = useDialogs((s) => s.openWorkspaceStats);
   const openConfirm = useDialogs((s) => s.openConfirm);
   return (
     <div className="relative">
@@ -23,12 +25,15 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
         params={{ workspaceId: workspace.id }}
         preload="intent"
       >
-        <Card interactive border="solid" className="relative gap-3 p-4.5 xl:p-5.5">
+        <Card interactive border="solid" className="relative gap-4 p-4.5 xl:p-5.5">
           <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-card"
+            className={cn('size-fit rounded-card p-3', workspace.color === 'transparent' && 'px-1')}
             style={{ background: c.bg, color: c.fg }}
           >
-            <Icon name="workspaces" size={22} />
+            <Icon
+              name="workspaces"
+              className={cn('size-5.5', workspace.color === 'transparent' && 'size-6')}
+            />
           </span>
           <div className="flex-1">
             <h3 className="t-card-title truncate">{workspace.name}</h3>
@@ -58,11 +63,11 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
               icon: 'settings',
               onClick: () => openWorkspaceForm(workspace),
             },
-            {
-              label: m.action_view_stats(),
-              icon: 'quiz',
-              onClick: () => openWorkspaceStats(workspace.id),
-            },
+            // {
+            //   label: m.action_view_stats(),
+            //   icon: 'quiz',
+            //   onClick: () => openWorkspaceStats(workspace.id),
+            // },
             {
               label: m.action_delete(),
               icon: 'trash',
@@ -78,5 +83,22 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
         />
       </div>
     </div>
+  );
+}
+
+/** Loading placeholder that mirrors {@link WorkspaceCard}'s footprint. */
+export function WorkspaceCardSkeleton() {
+  return (
+    <Card border="solid" className="gap-4 p-4.5 xl:p-5.5">
+      <Skeleton className="size-11 rounded-card" />
+      <div className="flex-1">
+        <Skeleton className="h-4.5 w-3/5 rounded-row" />
+        <Skeleton className="mt-2 h-3 w-2/5 rounded-row" />
+        <div className="mt-3.5 flex gap-1.5">
+          <Skeleton className="h-5 w-14 rounded-pill" />
+          <Skeleton className="h-5 w-10 rounded-pill" />
+        </div>
+      </div>
+    </Card>
   );
 }

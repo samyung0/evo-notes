@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Panel, PageHeader } from '@/components/app/layout';
+import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
 import { Button, Card, Icon, Text, type IconName } from '@/components/ui';
 import { m } from '@/i18n';
 
@@ -86,7 +86,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function Support() {
   return (
-    <PanelWithInvertedRadius>
+    <Panel>
       <PageHeader
         title={m.nav_support()}
         subtitle="Find an answer or reach the team — we’re happy to help."
@@ -95,7 +95,7 @@ export default function Support() {
         <div className="mx-auto flex max-w-4xl flex-col gap-8">
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {CHANNELS.map((c) => (
-              <Card key={c.title} padding={20} radius="card-lg" className="flex flex-col">
+              <Card key={c.title} radius="card-lg" className="flex flex-col p-5.5">
                 <span
                   className="flex h-11 w-11 items-center justify-center rounded-card"
                   style={{ background: c.tint, color: c.tintFg }}
@@ -146,6 +146,6 @@ export default function Support() {
           </section>
         </div>
       </div>
-    </PanelWithInvertedRadius>
+    </Panel>
   );
 }

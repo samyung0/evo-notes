@@ -200,7 +200,7 @@ export default function Schedule() {
           actions={
             <IconButton
               icon="plus"
-              variant="dark"
+              variant="gray"
               label="New event"
               onClick={() => openEventForm()}
             />

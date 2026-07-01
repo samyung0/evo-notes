@@ -61,6 +61,17 @@ class Config:
     blob_dir: str = _env("BLOB_DIR", "./data/blobs")
     redis_url: str = _env("REDIS_URL", "redis://localhost:6379/0")
 
+    # ---- blob storage backend --------------------------------------------
+    # "disk" (default, local dev — shared /data/blobs volume) or "b2"/"s3"
+    # (production object store). On B2 the job's blobPath is an object key the
+    # worker downloads; on disk it is a shared-volume path read directly.
+    blob_backend: str = _env("BLOB_BACKEND", "disk").lower()
+    b2_endpoint: str = _env("B2_ENDPOINT", "")
+    b2_region: str = _env("B2_REGION", "")
+    b2_bucket: str = _env("B2_BUCKET", "")
+    b2_key_id: str = _env("B2_KEY_ID", "")
+    b2_app_key: str = _env("B2_APP_KEY", "")
+
     # LightRAG still wants a working dir handle even with PG backends.
     working_dir: str = _env("WORKING_DIR", "/data/rag_storage")
 

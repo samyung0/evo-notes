@@ -35,7 +35,7 @@ export default function Explore() {
               {ws.data?.map((w) => {
                 const c = userColorPair(w.color);
                 return (
-                  <Card key={w.id} padding={20} radius="card-lg">
+                  <Card key={w.id} radius="card-lg" className="p-5.5">
                     <span
                       className="flex h-11 w-11 items-center justify-center rounded-card"
                       style={{ background: c.bg, color: c.fg }}
@@ -61,7 +61,7 @@ export default function Explore() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {qz.data?.map((q) => (
-              <Card key={q.id} padding={20} radius="card-lg">
+              <Card key={q.id} radius="card-lg" className="p-5.5">
                 <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-accent-1 text-tint-accent-1-fg">
                   <Icon name="quiz" size={20} />
                 </span>

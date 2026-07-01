@@ -3,8 +3,8 @@ import { cn } from '@/lib/cn';
 type Tone = 'green' | 'purple' | 'blue' | 'amber' | 'coral' | 'dark';
 
 const FILL: Record<Tone, string> = {
-  green: 'bg-tint-accent-2',
-  purple: 'bg-tint-accent-1',
+  green: 'bg-solid-accent-2/70',
+  purple: 'bg-solid-accent-1/70',
   blue: 'bg-solid-info',
   amber: 'bg-solid-warning',
   coral: 'bg-solid-error',
@@ -21,7 +21,7 @@ export interface ProgressBarProps {
 
 export function ProgressBar({
   value = 0,
-  tone = 'green',
+  tone = 'purple',
   height = 6,
   showLabel,
   className,
@@ -32,7 +32,7 @@ export function ProgressBar({
       <div className="flex-1 overflow-hidden rounded-pill bg-surface-hover-bg" style={{ height }}>
         <div
           className={cn(
-            'h-full rounded-pill transition-[width] duration-[400ms] ease-[cubic-bezier(.2,.7,.2,1)]',
+            'h-full rounded-pill transition-[width] duration-400 ease-[cubic-bezier(.2,.7,.2,1)]',
             FILL[tone]
           )}
           style={{ width: `${pct}%` }}

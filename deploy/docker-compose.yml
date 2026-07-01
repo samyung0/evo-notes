@@ -51,13 +51,35 @@ services:
       DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
       ADDR: ':8080'
       MIGRATE: 'true'
+      # Blob backend: "disk" (default, shared evo_blobs volume) or "b2"/"s3".
+      BLOB_BACKEND: ${BLOB_BACKEND:-disk}
       BLOB_DIR: /data/blobs
+      B2_ENDPOINT: ${B2_ENDPOINT:-}
+      B2_REGION: ${B2_REGION:-}
+      B2_BUCKET: ${B2_BUCKET:-}
+      B2_KEY_ID: ${B2_KEY_ID:-}
+      B2_APP_KEY: ${B2_APP_KEY:-}
+      B2_FORCE_PATH_STYLE: ${B2_FORCE_PATH_STYLE:-}
+      B2_PRESIGN_TTL: ${B2_PRESIGN_TTL:-}
       REDIS_URL: redis://redis:6379/0
       # Vestigial labels stored on the job payload; the worker always uses
       # RAG-Anything + Modal MineRU regardless.
       EVO_PARSER: ${EVO_PARSER:-mineru}
       EVO_ENGINE: ${EVO_ENGINE:-raganything}
       PIPELINE_URL: http://retrieval:8001
+      APP_URL: ${APP_URL:-http://localhost:5173}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
+      AUTH_DISABLED: ${AUTH_DISABLED:-true}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_TEAM: ${STRIPE_PRICE_TEAM:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
+      MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
+      OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL:-http://localhost:8080}
     ports:
       - '8080:8080'
     volumes:
@@ -73,7 +95,14 @@ services:
       context: ../pipeline
     environment:
       DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
+      # Must match the server's backend. b2/s3 downloads each object key.
+      BLOB_BACKEND: ${BLOB_BACKEND:-disk}
       BLOB_DIR: /data/blobs
+      B2_ENDPOINT: ${B2_ENDPOINT:-}
+      B2_REGION: ${B2_REGION:-}
+      B2_BUCKET: ${B2_BUCKET:-}
+      B2_KEY_ID: ${B2_KEY_ID:-}
+      B2_APP_KEY: ${B2_APP_KEY:-}
       REDIS_URL: redis://redis:6379/0
       WORKING_DIR: /data/rag_storage
       EVO_LIGHTRAG_CACHE_SIZE: ${EVO_LIGHTRAG_CACHE_SIZE:-16}
@@ -131,6 +160,21 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  reconcile:
+    build:
+      context: ../server
+    entrypoint: ['/app/reconcile']
+    environment:
+      DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_TEAM: ${STRIPE_PRICE_TEAM:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      - reconcile
 
 volumes:
   evo_pgdata:

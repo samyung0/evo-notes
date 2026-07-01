@@ -27,6 +27,11 @@ export function sameDay(a: Date, b: Date): boolean {
 export function addMonths(d: Date, n: number): Date {
   return new Date(d.getFullYear(), d.getMonth() + n, 1);
 }
+export function addDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
 
 /** 6×7 grid of dates (Mon-first) covering the month containing `d`. */
 export function monthGrid(d: Date): Date[] {

@@ -36,7 +36,7 @@ export default function Thinking() {
                 params={{ canvasId: c.id }}
                 preload="intent"
               >
-                <Card interactive padding={0} radius="card-lg" className="overflow-hidden">
+                <Card interactive radius="card-lg" className="overflow-hidden p-0">
                   <div
                     className="flex h-28 items-center justify-center"
                     style={{

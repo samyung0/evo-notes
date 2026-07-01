@@ -46,6 +46,8 @@ export const user: User = {
   email: 'kate@evonotes.app',
   classLabel: 'Grade 11 · Science',
   streak: 0,
+  planTier: 'pro',
+  subscriptionStatus: 'active',
 };
 
 export const workspaces: Workspace[] = [

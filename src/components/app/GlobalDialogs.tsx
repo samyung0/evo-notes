@@ -1,5 +1,6 @@
 import { ConfirmDialog, Modal, Text } from '@/components/ui';
 import {
+  useChapters,
   useCreateEvent,
   useCreateWorkspace,
   useLabels,
@@ -7,6 +8,7 @@ import {
   useUpdateQuiz,
   useUpdateTask,
   useUpdateWorkspace,
+  useUploadSource,
   useWorkspaceStats,
 } from '@/api/hooks';
 import { WorkspaceFormModal } from '@/features/workspaces/WorkspaceFormModal';
@@ -14,6 +16,7 @@ import { QuizEditModal } from '@/features/quizzes/QuizEditModal';
 import { TaskEditModal } from '@/features/tasks/TaskEditModal';
 import { LabelEditModal } from '@/features/schedule/LabelEditModal';
 import { EventFormModal } from '@/features/schedule/EventFormModal';
+import { AddSourceModal } from '@/features/workspace/AddSourceModal';
 import { useDialogs } from '@/stores/dialogs';
 
 function WorkspaceStatsModal({ id, onClose }: { id: string; onClose: () => void }) {
@@ -53,6 +56,7 @@ export function GlobalDialogs() {
   const taskEdit = useDialogs((s) => s.taskEdit);
   const labelEdit = useDialogs((s) => s.labelEdit);
   const eventForm = useDialogs((s) => s.eventForm);
+  const addSource = useDialogs((s) => s.addSource);
   const confirm = useDialogs((s) => s.confirm);
   const closeWorkspaceForm = useDialogs((s) => s.closeWorkspaceForm);
   const closeWorkspaceStats = useDialogs((s) => s.closeWorkspaceStats);
@@ -60,6 +64,7 @@ export function GlobalDialogs() {
   const closeTaskEdit = useDialogs((s) => s.closeTaskEdit);
   const closeLabelEdit = useDialogs((s) => s.closeLabelEdit);
   const closeEventForm = useDialogs((s) => s.closeEventForm);
+  const closeAddSource = useDialogs((s) => s.closeAddSource);
   const closeConfirm = useDialogs((s) => s.closeConfirm);
 
   const createWorkspace = useCreateWorkspace();
@@ -69,6 +74,12 @@ export function GlobalDialogs() {
   const updateLabel = useUpdateLabel();
   const createEvent = useCreateEvent();
   const { data: labels } = useLabels();
+
+  // Hooks must run unconditionally; the workspace-scoped queries are gated on an
+  // id internally, so they stay idle until a workspace add-source dialog opens.
+  const addSourceWsId = addSource?.workspaceId ?? '';
+  const { data: addSourceChapters } = useChapters(addSourceWsId);
+  const uploadSource = useUploadSource(addSourceWsId);
 
   return (
     <>
@@ -129,6 +140,16 @@ export function GlobalDialogs() {
           draft={eventForm}
           onClose={closeEventForm}
           onSubmit={(v) => createEvent.mutate(v)}
+        />
+      )}
+
+      {addSource && (
+        <AddSourceModal
+          open
+          onClose={closeAddSource}
+          workspaceId={addSource.workspaceId}
+          chapters={addSourceChapters ?? []}
+          onAdd={(list) => list.forEach((f) => uploadSource.mutate(f))}
         />
       )}
 

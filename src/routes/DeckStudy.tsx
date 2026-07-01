@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
-import { Panel } from '@/components/app/layout';
+import { Panel, PanelWithInvertedRadius } from '@/components/app/layout';
 import { Button, Icon, ProgressBar, Skeleton, Text } from '@/components/ui';
 import { useCards, useDeck, useUpdateCard } from '@/api/hooks';
 

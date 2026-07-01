@@ -22,9 +22,9 @@ export default function Files() {
               <Card
                 key={f.id}
                 interactive
-                padding={16}
+                radius="card-lg"
                 onClick={() => setOpen(f)}
-                className="flex items-center gap-3"
+                className="flex items-center gap-3 p-5.5"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-card bg-surface-hover-bg text-fg-secondary">
                   <Icon name="files" size={18} />

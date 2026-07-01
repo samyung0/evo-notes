@@ -1,17 +1,21 @@
 import { useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { API_BASE, api, qk } from './client';
+import { USE_MSW } from './auth';
 import type {
   Attempt,
+  BillingInfo,
   CalendarEvent,
   Chapter,
   Deck,
   FileStatus,
   Flashcard,
   GenerateOptions,
+  IntegrationsStatus,
   Label,
   AppNotification,
+  PlanTier,
   Quiz,
   SearchResult,
   SourceFile,
@@ -23,10 +27,9 @@ import type {
   PublicWorkspace,
 } from './types';
 
-const USE_MSW = import.meta.env.VITE_USE_MSW === 'true';
-
 /* ---------------- account / shell ---------------- */
-export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.get<User>('/me') });
+export const meQuery = () => queryOptions({ queryKey: qk.me, queryFn: () => api.get<User>('/me') });
+export const useMe = () => useQuery(meQuery());
 
 export const useSearch = (q: string) =>
   useQuery({
@@ -50,6 +53,56 @@ export function useMarkNotificationsRead() {
   });
 }
 
+export const billingQuery = () =>
+  queryOptions({
+    queryKey: qk.billing,
+    queryFn: () => api.get<BillingInfo>('/billing'),
+  });
+export const useBilling = () => useQuery(billingQuery());
+
+export function useBillingCheckout() {
+  return useMutation({
+    mutationFn: (planTier: PlanTier) =>
+      api.post<{ url: string }>('/billing/checkout', { planTier }),
+  });
+}
+
+export function useBillingPortal() {
+  return useMutation({
+    mutationFn: async () => {
+      const { url } = await api.post<{ url: string }>('/billing/portal');
+      window.location.href = url;
+    },
+  });
+}
+
+export const integrationsQuery = () =>
+  queryOptions({
+    queryKey: qk.integrations,
+    queryFn: () => api.get<IntegrationsStatus>('/integrations'),
+  });
+export const useIntegrations = () => useQuery(integrationsQuery());
+
+export function useImportSources(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { provider: 'google' | 'microsoft'; fileIds: string[]; chapterId?: string | null }) =>
+      api.post<SourceFile[]>(`/workspaces/${workspaceId}/sources/import`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.files(workspaceId) });
+      qc.invalidateQueries({ queryKey: qk.workspaceStats(workspaceId) });
+    },
+  });
+}
+
+export function useMicrosoftRecentFiles(enabled: boolean) {
+  return useQuery({
+    queryKey: ['integrations', 'microsoft', 'recent'],
+    queryFn: () => api.get<{ id: string; name: string }[]>('/integrations/microsoft/recent'),
+    enabled,
+  });
+}
+
 /* ---------------- workspaces ---------------- */
 export interface WorkspaceQuery {
   q?: string;
@@ -57,27 +110,30 @@ export interface WorkspaceQuery {
   color?: string;
   tag?: string;
 }
-export function useWorkspaces(params: WorkspaceQuery = {}) {
+export const workspacesQuery = (params: WorkspaceQuery = {}) => {
   const search = new URLSearchParams();
   if (params.q) search.set('q', params.q);
   if (params.sort) search.set('sort', params.sort);
   if (params.color) search.set('color', params.color);
   if (params.tag) search.set('tag', params.tag);
   const qs = search.toString();
-  return useQuery({
+  return queryOptions({
     queryKey: qk.workspaces(params),
     queryFn: () => api.get<Workspace[]>(`/workspaces${qs ? `?${qs}` : ''}`),
   });
-}
-export const useWorkspace = (id: string) =>
-  useQuery({
+};
+export const useWorkspaces = (params: WorkspaceQuery = {}) => useQuery(workspacesQuery(params));
+
+export const workspaceQuery = (id: string) =>
+  queryOptions({
     queryKey: qk.workspace(id),
     queryFn: () => api.get<Workspace>(`/workspaces/${id}`),
     enabled: !!id,
   });
+export const useWorkspace = (id: string) => useQuery(workspaceQuery(id));
 
-export const useWorkspaceStats = (id: string) =>
-  useQuery({
+export const workspaceStatsQuery = (id: string) =>
+  queryOptions({
     queryKey: qk.workspaceStats(id),
     queryFn: () =>
       api.get<{
@@ -89,6 +145,7 @@ export const useWorkspaceStats = (id: string) =>
       }>(`/workspaces/${id}/stats`),
     enabled: !!id,
   });
+export const useWorkspaceStats = (id: string) => useQuery(workspaceStatsQuery(id));
 
 export function useCreateWorkspace() {
   const qc = useQueryClient();
@@ -117,29 +174,35 @@ export function useDeleteWorkspace() {
 }
 
 /* ---------------- chapters & files ---------------- */
-export const useChapters = (wsId: string) =>
-  useQuery({
+export const chaptersQuery = (wsId: string) =>
+  queryOptions({
     queryKey: qk.chapters(wsId),
     queryFn: () => api.get<Chapter[]>(`/workspaces/${wsId}/chapters`),
     enabled: !!wsId,
   });
-export const useFiles = (wsId: string) =>
-  useQuery({
+export const useChapters = (wsId: string) => useQuery(chaptersQuery(wsId));
+
+export const filesQuery = (wsId: string) =>
+  queryOptions({
     queryKey: qk.files(wsId),
     queryFn: () => api.get<SourceFile[]>(`/workspaces/${wsId}/files`),
     enabled: !!wsId,
   });
+export const useFiles = (wsId: string) => useQuery(filesQuery(wsId));
+
 export const useFile = (id: string | null) =>
   useQuery({
     queryKey: qk.file(id ?? ''),
     queryFn: () => api.get<SourceFile>(`/files/${id}`),
     enabled: !!id,
   });
-export const useAllFiles = () =>
-  useQuery({
+
+export const allFilesQuery = () =>
+  queryOptions({
     queryKey: ['files', 'all'],
     queryFn: () => api.get<SourceFile[]>('/files'),
   });
+export const useAllFiles = () => useQuery(allFilesQuery());
 
 export function useAddChapter(wsId: string) {
   const qc = useQueryClient();
@@ -276,22 +339,27 @@ export function useGenerate(wsId: string) {
 }
 
 /* ---------------- quizzes ---------------- */
-export const useQuizzes = () =>
-  useQuery({
+export const quizzesQuery = () =>
+  queryOptions({
     queryKey: qk.quizzes,
     queryFn: () => api.get<Quiz[]>('/quizzes'),
   });
-export const useQuiz = (id: string) =>
-  useQuery({
+export const useQuizzes = () => useQuery(quizzesQuery());
+
+export const quizQuery = (id: string) =>
+  queryOptions({
     queryKey: qk.quiz(id),
     queryFn: () => api.get<Quiz>(`/quizzes/${id}`),
     enabled: !!id,
   });
-export const useAttempts = () =>
-  useQuery({
+export const useQuiz = (id: string) => useQuery(quizQuery(id));
+
+export const attemptsQuery = () =>
+  queryOptions({
     queryKey: qk.attempts,
     queryFn: () => api.get<Attempt[]>('/attempts'),
   });
+export const useAttempts = () => useQuery(attemptsQuery());
 export function useUpdateQuiz() {
   const qc = useQueryClient();
   return useMutation({
@@ -320,20 +388,25 @@ export function useSubmitAttempt() {
 }
 
 /* ---------------- flashcards ---------------- */
-export const useDecks = () =>
-  useQuery({ queryKey: qk.decks, queryFn: () => api.get<Deck[]>('/decks') });
-export const useDeck = (id: string) =>
-  useQuery({
+export const decksQuery = () =>
+  queryOptions({ queryKey: qk.decks, queryFn: () => api.get<Deck[]>('/decks') });
+export const useDecks = () => useQuery(decksQuery());
+
+export const deckQuery = (id: string) =>
+  queryOptions({
     queryKey: qk.deck(id),
     queryFn: () => api.get<Deck>(`/decks/${id}`),
     enabled: !!id,
   });
-export const useCards = (deckId: string) =>
-  useQuery({
+export const useDeck = (id: string) => useQuery(deckQuery(id));
+
+export const cardsQuery = (deckId: string) =>
+  queryOptions({
     queryKey: qk.cards(deckId),
     queryFn: () => api.get<Flashcard[]>(`/decks/${deckId}/cards`),
     enabled: !!deckId,
   });
+export const useCards = (deckId: string) => useQuery(cardsQuery(deckId));
 export function useUpdateCard(deckId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -344,13 +417,16 @@ export function useUpdateCard(deckId: string) {
 }
 
 /* ---------------- schedule ---------------- */
-export const useEvents = () =>
-  useQuery({
+export const eventsQuery = () =>
+  queryOptions({
     queryKey: qk.events,
     queryFn: () => api.get<CalendarEvent[]>('/events'),
   });
-export const useLabels = () =>
-  useQuery({ queryKey: qk.labels, queryFn: () => api.get<Label[]>('/labels') });
+export const useEvents = () => useQuery(eventsQuery());
+
+export const labelsQuery = () =>
+  queryOptions({ queryKey: qk.labels, queryFn: () => api.get<Label[]>('/labels') });
+export const useLabels = () => useQuery(labelsQuery());
 export function useUpdateLabel() {
   const qc = useQueryClient();
   return useMutation({
@@ -378,8 +454,9 @@ export function useCreateEvent() {
 }
 
 /* ---------------- tasks ---------------- */
-export const useTasks = () =>
-  useQuery({ queryKey: qk.tasks, queryFn: () => api.get<Task[]>('/tasks') });
+export const tasksQuery = () =>
+  queryOptions({ queryKey: qk.tasks, queryFn: () => api.get<Task[]>('/tasks') });
+export const useTasks = () => useQuery(tasksQuery());
 
 interface TasksMutationContext {
   prev?: Task[];
@@ -447,17 +524,20 @@ export function useDeleteTask() {
 }
 
 /* ---------------- thinking ---------------- */
-export const useCanvases = () =>
-  useQuery({
+export const canvasesQuery = () =>
+  queryOptions({
     queryKey: qk.thinking,
     queryFn: () => api.get<ThinkingCanvas[]>('/thinking'),
   });
-export const useCanvas = (id: string) =>
-  useQuery({
+export const useCanvases = () => useQuery(canvasesQuery());
+
+export const canvasQuery = (id: string) =>
+  queryOptions({
     queryKey: qk.canvas(id),
     queryFn: () => api.get<ThinkingCanvas>(`/thinking/${id}`),
     enabled: !!id,
   });
+export const useCanvas = (id: string) => useQuery(canvasQuery(id));
 export function useCreateCanvas() {
   const qc = useQueryClient();
   return useMutation({
@@ -475,13 +555,16 @@ export function useSaveCanvas(id: string) {
 }
 
 /* ---------------- explore ---------------- */
-export const useExploreWorkspaces = () =>
-  useQuery({
+export const exploreWorkspacesQuery = () =>
+  queryOptions({
     queryKey: qk.exploreWorkspaces,
     queryFn: () => api.get<PublicWorkspace[]>('/explore/workspaces'),
   });
-export const useExploreQuizzes = () =>
-  useQuery({
+export const useExploreWorkspaces = () => useQuery(exploreWorkspacesQuery());
+
+export const exploreQuizzesQuery = () =>
+  queryOptions({
     queryKey: qk.exploreQuizzes,
     queryFn: () => api.get<PublicQuiz[]>('/explore/quizzes'),
   });
+export const useExploreQuizzes = () => useQuery(exploreQuizzesQuery());

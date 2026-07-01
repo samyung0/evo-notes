@@ -2,11 +2,14 @@
  * Thin fetch wrapper around the mock API. One base URL so the real
  * backend can be dropped in later by changing `API_BASE`.
  */
+import { authHeaders } from './auth';
+
 export const API_BASE = '/api';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const auth = await authHeaders();
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', ...auth, ...(init?.headers ?? {}) },
     ...init,
   });
   if (!res.ok) {
@@ -25,7 +28,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 /** Multipart upload (real file bytes). Lets the browser set the multipart
  * boundary — never send a JSON Content-Type here. */
 async function upload<T>(path: string, form: FormData): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', body: form });
+  const auth = await authHeaders();
+  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: auth, body: form });
   if (!res.ok) {
     let detail = '';
     try {
@@ -65,6 +69,8 @@ export const qk = {
   me: ['me'] as const,
   search: (q: string) => ['search', q] as const,
   notifications: ['notifications'] as const,
+  billing: ['billing'] as const,
+  integrations: ['integrations'] as const,
   workspaces: (params?: unknown) => ['workspaces', params ?? null] as const,
   workspace: (id: string) => ['workspace', id] as const,
   workspaceStats: (id: string) => ['workspace', id, 'stats'] as const,
@@ -85,3 +91,7 @@ export const qk = {
   exploreWorkspaces: ['explore', 'workspaces'] as const,
   exploreQuizzes: ['explore', 'quizzes'] as const,
 };
+
+/** OAuth connect URLs hit the Go gateway directly (not MSW). */
+export const integrationConnectUrl = (provider: 'google' | 'microsoft') =>
+  `${API_BASE}/integrations/${provider}/connect`;

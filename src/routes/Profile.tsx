@@ -10,7 +10,7 @@ export default function Profile() {
       <PageHeader title={m.profile_menu_profile()} />
       <div className="min-h-0 flex-1 overflow-auto px-6 py-5">
         <div className="mx-auto max-w-2xl">
-          <Card padding={24} radius="card-lg" className="flex items-center gap-5">
+          <Card radius="card-lg" className="flex items-center gap-5 p-5.5">
             <Avatar name={me?.name} src={me?.avatarUrl} size={72} />
             <div className="min-w-0">
               <Text variant="section">{me?.name ?? '—'}</Text>
@@ -18,13 +18,13 @@ export default function Profile() {
                 {me?.email}
               </Text>
               {me?.classLabel && (
-                <Badge tone="purple" size="sm" className="mt-2">
+                <Badge tone="accent-1" size="sm" className="mt-2">
                   {me.classLabel}
                 </Badge>
               )}
             </div>
           </Card>
-          <Card padding={20} radius="card-lg" className="mt-4 flex items-center gap-3">
+          <Card radius="card-lg" className="mt-4 flex items-center gap-3 p-5.5">
             <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-warning text-tint-warning-fg">
               <Icon name="sparkles" size={20} />
             </span>

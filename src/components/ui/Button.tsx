@@ -12,6 +12,7 @@ const buttonVariants = cva(
         primary: 'border border-transparent bg-action text-action-fg hover:bg-action-hover',
         accent: 'border border-transparent bg-accent text-accent-fg hover:bg-accent-hover',
         outline: 'border border-line bg-surface text-fg hover:bg-surface-hover-bg',
+        surface: 'border border-transparent bg-surface text-fg hover:bg-surface-hover-bg',
         ghost: 'border-none text-fg',
         'ghost-link': 'border-none text-link hover:text-link-hover',
       },

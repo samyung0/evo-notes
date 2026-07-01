@@ -1,17 +1,16 @@
-import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Panel, RightRail } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
-import { MiniCalendar } from '@/features/schedule/MiniCalendar';
+import { DashboardCalendar } from '@/features/schedule/DashboardCalendar';
 import {
   Badge,
   Card,
   Checkbox,
   HoverActions,
   Icon,
-  SkeletonCardGrid,
   Button,
   WorkspaceCard,
+  WorkspaceCardSkeleton,
 } from '@/components/ui';
 import { userColorPair } from '@/lib/workspaceColor';
 import {
@@ -25,6 +24,7 @@ import {
 import { useDialogs } from '@/stores/dialogs';
 import { m } from '@/i18n';
 import DashboardDefaultBanner from '@/components/banners/DashboardDefaultBanner';
+import { CloudConnectBanner } from '@/components/app/CloudConnectBanner';
 import { cn } from '@/lib/cn';
 
 function StreakHeading() {
@@ -42,7 +42,7 @@ function StreakHeading() {
   );
 }
 
-const DASHBOARD_WORKSPACE_LIMIT = 9;
+const DASHBOARD_WORKSPACE_LIMIT = 12;
 
 function WorkspacesSection() {
   const { data, isLoading } = useWorkspaces({ sort: 'accessed' });
@@ -59,27 +59,27 @@ function WorkspacesSection() {
         </Button>
       </div>
       {isLoading ? (
-        <SkeletonCardGrid count={6} />
+        <div className="grid w-full auto-rows-fr grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+          {Array.from({ length: DASHBOARD_WORKSPACE_LIMIT }).map((_, i) => (
+            <WorkspaceCardSkeleton key={i} />
+          ))}
+        </div>
       ) : (
-        <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+        <div className="grid w-full auto-rows-fr grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {recent?.map((w) => (
             <WorkspaceCard key={w.id} workspace={w} />
           ))}
           {hasMore && (
-            <Card
-              border="dashed"
-              radius="card-lg"
-              interactive
-              asChild
-              className="grid min-h-[120px] place-items-center"
-            >
-              <Link to="/workspaces" preload="intent">
-                <span className="flex items-center gap-2 font-semibold text-fg-muted">
-                  {m.action_see_all()}
-                  <Icon name="arrowRight" size={16} />
-                </span>
-              </Link>
-            </Card>
+            <div className="flex items-center justify-center p-5">
+              <Button variant="ghost-link" size="md" asChild className="p-0">
+                <Link to="/workspaces" preload="intent">
+                  <span className="flex items-center gap-2">
+                    {m.action_see_all()}
+                    <Icon name="arrowRight" size={16} />
+                  </span>
+                </Link>
+              </Button>
+            </div>
           )}
         </div>
       )}
@@ -103,7 +103,7 @@ function ThinkingSection() {
           {m.action_see_all()}
         </Link>
       </div>
-      <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
+      <div className="grid w-full auto-rows-fr grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
         {recent?.map((c, i) => (
           <Link key={c.id} to="/thinking/$canvasId" params={{ canvasId: c.id }} preload="intent">
             {/* TODO fix notes in thinking space */}
@@ -224,9 +224,6 @@ function TasksCard() {
 }
 
 export default function Dashboard() {
-  const [month, setMonth] = useState(() => new Date());
-  const [selected, setSelected] = useState(() => new Date());
-
   return (
     <div className="flex h-full min-h-full flex-col gap-1.5 sm:gap-2.5 lg:flex-row">
       <Panel
@@ -234,21 +231,17 @@ export default function Dashboard() {
         sectionClassName="gap-5 sm:gap-6 p-4 sm:p-6"
       >
         <StreakHeading />
+        <CloudConnectBanner />
         <DashboardDefaultBanner />
         <WorkspacesSection />
-        <ThinkingSection />
+        {/* <ThinkingSection /> */}
       </Panel>
 
       <RightRail className="order-first h-auto min-h-0 w-full shrink-0 overflow-visible lg:order-last lg:h-full lg:min-h-full lg:w-75 lg:overflow-hidden xl:w-90">
         <TopInsetBar />
         <Panel className="hidden min-h-0 flex-1 lg:flex" sectionClassName="gap-2.5 p-5">
           <TasksCard />
-          <MiniCalendar
-            month={month}
-            onMonthChange={setMonth}
-            selected={selected}
-            onSelect={setSelected}
-          />
+          <DashboardCalendar />
         </Panel>
       </RightRail>
     </div>

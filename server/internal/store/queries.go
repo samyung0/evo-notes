@@ -50,22 +50,12 @@ type EventPatch struct {
 
 /* --------------------------------------------------------------- me / shell */
 
-func (s *Store) Me(ctx context.Context) (User, error) {
-	var u User
-	row := s.pool.QueryRow(ctx, `SELECT id, name, email, COALESCE(avatar_url,''), COALESCE(class_label,''), streak FROM users ORDER BY id LIMIT 1`)
-	err := row.Scan(&u.ID, &u.Name, &u.Email, &u.AvatarURL, &u.ClassLabel, &u.Streak)
-	if isNoRows(err) {
-		return u, ErrNotFound
-	}
-	return u, err
-}
-
-func (s *Store) Search(ctx context.Context, q string) ([]SearchResult, error) {
+func (s *Store) Search(ctx context.Context, userID, q string) ([]SearchResult, error) {
 	out := []SearchResult{}
 	like := "%" + strings.ToLower(q) + "%"
 
 	rows, err := s.pool.Query(ctx, `SELECT id, name, tags FROM workspaces
-		WHERE lower(name) LIKE $1 OR EXISTS (SELECT 1 FROM unnest(tags) t WHERE lower(t) LIKE $1)`, like)
+		WHERE user_id=$2 AND (lower(name) LIKE $1 OR EXISTS (SELECT 1 FROM unnest(tags) t WHERE lower(t) LIKE $1))`, like, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +70,7 @@ func (s *Store) Search(ctx context.Context, q string) ([]SearchResult, error) {
 	rows.Close()
 
 	rows, err = s.pool.Query(ctx, `SELECT f.id, f.name, f.workspace_id, w.name FROM files f
-		JOIN workspaces w ON w.id=f.workspace_id WHERE lower(f.name) LIKE $1`, like)
+		JOIN workspaces w ON w.id=f.workspace_id WHERE w.user_id=$2 AND lower(f.name) LIKE $1`, like, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +83,7 @@ func (s *Store) Search(ctx context.Context, q string) ([]SearchResult, error) {
 	}
 	rows.Close()
 
-	rows, err = s.pool.Query(ctx, `SELECT id, title, COALESCE(location,'') FROM events WHERE lower(title) LIKE $1`, like)
+	rows, err = s.pool.Query(ctx, `SELECT id, title, COALESCE(location,'') FROM events WHERE user_id=$2 AND lower(title) LIKE $1`, like, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +96,8 @@ func (s *Store) Search(ctx context.Context, q string) ([]SearchResult, error) {
 	}
 	rows.Close()
 
-	rows, err = s.pool.Query(ctx, `SELECT id, name, workspace_name FROM decks WHERE lower(name) LIKE $1`, like)
+	rows, err = s.pool.Query(ctx, `SELECT d.id, d.name, d.workspace_name FROM decks d
+		JOIN workspaces w ON w.id=d.workspace_id WHERE w.user_id=$2 AND lower(d.name) LIKE $1`, like, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +110,7 @@ func (s *Store) Search(ctx context.Context, q string) ([]SearchResult, error) {
 	}
 	rows.Close()
 
-	rows, err = s.pool.Query(ctx, `SELECT id, name FROM canvases WHERE lower(name) LIKE $1`, like)
+	rows, err = s.pool.Query(ctx, `SELECT id, name FROM canvases WHERE user_id=$2 AND lower(name) LIKE $1`, like, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +129,8 @@ func (s *Store) Search(ctx context.Context, q string) ([]SearchResult, error) {
 	return out, nil
 }
 
-func (s *Store) Notifications(ctx context.Context) ([]Notification, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, body, at, read FROM notifications ORDER BY at DESC`)
+func (s *Store) Notifications(ctx context.Context, userID string) ([]Notification, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, body, at, read FROM notifications WHERE user_id=$1 ORDER BY at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -155,8 +146,8 @@ func (s *Store) Notifications(ctx context.Context) ([]Notification, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) MarkNotificationsRead(ctx context.Context) error {
-	_, err := s.pool.Exec(ctx, `UPDATE notifications SET read=true WHERE read=false`)
+func (s *Store) MarkNotificationsRead(ctx context.Context, userID string) error {
+	_, err := s.pool.Exec(ctx, `UPDATE notifications SET read=true WHERE user_id=$1 AND read=false`, userID)
 	return err
 }
 
@@ -173,9 +164,9 @@ func scanWorkspace(row pgx.Row) (Workspace, error) {
 	return w, err
 }
 
-func (s *Store) ListWorkspaces(ctx context.Context, q, sortKey, color, tag string) ([]Workspace, error) {
-	sb := "SELECT " + wsCols + " FROM workspaces w WHERE 1=1"
-	args := []any{}
+func (s *Store) ListWorkspaces(ctx context.Context, userID, q, sortKey, color, tag string) ([]Workspace, error) {
+	sb := "SELECT " + wsCols + " FROM workspaces w WHERE w.user_id=$1"
+	args := []any{userID}
 	if q != "" {
 		args = append(args, "%"+strings.ToLower(q)+"%")
 		n := len(args)
@@ -215,7 +206,10 @@ func (s *Store) ListWorkspaces(ctx context.Context, q, sortKey, color, tag strin
 	return out, rows.Err()
 }
 
-func (s *Store) GetWorkspace(ctx context.Context, id string, touch bool) (Workspace, error) {
+func (s *Store) GetWorkspace(ctx context.Context, userID, id string, touch bool) (Workspace, error) {
+	if err := s.AssertWorkspaceOwner(ctx, userID, id); err != nil {
+		return Workspace{}, err
+	}
 	if touch {
 		_, _ = s.pool.Exec(ctx, `UPDATE workspaces SET last_accessed_at=now() WHERE id=$1`, id)
 	}
@@ -226,13 +220,9 @@ func (s *Store) GetWorkspace(ctx context.Context, id string, touch bool) (Worksp
 	return w, err
 }
 
-func (s *Store) WorkspaceStats(ctx context.Context, id string) (WorkspaceStats, error) {
-	var exists bool
-	if err := s.pool.QueryRow(ctx, `SELECT exists(SELECT 1 FROM workspaces WHERE id=$1)`, id).Scan(&exists); err != nil {
+func (s *Store) WorkspaceStats(ctx context.Context, userID, id string) (WorkspaceStats, error) {
+	if err := s.AssertWorkspaceOwner(ctx, userID, id); err != nil {
 		return WorkspaceStats{}, err
-	}
-	if !exists {
-		return WorkspaceStats{}, ErrNotFound
 	}
 	var st WorkspaceStats
 	err := s.pool.QueryRow(ctx, `SELECT
@@ -245,17 +235,20 @@ func (s *Store) WorkspaceStats(ctx context.Context, id string) (WorkspaceStats, 
 	return st, err
 }
 
-func (s *Store) CreateWorkspace(ctx context.Context, name, color, privacy string, tags []string) (Workspace, error) {
+func (s *Store) CreateWorkspace(ctx context.Context, userID, name, color, privacy string, tags []string) (Workspace, error) {
 	id := uid("ws")
-	_, err := s.pool.Exec(ctx, `INSERT INTO workspaces (id, name, color, privacy, tags) VALUES ($1,$2,$3,$4,$5)`,
-		id, name, color, privacy, tags)
+	_, err := s.pool.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy, tags) VALUES ($1,$2,$3,$4,$5,$6)`,
+		id, userID, name, color, privacy, tags)
 	if err != nil {
 		return Workspace{}, err
 	}
-	return s.GetWorkspace(ctx, id, false)
+	return s.GetWorkspace(ctx, userID, id, false)
 }
 
-func (s *Store) UpdateWorkspace(ctx context.Context, id string, p WorkspacePatch) (Workspace, error) {
+func (s *Store) UpdateWorkspace(ctx context.Context, userID, id string, p WorkspacePatch) (Workspace, error) {
+	if err := s.AssertWorkspaceOwner(ctx, userID, id); err != nil {
+		return Workspace{}, err
+	}
 	ct, err := s.pool.Exec(ctx, `UPDATE workspaces SET
 		name=COALESCE($2,name), color=COALESCE($3,color),
 		privacy=COALESCE($4,privacy), tags=COALESCE($5,tags) WHERE id=$1`,
@@ -266,10 +259,13 @@ func (s *Store) UpdateWorkspace(ctx context.Context, id string, p WorkspacePatch
 	if ct.RowsAffected() == 0 {
 		return Workspace{}, ErrNotFound
 	}
-	return s.GetWorkspace(ctx, id, false)
+	return s.GetWorkspace(ctx, userID, id, false)
 }
 
-func (s *Store) DeleteWorkspace(ctx context.Context, id string) error {
+func (s *Store) DeleteWorkspace(ctx context.Context, userID, id string) error {
+	if err := s.AssertWorkspaceOwner(ctx, userID, id); err != nil {
+		return err
+	}
 	_, err := s.pool.Exec(ctx, `DELETE FROM workspaces WHERE id=$1`, id)
 	return err
 }
@@ -346,12 +342,16 @@ func scanFile(row pgx.Row) (File, error) {
 	return f, err
 }
 
-func (s *Store) ListFiles(ctx context.Context, wsID string) ([]File, error) {
+func (s *Store) ListFiles(ctx context.Context, userID, wsID string) ([]File, error) {
+	const fCols = `f.id, f.workspace_id, f.chapter_id, f.name, f.kind, f.size_kb, f.added_at, f.status, f.url, f.content`
 	q := `SELECT ` + fileCols + ` FROM files`
 	args := []any{}
 	if wsID != "" {
 		q += ` WHERE workspace_id=$1`
 		args = append(args, wsID)
+	} else if userID != "" {
+		q = `SELECT ` + fCols + ` FROM files f JOIN workspaces w ON w.id=f.workspace_id WHERE w.user_id=$1`
+		args = append(args, userID)
 	}
 	q += ` ORDER BY added_at DESC`
 	rows, err := s.pool.Query(ctx, q, args...)
@@ -404,8 +404,9 @@ func scanQuiz(row pgx.Row) (Quiz, error) {
 	return q, err
 }
 
-func (s *Store) ListQuizzes(ctx context.Context) ([]Quiz, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+quizCols+` FROM quizzes ORDER BY created_at DESC`)
+func (s *Store) ListQuizzes(ctx context.Context, userID string) ([]Quiz, error) {
+	rows, err := s.pool.Query(ctx, `SELECT q.id, q.name, q.workspace_id, q.workspace_name, q.chapters, q.questions, q.created_at, q.privacy, q.time_limit_min
+		FROM quizzes q JOIN workspaces w ON w.id=q.workspace_id WHERE w.user_id=$1 ORDER BY q.created_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -472,9 +473,10 @@ func (s *Store) DeleteQuiz(ctx context.Context, id string) error {
 	return err
 }
 
-func (s *Store) ListAttempts(ctx context.Context) ([]Attempt, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, quiz_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at
-		FROM attempts ORDER BY taken_at DESC`)
+func (s *Store) ListAttempts(ctx context.Context, userID string) ([]Attempt, error) {
+	rows, err := s.pool.Query(ctx, `SELECT a.id, a.quiz_id, a.quiz_name, a.workspace_name, a.chapters, a.correct, a.total, a.pct, a.taken_at
+		FROM attempts a JOIN quizzes q ON q.id=a.quiz_id JOIN workspaces w ON w.id=q.workspace_id
+		WHERE w.user_id=$1 ORDER BY a.taken_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -513,8 +515,9 @@ func (s *Store) CreateAttempt(ctx context.Context, quizID string, correct, total
 
 /* -------------------------------------------------------------- flashcards */
 
-func (s *Store) ListDecks(ctx context.Context) ([]Deck, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, COALESCE(workspace_id,''), workspace_name, color, card_count, known_pct FROM decks ORDER BY name`)
+func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
+	rows, err := s.pool.Query(ctx, `SELECT d.id, d.name, COALESCE(d.workspace_id,''), d.workspace_name, d.color, d.card_count, d.known_pct
+		FROM decks d JOIN workspaces w ON w.id=d.workspace_id WHERE w.user_id=$1 ORDER BY d.name`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -599,8 +602,8 @@ func scanEvent(row pgx.Row) (Event, error) {
 	return e, err
 }
 
-func (s *Store) ListEvents(ctx context.Context) ([]Event, error) {
-	rows, err := s.pool.Query(ctx, `SELECT `+eventCols+` FROM events ORDER BY start_at`)
+func (s *Store) ListEvents(ctx context.Context, userID string) ([]Event, error) {
+	rows, err := s.pool.Query(ctx, `SELECT `+eventCols+` FROM events WHERE user_id=$1 ORDER BY start_at`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -616,13 +619,13 @@ func (s *Store) ListEvents(ctx context.Context) ([]Event, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) CreateEvent(ctx context.Context, e Event) (Event, error) {
+func (s *Store) CreateEvent(ctx context.Context, userID string, e Event) (Event, error) {
 	e.ID = uid("ev")
 	if e.LabelIDs == nil {
 		e.LabelIDs = []string{}
 	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO events (id, title, start_at, end_at, label_ids, location, note)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)`, e.ID, e.Title, e.Start, e.End, e.LabelIDs, e.Location, e.Note)
+	_, err := s.pool.Exec(ctx, `INSERT INTO events (id, user_id, title, start_at, end_at, label_ids, location, note)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, e.ID, userID, e.Title, e.Start, e.End, e.LabelIDs, e.Location, e.Note)
 	if err != nil {
 		return Event{}, err
 	}
@@ -651,9 +654,9 @@ func (s *Store) DeleteEvent(ctx context.Context, id string) error {
 /* ------------------------------------------------------------------- tasks */
 
 // ListTasks hides tasks completed before today (day-end cleanup behaviour).
-func (s *Store) ListTasks(ctx context.Context) ([]Task, error) {
+func (s *Store) ListTasks(ctx context.Context, userID string) ([]Task, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, title, meta, done, due_date FROM tasks
-		WHERE NOT (done AND due_date < date_trunc('day', now())) ORDER BY due_date`)
+		WHERE user_id=$1 AND NOT (done AND due_date < date_trunc('day', now())) ORDER BY due_date`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -686,8 +689,8 @@ func (s *Store) UpdateTask(ctx context.Context, id string, p TaskPatch) (Task, e
 
 /* ------------------------------------------------------------ thinking space */
 
-func (s *Store) ListCanvases(ctx context.Context) ([]Canvas, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, updated_at, scene FROM canvases ORDER BY updated_at DESC`)
+func (s *Store) ListCanvases(ctx context.Context, userID string) ([]Canvas, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, name, updated_at, scene FROM canvases WHERE user_id=$1 ORDER BY updated_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -713,10 +716,10 @@ func (s *Store) GetCanvas(ctx context.Context, id string) (Canvas, error) {
 	return c, err
 }
 
-func (s *Store) CreateCanvas(ctx context.Context, name string) (Canvas, error) {
+func (s *Store) CreateCanvas(ctx context.Context, userID, name string) (Canvas, error) {
 	id := uid("cv")
 	now := time.Now().UTC()
-	if _, err := s.pool.Exec(ctx, `INSERT INTO canvases (id, name, updated_at) VALUES ($1,$2,$3)`, id, name, now); err != nil {
+	if _, err := s.pool.Exec(ctx, `INSERT INTO canvases (id, user_id, name, updated_at) VALUES ($1,$2,$3,$4)`, id, userID, name, now); err != nil {
 		return Canvas{}, err
 	}
 	return Canvas{ID: id, Name: name, UpdatedAt: now}, nil
