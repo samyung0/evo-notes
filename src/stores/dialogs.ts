@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Label, Quiz, Task, Workspace } from '@/api/types';
 import type { EventDraft } from '@/features/schedule/EventFormModal';
+import { WorkspaceForm, workspaceFormDefaultValues } from '@/api/schema/workspaceFormSchema';
 
 export interface ConfirmConfig {
   title: string;
@@ -11,7 +12,19 @@ export interface ConfirmConfig {
 }
 
 interface DialogState {
-  workspaceForm: { workspace?: Workspace } | null;
+  // these forms re-renders on the object change, so the initial value
+  // in tanstack form changes together without any shenanigans
+  // the state of this zustand store is also not tied with other states like react query
+  // because its gonna cause a lot of issues, and also some dialogs like the worksapce
+  // can let you add new/modify existing workspaces, and tying them to react query
+  // is going to be messy
+  // TLDR zustand is not synced with react query
+  // flow should be:
+  //      -- get: react query -> map Workspace to WorkspaceForm -> opendialog with existing
+  //              -> populate tanstack form with initial values
+  //      -- create: open dialog with default values -> submit -> react query mutation -> close dialog
+  workspace: WorkspaceForm | null;
+  workspaceId: string | null;
   workspaceStatsId: string | null;
   quizEdit: Quiz | null;
   taskEdit: Task | null;
@@ -20,7 +33,7 @@ interface DialogState {
   addSource: { workspaceId: string } | null;
   confirm: ConfirmConfig | null;
 
-  openWorkspaceForm: (workspace?: Workspace) => void;
+  openWorkspace: (workspace?: Workspace | null) => void;
   openWorkspaceStats: (id: string) => void;
   openQuizEdit: (quiz: Quiz) => void;
   openTaskEdit: (task: Task) => void;
@@ -29,7 +42,7 @@ interface DialogState {
   openAddSource: (workspaceId: string) => void;
   openConfirm: (config: ConfirmConfig) => void;
 
-  closeWorkspaceForm: () => void;
+  closeWorkspace: () => void;
   closeWorkspaceStats: () => void;
   closeQuizEdit: () => void;
   closeTaskEdit: () => void;
@@ -37,10 +50,15 @@ interface DialogState {
   closeEventForm: () => void;
   closeAddSource: () => void;
   closeConfirm: () => void;
+
+  isTopBarSearchOpen: boolean;
+  setTopBarSearchOpen: (open: boolean) => void;
 }
 
 export const useDialogs = create<DialogState>((set) => ({
-  workspaceForm: null,
+  workspace: null,
+  workspaceId: null,
+  isWorkspaceOpen: false,
   workspaceStatsId: null,
   quizEdit: null,
   taskEdit: null,
@@ -49,7 +67,8 @@ export const useDialogs = create<DialogState>((set) => ({
   addSource: null,
   confirm: null,
 
-  openWorkspaceForm: (workspace) => set({ workspaceForm: { workspace } }),
+  openWorkspace: (workspace?) =>
+    set({ workspace: workspace ?? workspaceFormDefaultValues, workspaceId: workspace?.id ?? null }),
   openWorkspaceStats: (id) => set({ workspaceStatsId: id }),
   openQuizEdit: (quiz) => set({ quizEdit: quiz }),
   openTaskEdit: (task) => set({ taskEdit: task }),
@@ -58,7 +77,7 @@ export const useDialogs = create<DialogState>((set) => ({
   openAddSource: (workspaceId) => set({ addSource: { workspaceId } }),
   openConfirm: (config) => set({ confirm: config }),
 
-  closeWorkspaceForm: () => set({ workspaceForm: null }),
+  closeWorkspace: () => set({ workspace: null, workspaceId: null }),
   closeWorkspaceStats: () => set({ workspaceStatsId: null }),
   closeQuizEdit: () => set({ quizEdit: null }),
   closeTaskEdit: () => set({ taskEdit: null }),
@@ -66,4 +85,7 @@ export const useDialogs = create<DialogState>((set) => ({
   closeEventForm: () => set({ eventForm: null }),
   closeAddSource: () => set({ addSource: null }),
   closeConfirm: () => set({ confirm: null }),
+
+  isTopBarSearchOpen: false,
+  setTopBarSearchOpen: (open) => set({ isTopBarSearchOpen: open }),
 }));

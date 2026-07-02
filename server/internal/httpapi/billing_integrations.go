@@ -2,104 +2,19 @@ package httpapi
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/evonotes/server/internal/auth"
-	"github.com/evonotes/server/internal/billing"
 	"github.com/evonotes/server/internal/integrations"
 	"github.com/evonotes/server/internal/store"
 )
 
-func (a *api) getBilling(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
-	info, err := a.s.GetBilling(r.Context(), userID)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	writeJSON(w, 200, info)
-}
-
-func (a *api) billingCheckout(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
-	var body struct {
-		PlanTier string `json:"planTier"`
-	}
-	if err := decode(r, &body); err != nil || (body.PlanTier != "pro" && body.PlanTier != "team") {
-		writeJSON(w, 400, map[string]string{"message": "planTier must be pro or team"})
-		return
-	}
-
-	u, err := a.s.Me(r.Context(), userID)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-
-	priceID := billing.PriceForTier(body.PlanTier, a.cfg.StripePricePro, a.cfg.StripePriceTeam)
-	if priceID == "" {
-		writeJSON(w, 503, map[string]string{"message": "stripe price not configured"})
-		return
-	}
-
-	customerID, err := a.s.GetStripeCustomerID(r.Context(), userID)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	if customerID == "" {
-		customerID, err = billing.CreateCustomer(u.Email, u.Name, userID)
-		if err != nil {
-			a.fail(w, err)
-			return
-		}
-		if err := a.s.SetStripeCustomerID(r.Context(), userID, customerID); err != nil {
-			a.fail(w, err)
-			return
-		}
-	}
-
-	successURL := a.cfg.AppURL + "/subscription?success=1"
-	cancelURL := a.cfg.AppURL + "/subscription"
-	url, err := billing.CreateCheckoutSession(customerID, priceID, userID, successURL, cancelURL)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	writeJSON(w, 200, map[string]string{"url": url})
-}
-
-func (a *api) billingPortal(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
-	customerID, err := a.s.GetStripeCustomerID(r.Context(), userID)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	if customerID == "" {
-		writeJSON(w, 400, map[string]string{"message": "no billing account"})
-		return
-	}
-	url, err := billing.CreatePortalSession(customerID, a.cfg.AppURL+"/subscription")
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	writeJSON(w, 200, map[string]string{"url": url})
-}
-
-func (a *api) integrationsStatus(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
-	st, err := a.s.IntegrationsStatus(r.Context(), userID)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	writeJSON(w, 200, st)
-}
+// The JSON billing/integration endpoints (status, checkout, portal,
+// picker-token, recent, disconnect) are registered with huma in
+// huma_account.go. The OAuth redirect flow and multipart-adjacent import stay
+// on raw chi here because they redirect / call external providers directly.
 
 func (a *api) googleConnect(w http.ResponseWriter, r *http.Request) {
 	userID := auth.UserID(r.Context())
@@ -166,58 +81,6 @@ func splitOAuthState(state string) string {
 		}
 	}
 	return state
-}
-
-func (a *api) deleteIntegration(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
-	provider := id(r)
-	if provider != integrations.ProviderGoogle && provider != integrations.ProviderMicrosoft {
-		writeJSON(w, 400, map[string]string{"message": "unknown provider"})
-		return
-	}
-	if err := a.s.DeleteOAuthConnection(r.Context(), userID, provider); err != nil {
-		a.fail(w, err)
-		return
-	}
-	noContent(w)
-}
-
-func (a *api) googlePickerToken(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
-	tok, err := integrations.EnsureAccessToken(r.Context(), a.s, a.oauth, userID, integrations.ProviderGoogle)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	writeJSON(w, 200, map[string]string{"accessToken": tok})
-}
-
-func (a *api) microsoftRecentFiles(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
-	tok, err := integrations.EnsureAccessToken(r.Context(), a.s, a.oauth, userID, integrations.ProviderMicrosoft)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	req, _ := http.NewRequest("GET", "https://graph.microsoft.com/v1.0/me/drive/recent", nil)
-	req.Header.Set("Authorization", "Bearer "+tok)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		a.fail(w, err)
-		return
-	}
-	defer resp.Body.Close()
-	var out struct {
-		Value []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"value"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		a.fail(w, err)
-		return
-	}
-	writeJSON(w, 200, out.Value)
 }
 
 func (a *api) importSources(w http.ResponseWriter, r *http.Request) {

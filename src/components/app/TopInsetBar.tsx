@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useClerk } from '@clerk/react';
 import { cn } from '@/lib/cn';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import { useDebounced } from '@/lib/useDebounced';
 import { useOutsideClick } from '@/lib/useOutsideClick';
 import {
@@ -16,7 +16,6 @@ import {
   DialogClose,
   DialogContent,
   DialogTitle,
-  DialogTrigger,
   Popover,
   PopoverTrigger,
   Dialog,
@@ -27,6 +26,8 @@ import { USE_MSW } from '@/api/auth';
 import type { SearchKind } from '@/api/types';
 import { m } from '@/i18n';
 import { MobileNav } from './Sidebar';
+import { useDialogs } from '@/stores/dialogs';
+import { VisuallyHidden } from 'radix-ui';
 
 const KIND_ICON: Record<SearchKind, Parameters<typeof Icon>[0]['name']> = {
   workspace: 'workspaces',
@@ -36,8 +37,13 @@ const KIND_ICON: Record<SearchKind, Parameters<typeof Icon>[0]['name']> = {
   thinking: 'notes',
 };
 
-function SearchButton() {
-  const [open, setOpen] = useState(false);
+export function SearchDialog({
+  open,
+  setOpen,
+}: {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
   const [q, setQ] = useState('');
   const debounced = useDebounced(q, 400);
   const { data, isFetching } = useSearch(debounced);
@@ -47,20 +53,11 @@ function SearchButton() {
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setQ('');
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (isOpen) setQ('');
       }}
     >
-      <DialogTrigger asChild>
-        <IconButton
-          icon="search"
-          size="md"
-          variant="dark"
-          className="shrink-0"
-          label={m.search_placeholder()}
-        />
-      </DialogTrigger>
       <DialogContent
         onOpenAutoFocus={(e) => {
           e.preventDefault();
@@ -69,7 +66,9 @@ function SearchButton() {
         className="top-[12vh] translate-y-0"
         showCloseButton={false}
       >
-        <DialogTitle className="sr-only">{m.search_placeholder()}</DialogTitle>
+        <VisuallyHidden.Root asChild>
+          <DialogTitle>{m.search_placeholder()}</DialogTitle>
+        </VisuallyHidden.Root>
         <Card radius="card-lg" raised className="w-full items-stretch gap-0 overflow-hidden p-0">
           <div className="flex max-h-[70vh] flex-col">
             <div className="flex items-center gap-2.5 border-b border-divider px-4 py-3">
@@ -101,27 +100,29 @@ function SearchButton() {
                 data?.map((r) => {
                   const c = r.color ? userColorPair(r.color) : null;
                   return (
-                  <button
-                    key={`${r.kind}-${r.id}`}
-                    onClick={() => {
-                      setOpen(false);
-                      navigate({ to: r.href });
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover-bg"
-                  >
-                    <span
-                      className="flex h-8 w-8 items-center justify-center rounded-row bg-surface-hover-bg text-fg-secondary"
-                      style={c ? { background: c.bg, color: c.fg } : undefined}
+                    <button
+                      key={`${r.kind}-${r.id}`}
+                      onClick={() => {
+                        setOpen(false);
+                        navigate({ to: r.href });
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover-bg"
                     >
-                      <Icon name={KIND_ICON[r.kind]} size={16} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-fg">{r.title}</span>
-                      {r.subtitle && (
-                        <span className="block truncate text-xs text-fg-muted">{r.subtitle}</span>
-                      )}
-                    </span>
-                  </button>
+                      <span
+                        className="flex h-8 w-8 items-center justify-center rounded-row bg-surface-hover-bg text-fg-secondary"
+                        style={c ? { background: c.bg, color: c.fg } : undefined}
+                      >
+                        <Icon name={KIND_ICON[r.kind]} size={16} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-fg">
+                          {r.title}
+                        </span>
+                        {r.subtitle && (
+                          <span className="block truncate text-xs text-fg-muted">{r.subtitle}</span>
+                        )}
+                      </span>
+                    </button>
                   );
                 })}
             </div>
@@ -129,6 +130,20 @@ function SearchButton() {
         </Card>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SearchButton() {
+  const setTopBarSearchOpen = useDialogs((s) => s.setTopBarSearchOpen);
+  return (
+    <IconButton
+      icon="search"
+      size="md"
+      variant="dark"
+      className="shrink-0"
+      label={m.search_placeholder()}
+      onClick={() => setTopBarSearchOpen(true)}
+    />
   );
 }
 

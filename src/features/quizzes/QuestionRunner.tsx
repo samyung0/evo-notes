@@ -39,7 +39,7 @@ export function QuestionRunner({
                 className={cn(
                   'flex items-center gap-3 rounded-card border px-4 py-3 text-left text-sm transition-colors',
                   selected
-                    ? 'bg-tint-accent-1 border-accent text-fg'
+                    ? 'border-accent bg-tint-accent-1 text-fg'
                     : 'border-line bg-surface text-fg hover:bg-surface-hover-bg'
                 )}
               >
@@ -51,7 +51,7 @@ export function QuestionRunner({
                 >
                   {selected && <Icon name="check" size={13} strokeWidth={2.5} />}
                 </span>
-                {opt}
+                {opt.value}
               </button>
             );
           })}
@@ -67,7 +67,7 @@ export function QuestionRunner({
               className={cn(
                 'flex-1 rounded-card border px-4 py-3 text-sm font-semibold transition-colors',
                 answer === v
-                  ? 'bg-tint-accent-1 border-accent'
+                  ? 'border-accent bg-tint-accent-1'
                   : 'border-line bg-surface hover:bg-surface-hover-bg'
               )}
             >
@@ -82,7 +82,7 @@ export function QuestionRunner({
           value={answer as string}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Type your answer"
-          className="rounded-input border border-line bg-surface px-3 py-2.5 text-sm text-fg outline-none focus:border-line-strong"
+          className="rounded-row border border-line bg-surface px-3 py-2.5 text-sm text-fg outline-none focus:border-line-strong"
         />
       )}
 
@@ -137,7 +137,7 @@ export function QuestionRunner({
                     [p.left]: e.target.value,
                   })
                 }
-                className="w-1/2 rounded-input border border-line bg-surface px-2 py-2 text-sm text-fg"
+                className="w-1/2 rounded-row border border-line bg-surface px-2 py-2 text-sm text-fg"
               >
                 <option value="">Choose…</option>
                 {question.pairs.map((opt) => (

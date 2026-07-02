@@ -1,5 +1,5 @@
 import { Workspace } from '@/api/types';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import { Link } from '@tanstack/react-router';
 import { Badge } from './Badge';
 import { Card } from './Card';
@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn';
 export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const c = userColorPair(workspace.color);
   const del = useDeleteWorkspace();
-  const openWorkspaceForm = useDialogs((s) => s.openWorkspaceForm);
+  const openWorkspaceForm = useDialogs((s) => s.openWorkspace);
   // const openWorkspaceStats = useDialogs((s) => s.openWorkspaceStats);
   const openConfirm = useDialogs((s) => s.openConfirm);
   return (
@@ -41,9 +41,9 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
               {workspace.chapterCount} chapters · {workspace.fileCount} files
             </p>
             <div className="mt-3 flex flex-wrap gap-1">
-              {workspace.tags.slice(0, 2).map((t) => (
-                <Badge key={t} tone="neutral" size="sm">
-                  # {t}
+              {workspace.tags.slice(0, 3).map((t) => (
+                <Badge key={t.value} tone="neutral" size="sm">
+                  # {t.value}
                 </Badge>
               ))}
               {workspace.privacy !== 'private' && (

@@ -8,7 +8,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.2.12
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.104.1
 	github.com/clerk/clerk-sdk-go/v2 v2.7.0
-	github.com/go-chi/chi/v5 v5.1.0
+	github.com/danielgtaylor/huma/v2 v2.34.1
+	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/cors v1.2.1
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/redis/go-redis/v9 v9.21.0

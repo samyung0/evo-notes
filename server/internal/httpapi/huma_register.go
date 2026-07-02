@@ -1,0 +1,77 @@
+package httpapi
+
+import (
+	"context"
+	"errors"
+
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
+
+	"github.com/evonotes/server/internal/auth"
+	"github.com/evonotes/server/internal/store"
+)
+
+// humaConfig builds the OpenAPI document metadata. huma serves the spec at
+// /openapi.yaml, /openapi.json (+ 3.0 variants) and docs at /docs.
+func humaConfig() huma.Config {
+	return huma.DefaultConfig("Evo Notes API", "0.1.0")
+}
+
+// SpecYAML renders the OpenAPI 3.0.3 spec (safest for orval) without a live DB;
+// handlers are registered but never executed during spec generation.
+func SpecYAML() ([]byte, error) {
+	r := chi.NewRouter()
+	api := humachi.New(r, humaConfig())
+	registerRoutes(api, &api2{})
+	return api.OpenAPI().DowngradeYAML()
+}
+
+// api2 is an alias so the zero value reads clearly at the SpecYAML call site.
+type api2 = api
+
+// userID pulls the authenticated user id from the request context (set by the
+// auth middleware on the chi router that huma shares).
+func userID(ctx context.Context) string { return auth.UserID(ctx) }
+
+// hErr maps store errors onto huma HTTP errors.
+func hErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, store.ErrNotFound) {
+		return huma.Error404NotFound("not found")
+	}
+	return huma.Error500InternalServerError(err.Error())
+}
+
+// reg is a thin wrapper over huma.Register that sets the common operation
+// fields; type params are inferred from the handler.
+func reg[I, O any](api huma.API, method, path, id, tag, summary string, status int, h func(context.Context, *I) (*O, error)) {
+	huma.Register(api, huma.Operation{
+		OperationID:   id,
+		Method:        method,
+		Path:          path,
+		Summary:       summary,
+		Tags:          []string{tag},
+		DefaultStatus: status,
+	}, h)
+}
+
+// Empty is the output for endpoints that return 204 No Content.
+type Empty struct{}
+
+// registerRoutes wires every JSON operation onto the huma API. Streaming,
+// multipart, redirect, webhook and pipeline-passthrough endpoints stay on raw
+// chi (see server.go) and are intentionally absent from the spec.
+func registerRoutes(api huma.API, a *api) {
+	a.registerAccount(api)
+	a.registerWorkspaces(api)
+	a.registerContent(api)
+	a.registerQuizzes(api)
+	a.registerFlashcards(api)
+	a.registerSchedule(api)
+	a.registerThinking(api)
+	a.registerExplore(api)
+	a.registerBillingIntegrations(api)
+}

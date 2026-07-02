@@ -5,12 +5,22 @@ low priority:
 3. work on thinkg space
 4. check all the skeleton loaders look ok
 5. check that components are reused as much as possible (esp dialog ( to replace modals), popover, and buttons)
-6. paraglide check for any missed text that is not being translated (few in workspaces open walready)
+6. paraglide check for any missed text that is not being translated (few in workspaces open walready, PRIVACY_OPTIONS, input placeholders)
 7. rewrite progress abr in cva
+8. input validation and sanitizations (after react hook form in frontend, backend go should go more checking and error throwing like required fields, e.g. creating workspace must throw errors if name or privacy is missing, some unimportant fields like color or tags cna have defaults, )
+9. check accessibility and aria labels (use radix-ui as primitive as often as possible, which means to enforce the radius primitives in ui components and ensure these ui components are reused as often as possible)
+10. check how auth middleware is used in backend
+11. folder organization
+12. nav sidebar theme configuration (use dialog)
+13. make a bunch of integration and backend tests
+14. after tests are established, migrate backend to using openapi to generate types & schema validations to sync up to the frontend schema validations. Also separate the db schema vs response vs request models in backedn (seems a lot are just structs within the logic and is unorganized)
+15. rate limiting, bot detection (can do some funny things if we have high bot traffic), analytics, promo, posthog
 
 high PRIORITIES:
 
 1. in dashboard, change the mini calendar so that every hour shows (similar to how the timegrid does it, and include the hover and click to add event directly on the schedule)
 2. in workspaces (change color filter to a general filter with a color section and a tag section (limit max height of the popover))
 3. in calendar page timegrid component, use a kind of striped background when adding events directly by hovering/clicking on the calendar (lighter vs darker gray for hovering/selected) use thick border
-4. unify modals/dialogs designs (with the search icon dialog in topbar as base)
+4. unify use Dialog instead of modal (popover is ok as its already shadcn) (for dialog usage refer to the search bar in topsetbar) (there should not be the use of the useOutsideClick hook)
+5. add in input components like dropdown, date picker etc
+6. use react hook form for forms (handle errors/required/disabled etc), make sure validations is done with zod on frontend before validating in backend, And importantly. !!Important: dont use flat arrays (arrays with primitives) because useFieldArray complains (and i have no idea why they dont support) NEED TO CHANGE MANY SCHEMAS (can just modify request/response not the db)

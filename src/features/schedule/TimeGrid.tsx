@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import type { CalendarEvent, Label } from '@/api/types';
 import { fmtHour, fmtTime, hourOf, sameDay } from './dateUtils';
 

@@ -59,7 +59,7 @@ export function NoteCard({
           <button
             onClick={onMenu}
             aria-label="Note options"
-            className="ml-auto flex h-[26px] w-[26px] items-center justify-center rounded-input"
+            className="ml-auto flex h-[26px] w-[26px] items-center justify-center rounded-row"
             style={{
               background: 'color-mix(in srgb, currentColor 14%, transparent)',
             }}

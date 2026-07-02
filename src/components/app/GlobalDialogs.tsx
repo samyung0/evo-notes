@@ -18,6 +18,7 @@ import { LabelEditModal } from '@/features/schedule/LabelEditModal';
 import { EventFormModal } from '@/features/schedule/EventFormModal';
 import { AddSourceModal } from '@/features/workspace/AddSourceModal';
 import { useDialogs } from '@/stores/dialogs';
+import { SearchDialog } from './TopInsetBar';
 
 function WorkspaceStatsModal({ id, onClose }: { id: string; onClose: () => void }) {
   const { data } = useWorkspaceStats(id);
@@ -50,7 +51,8 @@ function WorkspaceStatsModal({ id, onClose }: { id: string; onClose: () => void 
 }
 
 export function GlobalDialogs() {
-  const workspaceForm = useDialogs((s) => s.workspaceForm);
+  const workspace = useDialogs((s) => s.workspace);
+  const workspaceId = useDialogs((s) => s.workspaceId);
   const workspaceStatsId = useDialogs((s) => s.workspaceStatsId);
   const quizEdit = useDialogs((s) => s.quizEdit);
   const taskEdit = useDialogs((s) => s.taskEdit);
@@ -58,7 +60,8 @@ export function GlobalDialogs() {
   const eventForm = useDialogs((s) => s.eventForm);
   const addSource = useDialogs((s) => s.addSource);
   const confirm = useDialogs((s) => s.confirm);
-  const closeWorkspaceForm = useDialogs((s) => s.closeWorkspaceForm);
+  const openWorkspace = useDialogs((s) => s.openWorkspace);
+  const closeWorkspace = useDialogs((s) => s.closeWorkspace);
   const closeWorkspaceStats = useDialogs((s) => s.closeWorkspaceStats);
   const closeQuizEdit = useDialogs((s) => s.closeQuizEdit);
   const closeTaskEdit = useDialogs((s) => s.closeTaskEdit);
@@ -81,21 +84,25 @@ export function GlobalDialogs() {
   const { data: addSourceChapters } = useChapters(addSourceWsId);
   const uploadSource = useUploadSource(addSourceWsId);
 
+  const isTopBarSearchOpen = useDialogs((s) => s.isTopBarSearchOpen);
+  const setTopBarSearchOpen = useDialogs((s) => s.setTopBarSearchOpen);
+
   return (
     <>
-      {workspaceForm && (
+      {workspace && (
         <WorkspaceFormModal
-          key={workspaceForm.workspace?.id ?? 'new'}
           open
-          initial={workspaceForm.workspace}
-          onClose={closeWorkspaceForm}
-          onSubmit={(v) => {
-            if (workspaceForm.workspace) {
-              updateWorkspace.mutate({ id: workspaceForm.workspace.id, ...v });
+          workspace={workspace}
+          setOpen={(open) => {
+            if (!open) closeWorkspace();
+            if (open && !workspace) openWorkspace();
+          }}
+          onSubmit={async (v) => {
+            if (workspaceId) {
+              return await updateWorkspace.mutateAsync({ id: workspaceId, ...v });
             } else {
-              createWorkspace.mutate(v);
+              return await createWorkspace.mutateAsync(v);
             }
-            closeWorkspaceForm();
           }}
         />
       )}
@@ -162,6 +169,8 @@ export function GlobalDialogs() {
         confirmLabel={confirm?.confirmLabel}
         danger={confirm?.danger ?? true}
       />
+
+      <SearchDialog open={isTopBarSearchOpen} setOpen={setTopBarSearchOpen} />
     </>
   );
 }

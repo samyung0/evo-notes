@@ -5,7 +5,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
 
 const buttonVariants = cva(
-  'inline-flex cursor-pointer items-center justify-center leading-none font-semibold whitespace-nowrap transition-all duration-150 active:scale-[0.98]',
+  'inline-flex min-w-0 cursor-pointer items-center justify-center leading-none font-semibold whitespace-nowrap transition-all duration-150 outline-none select-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
@@ -14,6 +14,7 @@ const buttonVariants = cva(
         outline: 'border border-line bg-surface text-fg hover:bg-surface-hover-bg',
         surface: 'border border-transparent bg-surface text-fg hover:bg-surface-hover-bg',
         ghost: 'border-none text-fg',
+        'ghost-hover': 'border-none text-fg hover:bg-surface-hover-bg',
         'ghost-link': 'border-none text-link hover:text-link-hover',
       },
       size: {
@@ -31,8 +32,6 @@ const buttonVariants = cva(
 
 export type ButtonVariantProps = VariantProps<typeof buttonVariants>;
 
-const ICON_SIZE: Record<string, number> = { sm: 15, md: 16, lg: 18 };
-
 export interface ButtonProps
   extends React.ComponentProps<'button'>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
@@ -40,6 +39,24 @@ export interface ButtonProps
   iconRight?: IconName;
   fullWidth?: boolean;
 }
+
+const InlineIcon = ({
+  name,
+  size,
+}: {
+  name: IconName;
+  size: VariantProps<typeof buttonVariants>['size'];
+}) => (
+  <Icon
+    name={name}
+    className={cn(
+      'pointer-events-none shrink-0 -translate-y-px',
+      size === 'sm' && 'size-3.75',
+      size === 'md' && 'size-4',
+      size === 'lg' && 'size-4.5'
+    )}
+  />
+);
 
 export function Button({
   children,
@@ -49,7 +66,6 @@ export function Button({
   iconRight,
   fullWidth,
   className,
-  disabled,
   asChild = false,
   ...rest
 }: ButtonProps) {
@@ -60,12 +76,7 @@ export function Button({
         data-variant={variant}
         data-size={size}
         children={children}
-        className={cn(
-          cn(buttonVariants({ variant, size })),
-          fullWidth && 'w-full',
-          disabled && 'cursor-not-allowed opacity-50',
-          className
-        )}
+        className={cn(cn(buttonVariants({ variant, size })), fullWidth && 'w-full', className)}
         {...rest}
       />
     );
@@ -75,18 +86,12 @@ export function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      disabled={disabled}
-      className={cn(
-        cn(buttonVariants({ variant, size })),
-        fullWidth && 'w-full',
-        disabled && 'cursor-not-allowed opacity-50',
-        className
-      )}
+      className={cn(cn(buttonVariants({ variant, size })), fullWidth && 'w-full', className)}
       {...rest}
     >
-      {iconLeft && <Icon name={iconLeft} size={ICON_SIZE[size ?? 'md']} />}
+      {iconLeft && <InlineIcon name={iconLeft} size={size} />}
       {children}
-      {iconRight && <Icon name={iconRight} size={ICON_SIZE[size ?? 'md']} />}
+      {iconRight && <InlineIcon name={iconRight} size={size} />}
     </button>
   );
 }

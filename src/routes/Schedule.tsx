@@ -9,7 +9,7 @@ import {
   SegmentedControl,
   Skeleton,
 } from '@/components/ui';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import { useDeleteLabel, useEvents, useLabels } from '@/api/hooks';
 import { useDialogs } from '@/stores/dialogs';
 import { m } from '@/i18n';

@@ -1,7 +1,15 @@
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
-import { Badge, Card, Icon, IconButton, ProgressBar, SkeletonCardGrid, Text } from '@/components/ui';
-import { userColorPair } from '@/lib/workspaceColor';
+import {
+  Badge,
+  Card,
+  Icon,
+  IconButton,
+  ProgressBar,
+  SkeletonCardGrid,
+  Text,
+} from '@/components/ui';
+import { userColorPair } from '@/lib/userColor';
 import { useCreateDeck, useDecks } from '@/api/hooks';
 import { m } from '@/i18n';
 

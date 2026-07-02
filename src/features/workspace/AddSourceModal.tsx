@@ -1,10 +1,6 @@
 import { useRef, useState } from 'react';
 import { Modal, Button, Icon, Text } from '@/components/ui';
-import {
-  useImportSources,
-  useIntegrations,
-  useMicrosoftRecentFiles,
-} from '@/api/hooks';
+import { useImportSources, useIntegrations, useMicrosoftRecentFiles } from '@/api/hooks';
 import { API_BASE, integrationConnectUrl } from '@/api/client';
 import { USE_MSW } from '@/api/auth';
 import type { Chapter, FileKind, PlanTier } from '@/api/types';
@@ -167,7 +163,7 @@ export function AddSourceModal({
             <select
               value={chapterId ?? ''}
               onChange={(e) => setChapterId(e.target.value || null)}
-              className="rounded-input border border-line bg-surface px-3 py-2.5 text-sm text-fg"
+              className="rounded-row border border-line bg-surface px-3 py-2.5 text-sm text-fg"
             >
               <option value="">No chapter</option>
               {chapters.map((c) => (
@@ -180,7 +176,7 @@ export function AddSourceModal({
 
           <button
             onClick={() => inputRef.current?.click()}
-            className="hover:bg-surface-hover-bg flex flex-col items-center gap-2 rounded-card border-[1.5px] border-dashed border-line-strong px-6 py-8 text-fg-secondary transition-colors"
+            className="flex flex-col items-center gap-2 rounded-card border-[1.5px] border-dashed border-line-strong px-6 py-8 text-fg-secondary transition-colors hover:bg-surface-hover-bg"
           >
             <Icon name="upload" size={28} />
             <Text variant="subtitle">Upload from your computer</Text>
@@ -236,7 +232,7 @@ export function AddSourceModal({
             <button
               key={f.id}
               type="button"
-              className="rounded-input px-3 py-2 text-left text-sm hover:bg-surface-hover-bg"
+              className="rounded-row px-3 py-2 text-left text-sm hover:bg-surface-hover-bg"
               onClick={() => importMicrosoft([f.id])}
             >
               {f.name}

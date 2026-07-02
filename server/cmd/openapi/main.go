@@ -1,0 +1,65 @@
+// Command openapi emits the gateway's OpenAPI 3.0.3 spec. It builds the huma API
+// without a database (handlers are never executed for spec generation), so it
+// runs anywhere:
+//
+//	go run ./cmd/openapi                 # write to stdout
+//	go run ./cmd/openapi -o ../openapi.yaml  # atomic write to a file
+//
+// The frontend's orval config always consumes the local openapi.yaml. In live
+// mode `air` regenerates it via -o on each rebuild (see server/.air.toml), and
+// `orval --watch` picks up the file change.
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/evonotes/server/internal/httpapi"
+)
+
+func main() {
+	out := flag.String("o", "", "output file path (atomic write); defaults to stdout")
+	flag.Parse()
+
+	spec, err := httpapi.SpecYAML()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "openapi:", err)
+		os.Exit(1)
+	}
+
+	if *out == "" {
+		if _, err := os.Stdout.Write(spec); err != nil {
+			fmt.Fprintln(os.Stderr, "openapi:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if err := writeAtomic(*out, spec); err != nil {
+		fmt.Fprintln(os.Stderr, "openapi:", err)
+		os.Exit(1)
+	}
+}
+
+// writeAtomic writes to a temp file in the destination directory then renames
+// it into place, so watchers never observe a truncated / half-written spec.
+func writeAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".openapi-*.yaml.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
+}

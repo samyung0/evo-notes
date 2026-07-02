@@ -26,6 +26,9 @@ import { isKnown, newSrsState, reviewSrs } from '@/lib/srs';
 
 export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
+/** Wrap bare strings as {value} rows (matches useFieldArray-friendly shapes). */
+const wv = (...ss: string[]) => ss.map((value) => ({ value }));
+
 /**
  * Seed SRS scheduling state. Unknown cards stay due now (they surface in the
  * study queue); "known" cards get a couple of Good reviews to push their due
@@ -39,7 +42,13 @@ function seedSrs(known: boolean): SrsState {
   }
   return s;
 }
-function seedCard(id: string, deckId: string, front: string, back: string, known: boolean): Flashcard {
+function seedCard(
+  id: string,
+  deckId: string,
+  front: string,
+  back: string,
+  known: boolean
+): Flashcard {
   const srs = seedSrs(known);
   return { id, deckId, front, back, known: isKnown(srs), srs };
 }
@@ -77,7 +86,7 @@ export const workspaces: Workspace[] = [
     name: 'Biology 101',
     color: 'green',
     privacy: 'private',
-    tags: ['Cells', 'Genetics'],
+    tags: [{ value: 'Cells' }, { value: 'Genetics' }],
     chapterCount: 6,
     fileCount: 24,
     createdAt: days(40),
@@ -88,7 +97,7 @@ export const workspaces: Workspace[] = [
     name: 'Calculus II',
     color: 'purple',
     privacy: 'private',
-    tags: ['Integrals', 'Series'],
+    tags: [{ value: 'Integrals' }, { value: 'Series' }],
     chapterCount: 4,
     fileCount: 12,
     createdAt: days(30),
@@ -99,7 +108,7 @@ export const workspaces: Workspace[] = [
     name: 'World History',
     color: 'amber',
     privacy: 'link',
-    tags: ['Modern', 'Essays'],
+    tags: [{ value: 'Modern' }, { value: 'Essays' }, { value: 'War' }],
     chapterCount: 5,
     fileCount: 18,
     createdAt: days(22),
@@ -110,7 +119,7 @@ export const workspaces: Workspace[] = [
     name: 'Organic Chemistry',
     color: 'blue',
     privacy: 'private',
-    tags: ['Reactions'],
+    tags: [{ value: 'Reactions' }],
     chapterCount: 3,
     fileCount: 9,
     createdAt: days(12),
@@ -121,7 +130,7 @@ export const workspaces: Workspace[] = [
     name: 'English Literature',
     color: 'coral',
     privacy: 'public',
-    tags: ['Poetry', 'Shakespeare'],
+    tags: [{ value: 'Poetry' }, { value: 'Shakespeare' }],
     chapterCount: 7,
     fileCount: 21,
     createdAt: days(8),
@@ -256,7 +265,7 @@ export const quizzes: Quiz[] = [
         type: 'mcq',
         level: 'recall',
         prompt: 'Which organelle is the powerhouse of the cell?',
-        options: ['Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'],
+        options: wv('Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'),
         correct: [1],
         explanation: 'Mitochondria produce ATP through cellular respiration.',
       },
@@ -272,7 +281,7 @@ export const quizzes: Quiz[] = [
         type: 'multi',
         level: 'application',
         prompt: 'Select all that are membrane-bound organelles.',
-        options: ['Ribosome', 'Nucleus', 'Mitochondria', 'Cytosol'],
+        options: wv('Ribosome', 'Nucleus', 'Mitochondria', 'Cytosol'),
         correct: [1, 2],
       },
       {
@@ -280,14 +289,14 @@ export const quizzes: Quiz[] = [
         type: 'fill',
         level: 'application',
         prompt: 'The diffusion of water across a membrane is called ____.',
-        accepted: ['osmosis'],
+        accepted: wv('osmosis'),
       },
       {
         id: 'q5',
         type: 'ordering',
         level: 'analysis',
         prompt: 'Order the path of protein secretion.',
-        items: ['Ribosome', 'Rough ER', 'Golgi apparatus', 'Vesicle', 'Cell membrane'],
+        items: wv('Ribosome', 'Rough ER', 'Golgi apparatus', 'Vesicle', 'Cell membrane'),
       },
       {
         id: 'q6',
@@ -316,7 +325,7 @@ export const quizzes: Quiz[] = [
         type: 'mcq',
         level: 'application',
         prompt: 'A cross between Aa × Aa gives what genotype ratio?',
-        options: ['1:2:1', '3:1', '1:1', '9:3:3:1'],
+        options: wv('1:2:1', '3:1', '1:1', '9:3:3:1'),
         correct: [0],
       },
       {
@@ -324,7 +333,7 @@ export const quizzes: Quiz[] = [
         type: 'short',
         level: 'analysis',
         prompt: 'Define a dominant allele in one sentence.',
-        accepted: ['an allele expressed in the phenotype even when only one copy is present'],
+        accepted: wv('an allele expressed in the phenotype even when only one copy is present'),
       },
     ],
   },
@@ -342,7 +351,7 @@ export const quizzes: Quiz[] = [
         type: 'mcq',
         level: 'application',
         prompt: '∫ x·eˣ dx is best solved by…',
-        options: ['Substitution', 'Integration by parts', 'Partial fractions', 'Trig substitution'],
+        options: wv('Substitution', 'Integration by parts', 'Partial fractions', 'Trig substitution'),
         correct: [1],
       },
       {
@@ -431,7 +440,13 @@ export const cards: Flashcard[] = [
   seedCard('c_3', 'dk_1', 'Ribosome', 'Site of protein synthesis.', false),
   seedCard('c_4', 'dk_1', 'Golgi apparatus', 'Packages and ships proteins.', false),
   seedCard('c_7', 'dk_1', 'Lysosome', 'Digests waste with hydrolytic enzymes.', false),
-  seedCard('c_8', 'dk_1', 'Endoplasmic reticulum', 'Rough ER makes proteins; smooth ER makes lipids.', false),
+  seedCard(
+    'c_8',
+    'dk_1',
+    'Endoplasmic reticulum',
+    'Rough ER makes proteins; smooth ER makes lipids.',
+    false
+  ),
   seedCard('c_5', 'dk_2', '∫ eˣ dx', 'eˣ + C', true),
   seedCard('c_6', 'dk_2', '∫ 1/x dx', 'ln|x| + C', false),
   seedCard('c_9', 'dk_2', '∫ cos x dx', 'sin x + C', false),

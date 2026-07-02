@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Input, Modal, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { USER_COLORS, userColorPair } from '@/lib/workspaceColor';
+import { USER_COLORS, userColorPair } from '@/lib/userColor';
 import type { Label, UserColor } from '@/api/types';
 import { m } from '@/i18n';
 

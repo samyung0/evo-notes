@@ -64,13 +64,13 @@ export function ChatPanel({ workspaceId }: { workspaceId: string }) {
         )}
         {chat.isPending && (
           <div className="mr-auto">
-            <Spinner size={16} />
+            <Spinner />
           </div>
         )}
       </div>
 
       <div className="border-t border-divider p-3">
-        <div className="flex items-center gap-2 rounded-input border border-line bg-surface px-3 py-2">
+        <div className="flex items-center gap-2 rounded-row border border-line bg-surface px-3 py-2">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}

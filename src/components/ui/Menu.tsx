@@ -6,7 +6,7 @@ import { Icon, type IconName } from './Icon';
 import { IconButton } from './IconButton';
 import { Popover, PopoverContent, PopoverTrigger } from './Popover';
 
-const menuVariants = cva('w-auto min-w-[180px] p-0', {
+const menuVariants = cva('w-auto min-w-36 p-0', {
   variants: {
     variant: {
       default: '',
@@ -58,7 +58,7 @@ export function Menu({ items, trigger, align = 'end', variant = 'default', class
         {trigger ?? (
           <IconButton
             icon="moreVertical"
-            variant="ghost"
+            variant="ghost-hover"
             size="sm"
             strokeWidth={3.5}
             label="Open menu"

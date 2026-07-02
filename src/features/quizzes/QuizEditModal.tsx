@@ -32,17 +32,17 @@ function blankQuestion(
 ): Question {
   switch (type) {
     case 'mcq':
-      return { ...base, type: 'mcq', options: ['', ''], correct: [] };
+      return { ...base, type: 'mcq', options: [{ value: '' }, { value: '' }], correct: [] };
     case 'multi':
-      return { ...base, type: 'multi', options: ['', ''], correct: [] };
+      return { ...base, type: 'multi', options: [{ value: '' }, { value: '' }], correct: [] };
     case 'boolean':
       return { ...base, type: 'boolean', correct: true };
     case 'fill':
-      return { ...base, type: 'fill', accepted: [''] };
+      return { ...base, type: 'fill', accepted: [{ value: '' }] };
     case 'short':
-      return { ...base, type: 'short', accepted: [''] };
+      return { ...base, type: 'short', accepted: [{ value: '' }] };
     case 'ordering':
-      return { ...base, type: 'ordering', items: ['', ''] };
+      return { ...base, type: 'ordering', items: [{ value: '' }, { value: '' }] };
     case 'matching':
       return {
         ...base,
@@ -56,7 +56,7 @@ function blankQuestion(
 }
 
 const selectClass =
-  'rounded-input border border-line bg-surface px-2 py-1.5 text-xs text-fg outline-none focus:border-line-strong';
+  'rounded-row border border-line bg-surface px-2 py-1.5 text-xs text-fg outline-none focus:border-line-strong';
 
 export function QuizEditModal({
   quiz,
@@ -78,7 +78,15 @@ export function QuizEditModal({
   function changeType(i: number, type: QuestionType) {
     const q = questions[i];
     if (q.type === type) return;
-    update(i, blankQuestion(type, { id: q.id, level: q.level, prompt: q.prompt, explanation: q.explanation }));
+    update(
+      i,
+      blankQuestion(type, {
+        id: q.id,
+        level: q.level,
+        prompt: q.prompt,
+        explanation: q.explanation,
+      })
+    );
   }
   function addQuestion() {
     setQuestions((qs) => [
@@ -121,7 +129,7 @@ export function QuizEditModal({
         </label>
 
         {questions.map((q, i) => (
-          <div key={q.id} className="bg-surface-hover-bg rounded-card border border-line p-4">
+          <div key={q.id} className="rounded-card border border-line bg-surface-hover-bg p-4">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="t-label text-fg-muted">Q{i + 1}</span>
               <select
@@ -178,10 +186,10 @@ export function QuizEditModal({
                       }}
                     />
                     <Input
-                      value={opt}
+                      value={opt.value}
                       onChange={(e) => {
                         const options = [...q.options];
-                        options[oi] = e.target.value;
+                        options[oi] = { value: e.target.value };
                         update(i, { ...q, options });
                       }}
                       placeholder={`Option ${oi + 1}`}
@@ -205,7 +213,7 @@ export function QuizEditModal({
                 ))}
                 <AddRowButton
                   label="Add option"
-                  onClick={() => update(i, { ...q, options: [...q.options, ''] })}
+                  onClick={() => update(i, { ...q, options: [...q.options, { value: '' }] })}
                 />
               </div>
             )}
@@ -238,11 +246,11 @@ export function QuizEditModal({
                   Accepted answers (comma separated)
                 </Text>
                 <Input
-                  value={q.accepted.join(', ')}
+                  value={q.accepted.map((a) => a.value).join(', ')}
                   onChange={(e) =>
                     update(i, {
                       ...q,
-                      accepted: e.target.value.split(',').map((s) => s.trim()),
+                      accepted: e.target.value.split(',').map((s) => ({ value: s.trim() })),
                     })
                   }
                 />
@@ -260,10 +268,10 @@ export function QuizEditModal({
                       {oi + 1}
                     </span>
                     <Input
-                      value={item}
+                      value={item.value}
                       onChange={(e) => {
                         const items = [...q.items];
-                        items[oi] = e.target.value;
+                        items[oi] = { value: e.target.value };
                         update(i, { ...q, items });
                       }}
                       placeholder={`Item ${oi + 1}`}
@@ -281,7 +289,7 @@ export function QuizEditModal({
                 ))}
                 <AddRowButton
                   label="Add item"
-                  onClick={() => update(i, { ...q, items: [...q.items, ''] })}
+                  onClick={() => update(i, { ...q, items: [...q.items, { value: '' }] })}
                 />
               </div>
             )}

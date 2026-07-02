@@ -59,9 +59,12 @@ export function gradeQuestion(q: Question, answer: Answer | undefined): boolean 
       return answer === q.correct;
     case 'fill':
     case 'short':
-      return typeof answer === 'string' && q.accepted.some((a) => fuzzyMatch(a, answer));
+      return typeof answer === 'string' && q.accepted.some((a) => fuzzyMatch(a.value, answer));
     case 'ordering':
-      return Array.isArray(answer) && (answer as string[]).join('|') === q.items.join('|');
+      return (
+        Array.isArray(answer) &&
+        (answer as string[]).join('|') === q.items.map((i) => i.value).join('|')
+      );
     case 'matching': {
       if (typeof answer !== 'object' || Array.isArray(answer)) return false;
       return q.pairs.every((p) => (answer as Record<string, string>)[p.left] === p.right);
@@ -82,7 +85,7 @@ export function emptyAnswer(q: Question): Answer {
     case 'short':
       return '';
     case 'ordering':
-      return [...q.items].sort(() => Math.random() - 0.5);
+      return q.items.map((i) => i.value).sort(() => Math.random() - 0.5);
     case 'matching':
       return {};
     default:

@@ -15,11 +15,12 @@ const iconButtonVariants = cva(
         gray: 'bg-page text-surface-dark-fg hover:bg-surface-dark',
         ghost: 'bg-transparent text-fg',
         outline: 'border border-line bg-transparent text-fg hover:bg-surface-hover-bg',
-        'black-outline': 'border border-fg bg-transparent text-fg hover:bg-fg hover:text-page',
+        'ghost-hover': 'bg-transparent text-fg hover:bg-surface-hover-bg',
       },
       size: {
-        sm: '[&>svg]:size-4.8 size-9 rounded-input',
-        md: 'size-10 rounded-button [&>svg]:size-5.5',
+        xs: 'size-7 rounded-row [&>svg]:size-[14px]',
+        sm: 'size-9 rounded-row [&>svg]:size-[18px]',
+        md: '[&>svg]:size-5. size-10 rounded-button',
         lg: 'size-11 rounded-button [&>svg]:size-6',
       },
     },
@@ -43,6 +44,7 @@ export interface IconButtonProps
   strokeWidth?: number;
   label?: string;
   asChild?: boolean;
+  iconClassName?: string;
 }
 
 export function IconButton({
@@ -54,6 +56,7 @@ export function IconButton({
   label,
   children,
   className,
+  iconClassName,
   ...rest
 }: IconButtonProps) {
   const Tag = rest.asChild ? Slot.Root : 'button';
@@ -66,7 +69,7 @@ export function IconButton({
       className={cn(iconButtonVariants({ variant, size }), className)}
       {...rest}
     >
-      <Icon name={icon} strokeWidth={strokeWidth} />
+      <Icon name={icon} strokeWidth={strokeWidth} className={iconClassName} />
       {children}
       {dot && (
         <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-solid-error ring-1 ring-surface" />

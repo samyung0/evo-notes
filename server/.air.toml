@@ -1,0 +1,20 @@
+# Air live-reload config for the gateway. Run `air` inside server/.
+# On each successful rebuild post_cmd regenerates ../openapi.yaml (atomic write),
+# so the frontend's `orval --watch` (pnpm gen:api:watch) picks up contract changes.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/api ./cmd/api"
+  bin = "./tmp/api"
+  post_cmd = ["go run ./cmd/openapi -o ../openapi.yaml"]
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "data", "migrations"]
+  delay = 500
+  stop_on_error = true
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = true

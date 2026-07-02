@@ -12,7 +12,7 @@ import {
   WorkspaceCard,
 } from '@/components/ui';
 import { m } from '@/i18n';
-import { USER_COLORS } from '@/lib/workspaceColor';
+import { USER_COLORS } from '@/lib/userColor';
 import { useDialogs } from '@/stores/dialogs';
 import { useMemo, useState } from 'react';
 
@@ -34,7 +34,7 @@ export default function Workspaces() {
     color: colorFilter,
     q: query,
   });
-  const openWorkspaceForm = useDialogs((s) => s.openWorkspaceForm);
+  const openWorkspaceForm = useDialogs((s) => s.openWorkspace);
 
   const sortLabel = useMemo(() => SORTS.find((s) => s.value === sort)?.label() ?? '', [sort]);
 
@@ -92,8 +92,7 @@ export default function Workspaces() {
         <div className="flex items-center gap-2">
           {showSearch ? (
             <Input
-              icon="search"
-              size="md"
+              leftIcon="search"
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -104,8 +103,8 @@ export default function Workspaces() {
           ) : (
             <IconButton
               icon="search"
-              variant="outline"
-              size="sm"
+              variant="gray"
+              size="md"
               onClick={() => setShowSearch(true)}
               label="Search workspaces"
             />
@@ -124,9 +123,8 @@ export default function Workspaces() {
             <Card
               border="dashed"
               radius="card-lg"
-              interactive
               onClick={() => openWorkspaceForm()}
-              className="min-h-40 items-center justify-center"
+              className="min-h-40 cursor-pointer items-center justify-center"
             >
               <span className="flex flex-col items-center gap-2 text-fg-muted">
                 <Icon name="plus" size={24} />

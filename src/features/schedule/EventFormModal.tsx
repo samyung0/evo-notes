@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Input, Modal, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import type { Label } from '@/api/types';
 
 export interface EventFormValues {
@@ -20,7 +20,8 @@ export interface EventDraft {
 const pad = (n: number) => String(n).padStart(2, '0');
 const toDateValue = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const toTimeValue = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-const combine = (dateStr: string, timeStr: string) => new Date(`${dateStr}T${timeStr}`).toISOString();
+const combine = (dateStr: string, timeStr: string) =>
+  new Date(`${dateStr}T${timeStr}`).toISOString();
 
 function defaultStart() {
   const d = new Date();
@@ -42,9 +43,7 @@ export function EventFormModal({
   onSubmit: (v: EventFormValues) => void;
 }) {
   const start = draft?.start ? new Date(draft.start) : defaultStart();
-  const end = draft?.end
-    ? new Date(draft.end)
-    : new Date(start.getTime() + 60 * 60 * 1000);
+  const end = draft?.end ? new Date(draft.end) : new Date(start.getTime() + 60 * 60 * 1000);
 
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(toDateValue(start));
@@ -92,7 +91,12 @@ export function EventFormModal({
           <Text variant="label" tone="muted">
             Title
           </Text>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Event title" autoFocus />
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Event title"
+            autoFocus
+          />
         </label>
 
         <label className="flex flex-col gap-1.5">

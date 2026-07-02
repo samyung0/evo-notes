@@ -10,10 +10,10 @@ import type {
   UserColor,
   Workspace,
 } from '@/api/types';
+import { isDue, isKnown, newSrsState } from '@/lib/srs';
 import { delay, http, HttpResponse } from 'msw';
 import * as db from './db';
 import { uid } from './db';
-import { isDue, isKnown, newSrsState } from '@/lib/srs';
 
 /** Recompute the live due-card count for a deck from its cards' SRS state. */
 function withDueCount(deck: Deck): Deck {
@@ -51,12 +51,12 @@ export const handlers = [
     if (!q) return HttpResponse.json([] as SearchResult[]);
     const results: SearchResult[] = [];
     for (const w of db.workspaces)
-      if (w.name.toLowerCase().includes(q) || w.tags.some((t) => t.toLowerCase().includes(q)))
+      if (w.name.toLowerCase().includes(q) || w.tags.some((t) => t.value.toLowerCase().includes(q)))
         results.push({
           id: w.id,
           kind: 'workspace',
           title: w.name,
-          subtitle: w.tags.join(' · '),
+          subtitle: w.tags.map((t) => t.value).join(' · '),
           href: `/workspaces/${w.id}`,
           color: w.color,
         });
@@ -114,6 +114,7 @@ export const handlers = [
   }),
 
   /* ---------------- workspaces ---------------- */
+  // TODO response/request/schema model is different
   http.get('/api/workspaces', async ({ request }) => {
     await latency();
     const url = new URL(request.url);
@@ -124,10 +125,11 @@ export const handlers = [
     let list = [...db.workspaces];
     if (q)
       list = list.filter(
-        (w) => w.name.toLowerCase().includes(q) || w.tags.some((t) => t.toLowerCase().includes(q))
+        (w) =>
+          w.name.toLowerCase().includes(q) || w.tags.some((t) => t.value.toLowerCase().includes(q))
       );
     if (color) list = list.filter((w) => w.color === color);
-    if (tag) list = list.filter((w) => w.tags.includes(tag));
+    if (tag) list = list.filter((w) => w.tags.some((t) => t.value === tag));
     return HttpResponse.json(sortWorkspaces(list, sort));
   }),
   http.get('/api/workspaces/:id', async ({ params }) => {
@@ -341,12 +343,12 @@ export const handlers = [
           return { ...base, type: 'boolean', correct: true } as Question;
         case 'fill':
         case 'short':
-          return { ...base, type, accepted: ['answer'] } as Question;
+          return { ...base, type, accepted: [{ value: 'answer' }] } as Question;
         case 'ordering':
           return {
             ...base,
             type: 'ordering',
-            items: ['First', 'Second', 'Third'],
+            items: [{ value: 'First' }, { value: 'Second' }, { value: 'Third' }],
           } as Question;
         case 'matching':
           return {
@@ -361,14 +363,14 @@ export const handlers = [
           return {
             ...base,
             type: 'multi',
-            options: ['A', 'B', 'C', 'D'],
+            options: [{ value: 'A' }, { value: 'B' }, { value: 'C' }, { value: 'D' }],
             correct: [0, 2],
           } as Question;
         default:
           return {
             ...base,
             type: 'mcq',
-            options: ['A', 'B', 'C', 'D'],
+            options: [{ value: 'A' }, { value: 'B' }, { value: 'C' }, { value: 'D' }],
             correct: [0],
           } as Question;
       }

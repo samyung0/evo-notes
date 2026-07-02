@@ -3,17 +3,25 @@ import { cn } from '@/lib/cn';
 import { Icon, type IconName } from './Icon';
 import { Text } from './Text';
 
-export function Spinner({ size = 18, className }: { size?: number; className?: string }) {
+export function Spinner({ className }: { className?: string }) {
   return (
-    <span
-      className={cn(
-        'inline-block animate-spin rounded-full border-2 border-line border-t-fg',
-        className
-      )}
-      style={{ width: size, height: size }}
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      data-slot="spinner"
       role="status"
       aria-label="Loading"
-    />
+      className={cn('size-4.5 animate-spin', className)}
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
   );
 }
 
@@ -42,10 +50,7 @@ export function SkeletonCardGrid({
 }) {
   return (
     <div
-      className={cn(
-        'grid w-full grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4',
-        className
-      )}
+      className={cn('grid w-full grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4', className)}
       role="status"
       aria-label="Loading"
     >
@@ -74,7 +79,11 @@ export function SkeletonList({
   return (
     <div className={cn('flex flex-col gap-2', className)} role="status" aria-label="Loading">
       {Array.from({ length: count }).map((_, i) => (
-        <Skeleton key={i} className={cn('rounded-row', rowClassName)} style={{ height: rowHeight }} />
+        <Skeleton
+          key={i}
+          className={cn('rounded-row', rowClassName)}
+          style={{ height: rowHeight }}
+        />
       ))}
     </div>
   );
@@ -100,7 +109,7 @@ export function EmptyState({
         className
       )}
     >
-      <span className="bg-tint-accent-1 text-tint-accent-1-fg flex h-12 w-12 items-center justify-center rounded-card">
+      <span className="flex h-12 w-12 items-center justify-center rounded-card bg-tint-accent-1 text-tint-accent-1-fg">
         <Icon name={icon} size={22} />
       </span>
       <Text variant="card-title">{title}</Text>

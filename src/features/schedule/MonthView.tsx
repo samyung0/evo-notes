@@ -1,5 +1,5 @@
 import { cn } from '@/lib/cn';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import type { CalendarEvent, Label } from '@/api/types';
 import { WEEKDAYS, monthGrid, sameDay } from './dateUtils';
 

@@ -1,10 +1,10 @@
-'use client';
-
 import * as React from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 
 import { cn } from '@/lib/cn';
 import { IconButton } from './IconButton';
+import { Button } from '@excalidraw/excalidraw/index';
+import { Card } from '@/components/ui/Card';
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
@@ -57,14 +57,25 @@ function DialogContent({
         )}
         {...props}
       >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <IconButton icon="x" variant="ghost" className="absolute top-2 right-2" size="sm">
-              <span className="sr-only">Close</span>
-            </IconButton>
-          </DialogPrimitive.Close>
-        )}
+        <Card
+          radius="card-lg"
+          raised
+          className="relative max-h-[88vh] w-full items-stretch gap-0 overflow-auto"
+        >
+          {children}
+          {showCloseButton && (
+            <DialogPrimitive.Close data-slot="dialog-close" asChild>
+              <IconButton
+                icon="x"
+                variant="ghost-hover"
+                className="absolute top-4 right-4"
+                size="md"
+              >
+                <span className="sr-only">Close</span>
+              </IconButton>
+            </DialogPrimitive.Close>
+          )}
+        </Card>
       </DialogPrimitive.Content>
     </DialogPortal>
   );
@@ -74,9 +85,24 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn('t-section', className)}
+      className={cn('t-section flex items-center justify-between pt-0 pb-6', className)}
       {...props}
     />
+  );
+}
+
+function DialogFooter({ className, children, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="dialog-footer"
+      className={cn(
+        '-mx-4 -mb-4 flex flex-col-reverse gap-2 p-4 sm:flex-row sm:justify-end',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -88,4 +114,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 };

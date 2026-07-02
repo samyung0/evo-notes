@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { Button, Icon, IconButton } from '@/components/ui';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import { useEvents, useLabels } from '@/api/hooks';
 import type { CalendarEvent, Label } from '@/api/types';
 import { m } from '@/i18n';
@@ -45,10 +45,7 @@ export function DashboardCalendar() {
     return () => clearInterval(id);
   }, []);
 
-  const week = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(anchor, i - 3)),
-    [anchor]
-  );
+  const week = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(anchor, i - 3)), [anchor]);
 
   const eventDays = useMemo(
     () => new Set((events ?? []).map((e) => new Date(e.start).toDateString())),
@@ -65,9 +62,7 @@ export function DashboardCalendar() {
 
   const isTodaySelected = sameDay(selected, now);
   // Index of the first event that starts after "now" — where the line lands.
-  const nowIndex = isTodaySelected
-    ? dayEvents.findIndex((e) => +new Date(e.start) > +now)
-    : -1;
+  const nowIndex = isTodaySelected ? dayEvents.findIndex((e) => +new Date(e.start) > +now) : -1;
   const showNow = isTodaySelected;
   const nowAt = showNow ? (nowIndex === -1 ? dayEvents.length : nowIndex) : -1;
 
@@ -175,7 +170,11 @@ export function DashboardCalendar() {
                     <NowLine />
                   </div>
                 )}
-                <EventRow ev={ev} labels={labels ?? []} onOpen={() => navigate({ to: '/schedule' })} />
+                <EventRow
+                  ev={ev}
+                  labels={labels ?? []}
+                  onOpen={() => navigate({ to: '/schedule' })}
+                />
               </div>
             ))}
             {showNow && nowAt === dayEvents.length && (

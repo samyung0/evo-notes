@@ -43,6 +43,7 @@ const PATHS = {
   chevronDown: ['M6 9l6 6 6-6'],
   chevronRight: ['M9 6l6 6-6 6'],
   chevronLeft: ['M15 6l-6 6 6 6'],
+  chevronUp: ['M6 15l6-6 6 6'],
   arrowRight: ['M5 12h14', 'M13 6l6 6-6 6'],
   upload: ['M12 16V4', 'M7 9l5-5 5 5', 'M5 20h14'],
   send: ['M5 12h14', 'M13 6l6 6-6 6'],

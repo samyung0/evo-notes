@@ -45,21 +45,21 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO quizzes (id, name, workspace_id, workspace_name, chapters, questions, created_at, privacy) VALUES
   ('qz_1', 'Cell biology basics', 'ws_bio', 'Biology 101', '{"Cell structure","Membranes & transport"}',
     '[
-      {"id":"q1","type":"mcq","level":"recall","prompt":"Which organelle is the powerhouse of the cell?","options":["Nucleus","Mitochondria","Ribosome","Golgi apparatus"],"correct":[1],"explanation":"Mitochondria produce ATP through cellular respiration."},
+      {"id":"q1","type":"mcq","level":"recall","prompt":"Which organelle is the powerhouse of the cell?","options":[{"value":"Nucleus"},{"value":"Mitochondria"},{"value":"Ribosome"},{"value":"Golgi apparatus"}],"correct":[1],"explanation":"Mitochondria produce ATP through cellular respiration."},
       {"id":"q2","type":"boolean","level":"recall","prompt":"The cell membrane is a phospholipid bilayer.","correct":true},
-      {"id":"q3","type":"multi","level":"application","prompt":"Select all that are membrane-bound organelles.","options":["Ribosome","Nucleus","Mitochondria","Cytosol"],"correct":[1,2]},
-      {"id":"q4","type":"fill","level":"application","prompt":"The diffusion of water across a membrane is called ____.","accepted":["osmosis"]},
-      {"id":"q5","type":"ordering","level":"analysis","prompt":"Order the path of protein secretion.","items":["Ribosome","Rough ER","Golgi apparatus","Vesicle","Cell membrane"]},
+      {"id":"q3","type":"multi","level":"application","prompt":"Select all that are membrane-bound organelles.","options":[{"value":"Ribosome"},{"value":"Nucleus"},{"value":"Mitochondria"},{"value":"Cytosol"}],"correct":[1,2]},
+      {"id":"q4","type":"fill","level":"application","prompt":"The diffusion of water across a membrane is called ____.","accepted":[{"value":"osmosis"}]},
+      {"id":"q5","type":"ordering","level":"analysis","prompt":"Order the path of protein secretion.","items":[{"value":"Ribosome"},{"value":"Rough ER"},{"value":"Golgi apparatus"},{"value":"Vesicle"},{"value":"Cell membrane"}]},
       {"id":"q6","type":"matching","level":"application","prompt":"Match the organelle to its function.","pairs":[{"left":"Nucleus","right":"Stores DNA"},{"left":"Mitochondria","right":"Makes ATP"},{"left":"Ribosome","right":"Builds proteins"}]}
     ]'::jsonb, now()-interval '4 day', 'private'),
   ('qz_2', 'Genetics check-in', 'ws_bio', 'Biology 101', '{"Genetics"}',
     '[
-      {"id":"q7","type":"mcq","level":"application","prompt":"A cross between Aa × Aa gives what genotype ratio?","options":["1:2:1","3:1","1:1","9:3:3:1"],"correct":[0]},
-      {"id":"q8","type":"short","level":"analysis","prompt":"Define a dominant allele in one sentence.","accepted":["an allele expressed in the phenotype even when only one copy is present"]}
+      {"id":"q7","type":"mcq","level":"application","prompt":"A cross between Aa × Aa gives what genotype ratio?","options":[{"value":"1:2:1"},{"value":"3:1"},{"value":"1:1"},{"value":"9:3:3:1"}],"correct":[0]},
+      {"id":"q8","type":"short","level":"analysis","prompt":"Define a dominant allele in one sentence.","accepted":[{"value":"an allele expressed in the phenotype even when only one copy is present"}]}
     ]'::jsonb, now()-interval '2 day', 'private'),
   ('qz_3', 'Integration techniques', 'ws_calc', 'Calculus II', '{"Techniques of integration"}',
     '[
-      {"id":"q9","type":"mcq","level":"application","prompt":"∫ x·eˣ dx is best solved by…","options":["Substitution","Integration by parts","Partial fractions","Trig substitution"],"correct":[1]},
+      {"id":"q9","type":"mcq","level":"application","prompt":"∫ x·eˣ dx is best solved by…","options":[{"value":"Substitution"},{"value":"Integration by parts"},{"value":"Partial fractions"},{"value":"Trig substitution"}],"correct":[1]},
       {"id":"q10","type":"boolean","level":"recall","prompt":"∫ 1/x dx = ln|x| + C","correct":true}
     ]'::jsonb, now()-interval '6 day', 'public')
 ON CONFLICT (id) DO NOTHING;

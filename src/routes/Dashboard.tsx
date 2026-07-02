@@ -12,7 +12,7 @@ import {
   WorkspaceCard,
   WorkspaceCardSkeleton,
 } from '@/components/ui';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import {
   useCanvases,
   useDeleteTask,
@@ -156,16 +156,16 @@ function TasksCard() {
             key={t.id}
             className="group flex items-start gap-3 rounded-row px-1 py-2 hover:bg-surface-hover-bg"
           >
+            <Checkbox
+              checked={t.done}
+              tone="purple"
+              size={22}
+              className={cn(t.meta && 'translate-y-1')}
+            />
             <button
               onClick={() => toggle.mutate({ id: t.id, done: !t.done })}
               className="flex min-w-0 flex-1 items-start gap-3 text-left"
             >
-              <Checkbox
-                checked={t.done}
-                tone="purple"
-                size={22}
-                className={cn(t.meta && 'translate-y-1')}
-              />
               <span className="min-w-0">
                 <span
                   className={cn(

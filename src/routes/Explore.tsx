@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
 import { Badge, Button, Card, Icon, SkeletonCardGrid, Tabs, Text } from '@/components/ui';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import { useExploreQuizzes, useExploreWorkspaces } from '@/api/hooks';
 import { m } from '@/i18n';
 

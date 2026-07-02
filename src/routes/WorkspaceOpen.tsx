@@ -12,7 +12,7 @@ import {
   Text,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { userColorPair } from '@/lib/workspaceColor';
+import { userColorPair } from '@/lib/userColor';
 import {
   useAddChapter,
   useChapters,
@@ -74,7 +74,7 @@ export default function WorkspaceOpen() {
   const params = useParams({ strict: false });
   const workspaceId = (params as { workspaceId: string }).workspaceId;
 
-  const { data: ws } = useWorkspace(workspaceId);
+  const { data: ws } = useWorkspace(workspaceId); // todo: throw error if not found, show error page
   const { data: chapters } = useChapters(workspaceId);
   const { data: files } = useFiles(workspaceId);
   useIngestProgress(workspaceId);
@@ -125,14 +125,16 @@ export default function WorkspaceOpen() {
           >
             <Icon name="chevronLeft" size={15} className="-translate-y-px" /> {m.workspace_back()}
           </Link>
-          <h2 className="t-section text-inherit">{ws?.name ?? '…'}</h2>
+          <h2 className="t-section line-clamp-4 wrap-break-word text-ellipsis text-inherit">
+            {ws?.name ?? '…'}
+          </h2>
           <Button
             variant="surface"
             size="md"
             onClick={() => openAddSource(workspaceId)}
             className="mt-4 w-full py-2"
           >
-            <Icon name="plus" size={16} /> {m.action_add_source()}
+            <Icon name="plus" size={16} /> {m.action_add_file()}
           </Button>
         </div>
 
