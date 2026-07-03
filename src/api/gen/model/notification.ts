@@ -4,12 +4,13 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { NotificationKind } from './notificationKind.ts';
 
 export interface Notification {
   at: string;
   body: string;
   id: string;
-  kind: string;
+  kind: NotificationKind;
   read: boolean;
   title: string;
 }

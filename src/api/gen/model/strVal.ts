@@ -6,5 +6,9 @@
  */
 
 export interface StrVal {
+  /**
+   * @minLength 1
+   * @maxLength 50
+   */
   value: string;
 }

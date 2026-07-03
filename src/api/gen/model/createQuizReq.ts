@@ -4,8 +4,8 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateQuizReqPrivacy } from './createQuizReqPrivacy.ts';
 import type { CreateQuizReqQuestionsItem } from './createQuizReqQuestionsItem.ts';
+import type { Privacy } from './privacy.ts';
 
 export interface CreateQuizReq {
   /** A URL to the JSON Schema for this object. */
@@ -13,7 +13,7 @@ export interface CreateQuizReq {
   /** @nullable */
   chapters?: string[] | null;
   name?: string;
-  privacy?: CreateQuizReqPrivacy;
+  privacy?: Privacy;
   /** @nullable */
   questions?: CreateQuizReqQuestionsItem[] | null;
   timeLimitMin?: number;

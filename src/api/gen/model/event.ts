@@ -10,8 +10,7 @@ export interface Event {
   readonly $schema?: string;
   end: string;
   id: string;
-  /** @nullable */
-  labelIds: string[] | null;
+  labelIds: string[];
   location?: string;
   note?: string;
   start: string;

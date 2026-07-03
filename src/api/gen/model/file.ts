@@ -4,6 +4,8 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { FileKind } from './fileKind.ts';
+import type { FileStatus } from './fileStatus.ts';
 
 export interface File {
   /** A URL to the JSON Schema for this object. */
@@ -13,10 +15,10 @@ export interface File {
   chapterId: string | null;
   content?: string;
   id: string;
-  kind: string;
+  kind: FileKind;
   name: string;
   sizeKb: number;
-  status?: string;
+  status?: FileStatus;
   url?: string;
   workspaceId: string;
 }

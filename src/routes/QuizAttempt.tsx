@@ -55,7 +55,14 @@ export default function QuizAttempt() {
   function finish() {
     if (!quiz) return;
     const wrong = quiz.questions.filter((qq) => !gradeQuestion(qq, answers[qq.id]));
-    submit.mutate({ quizId, correct: score.correct, total: score.total, wrong });
+    submit.mutate({
+      quizId,
+      correct: score.correct,
+      total: score.total,
+      wrong,
+      answers,
+      questions: quiz.questions,
+    });
     setDone(true);
   }
 

@@ -8,8 +8,7 @@
 export interface Attempt {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
-  /** @nullable */
-  chapters: string[] | null;
+  chapters: string[];
   correct: number;
   id: string;
   pct: number;

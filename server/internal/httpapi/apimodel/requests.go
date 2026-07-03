@@ -3,6 +3,8 @@ package apimodel
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/evonotes/server/internal/store"
 )
 
 /* ------------------------------------------------------------------ requests */
@@ -10,18 +12,18 @@ import (
 // CreateWorkspaceReq is the body for POST /api/workspaces. Name and privacy are
 // required (todo #8); color and tags fall back to server defaults.
 type CreateWorkspaceReq struct {
-	Name    string   `json:"name" minLength:"1" maxLength:"100" doc:"Workspace name"`
-	Color   string   `json:"color,omitempty" doc:"User color; defaults to green"`
-	Privacy string   `json:"privacy" enum:"private,public,link" doc:"Visibility"`
-	Tags    []StrVal `json:"tags,omitempty" doc:"Free-text tags"`
+	Name    string          `json:"name" minLength:"1" maxLength:"100" doc:"Workspace name"`
+	Color   store.UserColor `json:"color,omitempty" doc:"User color; defaults to graphite"`
+	Privacy store.Privacy   `json:"privacy" doc:"Visibility"`
+	Tags    []StrVal        `json:"tags,omitempty" doc:"Free-text tags"`
 }
 
 // UpdateWorkspaceReq is the (partial) body for PATCH /api/workspaces/{id}.
 type UpdateWorkspaceReq struct {
-	Name    *string   `json:"name,omitempty"`
-	Color   *string   `json:"color,omitempty"`
-	Privacy *string   `json:"privacy,omitempty" enum:"private,public,link"`
-	Tags    *[]StrVal `json:"tags,omitempty"`
+	Name    *string          `json:"name,omitempty"`
+	Color   *store.UserColor `json:"color,omitempty"`
+	Privacy *store.Privacy   `json:"privacy,omitempty"`
+	Tags    *[]StrVal        `json:"tags,omitempty"`
 }
 
 type AddChapterReq struct {
@@ -42,7 +44,7 @@ type CreateQuizReq struct {
 	WorkspaceID  string           `json:"workspaceId,omitempty"`
 	Chapters     []string         `json:"chapters,omitempty"`
 	Questions    []map[string]any `json:"questions,omitempty"`
-	Privacy      string           `json:"privacy,omitempty" enum:"private,public,link"`
+	Privacy      store.Privacy    `json:"privacy,omitempty"`
 	TimeLimitMin *int             `json:"timeLimitMin,omitempty"`
 }
 
@@ -50,20 +52,22 @@ type UpdateQuizReq struct {
 	Name         *string           `json:"name,omitempty"`
 	Chapters     *[]string         `json:"chapters,omitempty"`
 	Questions    *[]map[string]any `json:"questions,omitempty"`
-	Privacy      *string           `json:"privacy,omitempty" enum:"private,public,link"`
+	Privacy      *store.Privacy    `json:"privacy,omitempty"`
 	TimeLimitMin *int              `json:"timeLimitMin,omitempty"`
 }
 
 type CreateAttemptReq struct {
-	Correct int              `json:"correct"`
-	Total   int              `json:"total"`
-	Wrong   []map[string]any `json:"wrong,omitempty" doc:"Questions answered incorrectly"`
+	Correct   int              `json:"correct"`
+	Total     int              `json:"total"`
+	Wrong     []map[string]any `json:"wrong,omitempty" doc:"Questions answered incorrectly"`
+	Answers   map[string]any   `json:"answers,omitempty" doc:"User answers keyed by question id"`
+	Questions []map[string]any `json:"questions,omitempty" doc:"Question snapshot taken at submit time"`
 }
 
 type CreateDeckReq struct {
-	Name        string `json:"name,omitempty"`
-	Color       string `json:"color,omitempty"`
-	WorkspaceID string `json:"workspaceId,omitempty"`
+	Name        string          `json:"name,omitempty"`
+	Color       store.UserColor `json:"color,omitempty"`
+	WorkspaceID string          `json:"workspaceId,omitempty"`
 }
 
 type CreateCardReq struct {
@@ -75,7 +79,7 @@ type UpdateCardReq struct {
 	Front *string         `json:"front,omitempty"`
 	Back  *string         `json:"back,omitempty"`
 	Known *bool           `json:"known,omitempty"`
-	Srs   *map[string]any `json:"srs,omitempty"`
+	Srs   *store.SrsState `json:"srs,omitempty"`
 }
 
 type CreateEventReq struct {
@@ -144,6 +148,19 @@ func decodeQuestions(raw []byte) []map[string]any {
 	_ = json.Unmarshal(raw, &out)
 	if out == nil {
 		out = []map[string]any{}
+	}
+	return out
+}
+
+// decodeAnswers turns stored answer JSON into a free-form map for output.
+func decodeAnswers(raw []byte) map[string]any {
+	out := map[string]any{}
+	if len(raw) == 0 {
+		return out
+	}
+	_ = json.Unmarshal(raw, &out)
+	if out == nil {
+		out = map[string]any{}
 	}
 	return out
 }

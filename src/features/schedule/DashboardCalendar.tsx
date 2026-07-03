@@ -1,45 +1,30 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
-import { Button, Icon, IconButton } from '@/components/ui';
-import { userColorPair } from '@/lib/userColor';
+import { Button, IconButton } from '@/components/ui';
 import { useEvents, useLabels } from '@/api/hooks';
-import type { CalendarEvent, Label } from '@/api/types';
+import { useDialogs } from '@/stores/dialogs';
 import { m } from '@/i18n';
 import { MONTHS, addDays, sameDay, startOfDay } from './dateUtils';
+import { TimeGrid } from './TimeGrid';
 
 const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-/** Compact 12-hour clock — "8:30", "2:00", "12:15". */
-function clock(iso: string): string {
-  const d = new Date(iso);
-  const m = d.getMinutes();
-  const h = d.getHours() % 12 === 0 ? 12 : d.getHours() % 12;
-  return m === 0 ? `${h}:00` : `${h}:${String(m).padStart(2, '0')}`;
-}
-
-/** Resolves an event's color from its first label — mirrors TimeGrid. */
-function colorFor(ev: CalendarEvent, labels: Label[]) {
-  const first = labels.find((l) => l.id === ev.labelIds[0]);
-  return first ? userColorPair(first.color) : null;
-}
-
 /**
  * Dashboard-only calendar: a 7-day strip centred on today plus the selected
- * day's agenda. The current-time line is parked ~20% from the top so upcoming
- * items sit in view without a scrollbar.
+ * day's hourly grid (shared TimeGrid, day mode). Hovering a slot previews it
+ * and clicking opens the event form pre-filled for that hour.
  */
 export function DashboardCalendar() {
   const navigate = useNavigate();
   const { data: events } = useEvents();
   const { data: labels } = useLabels();
+  const openEventForm = useDialogs((s) => s.openEventForm);
 
   const [now, setNow] = useState(() => new Date());
-  // Centre of the visible strip — today by default ("today in the middle").
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [selected, setSelected] = useState(() => startOfDay(new Date()));
 
-  // Keep the now-line honest as the day rolls on.
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
@@ -52,31 +37,9 @@ export function DashboardCalendar() {
     [events]
   );
 
-  const dayEvents = useMemo(
-    () =>
-      (events ?? [])
-        .filter((e) => sameDay(new Date(e.start), selected))
-        .sort((a, b) => +new Date(a.start) - +new Date(b.start)),
-    [events, selected]
-  );
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const isTodaySelected = sameDay(selected, now);
-  // Index of the first event that starts after "now" — where the line lands.
-  const nowIndex = isTodaySelected ? dayEvents.findIndex((e) => +new Date(e.start) > +now) : -1;
-  const showNow = isTodaySelected;
-  const nowAt = showNow ? (nowIndex === -1 ? dayEvents.length : nowIndex) : -1;
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const nowRef = useRef<HTMLDivElement>(null);
-
-  // Park the now-line ~20% down so what's next is immediately visible.
-  useLayoutEffect(() => {
-    const c = scrollRef.current;
-    if (!c) return;
-    const n = nowRef.current;
-    c.scrollTop = n ? Math.max(0, n.offsetTop - c.clientHeight * 0.2) : 0;
-  }, [selected, dayEvents, nowAt]);
-
   const dayLabel = isTodaySelected
     ? `Today, ${WEEKDAY_SHORT[(selected.getDay() + 6) % 7]}`
     : `${WEEKDAY_SHORT[(selected.getDay() + 6) % 7]}, ${MONTHS[selected.getMonth()].slice(0, 3)} ${selected.getDate()}`;
@@ -147,7 +110,7 @@ export function DashboardCalendar() {
         })}
       </div>
 
-      {/* selected-day label + see calendar — sits between strip and agenda */}
+      {/* selected-day label + see calendar */}
       <div className="mt-3 mb-1 flex items-center justify-between">
         <span className="t-body font-bold text-fg">{dayLabel}</span>
         <Button variant="ghost-link" size="sm" asChild className="p-0">
@@ -157,98 +120,20 @@ export function DashboardCalendar() {
         </Button>
       </div>
 
-      {/* agenda — overflow hidden so no scrollbar; now-line parked at ~20% */}
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-hidden">
-        {dayEvents.length === 0 ? (
-          <EmptyDay />
-        ) : (
-          <div className="flex flex-col gap-1.5 pt-0.5 pb-1">
-            {dayEvents.map((ev, i) => (
-              <div key={ev.id}>
-                {showNow && nowAt === i && (
-                  <div ref={nowRef}>
-                    <NowLine />
-                  </div>
-                )}
-                <EventRow
-                  ev={ev}
-                  labels={labels ?? []}
-                  onOpen={() => navigate({ to: '/schedule' })}
-                />
-              </div>
-            ))}
-            {showNow && nowAt === dayEvents.length && (
-              <div ref={nowRef}>
-                <NowLine />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EventRow({
-  ev,
-  labels,
-  onOpen,
-}: {
-  ev: CalendarEvent;
-  labels: Label[];
-  onOpen: () => void;
-}) {
-  const c = colorFor(ev, labels);
-  return (
-    <button onClick={onOpen} className="flex w-full items-stretch gap-2 text-left">
-      <span className="w-10 shrink-0 pt-2.5 text-right text-[0.7rem] font-semibold text-fg-muted">
-        {clock(ev.start)}
-      </span>
-      <span className="flex flex-1 items-center gap-2.5 rounded-row bg-page px-2.5 py-2 transition-[filter] hover:brightness-95">
-        <span
-          className="flex size-8 shrink-0 items-center justify-center rounded-full"
-          style={
-            c
-              ? { background: c.bg, color: c.fg }
-              : { background: 'var(--color-surface-hover-bg)', color: 'var(--color-fg-muted)' }
+      {/* hourly grid for the selected day */}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        <TimeGrid
+          days={[selected]}
+          events={events ?? []}
+          labels={labels ?? []}
+          selectedId={null}
+          onSelectEvent={() => navigate({ to: '/schedule' })}
+          onCreateSlot={(start, end) =>
+            openEventForm({ start: start.toISOString(), end: end.toISOString() })
           }
-        >
-          <Icon name="book" size={16} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.82rem] font-bold text-fg">{ev.title}</span>
-          {ev.location && (
-            <span className="block truncate text-[0.72rem] text-fg-muted">{ev.location}</span>
-          )}
-          <span className="block truncate text-[0.72rem] text-fg-muted">
-            {clock(ev.start)} – {clock(ev.end)}
-          </span>
-        </span>
-        <Icon name="chevronRight" size={15} className="shrink-0 text-fg-muted" />
-      </span>
-    </button>
-  );
-}
-
-function NowLine() {
-  return (
-    <div className="flex items-center gap-2 py-1.5">
-      <span className="w-10 shrink-0 text-right text-[0.7rem] font-bold text-solid-error">
-        {m.schedule_now()}
-      </span>
-      <span className="relative flex-1">
-        <span className="block border-t-2 border-solid-error" />
-        <span className="absolute top-1/2 -left-1 h-2 w-2 -translate-y-1/2 rounded-full bg-solid-error" />
-      </span>
-    </div>
-  );
-}
-
-function EmptyDay() {
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center text-fg-muted">
-      <Icon name="schedule" size={22} />
-      <span className="t-body">{m.schedule_empty_day()}</span>
+          scrollContainerRef={scrollRef}
+        />
+      </div>
     </div>
   );
 }

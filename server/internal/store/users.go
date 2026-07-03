@@ -7,9 +7,9 @@ import (
 )
 
 type BillingInfo struct {
-	PlanTier           string     `json:"planTier"`
-	SubscriptionStatus string     `json:"subscriptionStatus"`
-	RenewalAt          *time.Time `json:"renewalAt,omitempty"`
+	PlanTier           PlanTier           `json:"planTier"`
+	SubscriptionStatus SubscriptionStatus `json:"subscriptionStatus"`
+	RenewalAt          *time.Time         `json:"renewalAt,omitempty"`
 }
 
 type IntegrationsStatus struct {

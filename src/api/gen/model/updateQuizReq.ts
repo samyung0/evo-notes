@@ -4,7 +4,7 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
-import type { UpdateQuizReqPrivacy } from './updateQuizReqPrivacy.ts';
+import type { Privacy } from './privacy.ts';
 import type { UpdateQuizReqQuestionsItem } from './updateQuizReqQuestionsItem.ts';
 
 export interface UpdateQuizReq {
@@ -12,7 +12,7 @@ export interface UpdateQuizReq {
   readonly $schema?: string;
   chapters?: string[];
   name?: string;
-  privacy?: UpdateQuizReqPrivacy;
+  privacy?: Privacy;
   questions?: UpdateQuizReqQuestionsItem[];
   timeLimitMin?: number;
 }

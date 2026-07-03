@@ -4,11 +4,12 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserColor } from './userColor.ts';
 
 export interface CreateDeckReq {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
-  color?: string;
+  color?: UserColor;
   name?: string;
   workspaceId?: string;
 }

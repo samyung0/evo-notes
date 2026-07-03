@@ -4,14 +4,15 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateWorkspaceReqPrivacy } from './createWorkspaceReqPrivacy.ts';
+import type { Privacy } from './privacy.ts';
 import type { StrVal } from './strVal.ts';
+import type { UserColor } from './userColor.ts';
 
 export interface CreateWorkspaceReq {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
-  /** User color; defaults to green */
-  color?: string;
+  /** User color; defaults to graphite */
+  color?: UserColor;
   /**
    * Workspace name
    * @minLength 1
@@ -19,7 +20,7 @@ export interface CreateWorkspaceReq {
    */
   name: string;
   /** Visibility */
-  privacy: CreateWorkspaceReqPrivacy;
+  privacy: Privacy;
   /**
    * Free-text tags
    * @nullable

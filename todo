@@ -1,20 +1,17 @@
 low priority:
 
-1. use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc)
-2. in calendar page, use grey button with text add event and move the button to the right hand side (prob need to set width of container using sth like calc(100% - var(--topinsetbar-width-sthth)))
-3. work on thinkg space
-4. check all the skeleton loaders look ok
-5. check that components are reused as much as possible (esp dialog ( to replace modals), popover, and buttons)
-6. paraglide check for any missed text that is not being translated (few in workspaces open walready, PRIVACY_OPTIONS, input placeholders)
-7. rewrite progress abr in cva
-8. input validation and sanitizations (after react hook form in frontend, backend go should go more checking and error throwing like required fields, e.g. creating workspace must throw errors if name or privacy is missing, some unimportant fields like color or tags cna have defaults, )
-9. check accessibility and aria labels (use radix-ui as primitive as often as possible, which means to enforce the radius primitives in ui components and ensure these ui components are reused as often as possible)
-10. check how auth middleware is used in backend
-11. folder organization
-12. nav sidebar theme configuration (use dialog)
-13. make a bunch of integration and backend tests
-14. after tests are established, migrate backend to using openapi to generate types & schema validations to sync up to the frontend schema validations. Also separate the db schema vs response vs request models in backedn (seems a lot are just structs within the logic and is unorganized)
-15. rate limiting, bot detection (can do some funny things if we have high bot traffic), analytics, promo, posthog
+1.  check how auth middleware is used in backend
+2.  use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc) (prob need an extra field like customColor and a bunch of type changes in backend go)
+3.  paraglide check for any missed text that is not being translated (few in workspaces open walready, PRIVACY_OPTIONS, input placeholders)
+4.  input validation and sanitizations (after react hook form in frontend, backend go should go more checking and error throwing like required fields, e.g. creating workspace must throw errors if name or privacy is missing, some unimportant fields like color or tags cna have defaults, )
+5.  make a bunch of integration and backend tests
+6.  rate limiting, bot detection (can do some funny things if we have high bot traffic), analytics, promo, posthog
+7.  work on thinkg space
+8.  check all the skeleton loaders look ok
+9.  check that components are reused as much as possible (esp dialog ( to replace modals), popover, and buttons)
+10. rewrite progress bar/other components in cva
+11. check accessibility and aria labels (use radix-ui as primitive as often as possible, which means to enforce the radius primitives in ui components and ensure these ui components are reused as often as possible)
+12. folder organization
 
 high PRIORITIES:
 
@@ -23,4 +20,4 @@ high PRIORITIES:
 3. in calendar page timegrid component, use a kind of striped background when adding events directly by hovering/clicking on the calendar (lighter vs darker gray for hovering/selected) use thick border
 4. unify use Dialog instead of modal (popover is ok as its already shadcn) (for dialog usage refer to the search bar in topsetbar) (there should not be the use of the useOutsideClick hook)
 5. add in input components like dropdown, date picker etc
-6. use react hook form for forms (handle errors/required/disabled etc), make sure validations is done with zod on frontend before validating in backend, And importantly. !!Important: dont use flat arrays (arrays with primitives) because useFieldArray complains (and i have no idea why they dont support) NEED TO CHANGE MANY SCHEMAS (can just modify request/response not the db)
+6. nav sidebar theme configuration (use dialog)

@@ -4,6 +4,8 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlanTier } from './planTier.ts';
+import type { SubscriptionStatus } from './subscriptionStatus.ts';
 
 export interface User {
   /** A URL to the JSON Schema for this object. */
@@ -13,7 +15,7 @@ export interface User {
   email: string;
   id: string;
   name: string;
-  planTier: string;
+  planTier: PlanTier;
   streak: number;
-  subscriptionStatus: string;
+  subscriptionStatus: SubscriptionStatus;
 }

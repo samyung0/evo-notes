@@ -4,11 +4,12 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { SearchKind } from './searchKind.ts';
 
 export interface SearchResult {
   href: string;
   id: string;
-  kind: string;
+  kind: SearchKind;
   subtitle?: string;
   title: string;
 }

@@ -55,7 +55,6 @@ function AllQuizzes() {
   const { data, isLoading } = useQuizzes();
   const navigate = useNavigate();
   const del = useDeleteQuiz();
-  const openQuizEdit = useDialogs((s) => s.openQuizEdit);
   const openConfirm = useDialogs((s) => s.openConfirm);
   const [info, setInfo] = useState<Quiz | null>(null);
 
@@ -91,7 +90,8 @@ function AllQuizzes() {
                   {
                     label: m.action_edit(),
                     icon: 'settings',
-                    onClick: () => openQuizEdit(q),
+                    onClick: () =>
+                      navigate({ to: '/quizzes/$quizId/edit', params: { quizId: q.id } }),
                   },
                   {
                     label: 'Start quiz',
@@ -176,6 +176,7 @@ function AllQuizzes() {
 
 function PastAttempts() {
   const { data, isLoading } = useAttempts();
+  const navigate = useNavigate();
   if (isLoading) return <SkeletonList count={6} rowHeight={52} />;
   if (!data?.length)
     return (
@@ -210,7 +211,13 @@ function PastAttempts() {
             {new Date(a.takenAt).toLocaleDateString()}
           </div>
           <div className="md:w-28">
-            <Button size="sm" variant="outline">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                navigate({ to: '/quizzes/attempts/$attemptId', params: { attemptId: a.id } })
+              }
+            >
               Check result
             </Button>
           </div>
@@ -223,12 +230,15 @@ function PastAttempts() {
 export default function Quizzes() {
   const [tab, setTab] = useState('all');
   const createQuiz = useCreateQuiz();
-  const openQuizEdit = useDialogs((s) => s.openQuizEdit);
+  const navigate = useNavigate();
 
   function newQuiz() {
     createQuiz.mutate(
       { name: 'Untitled quiz', questions: [] },
-      { onSuccess: (quiz) => openQuizEdit(quiz) }
+      {
+        onSuccess: (quiz) =>
+          navigate({ to: '/quizzes/$quizId/edit', params: { quizId: quiz.id } }),
+      }
     );
   }
 

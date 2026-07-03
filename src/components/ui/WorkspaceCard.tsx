@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn';
 export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const c = userColorPair(workspace.color);
   const del = useDeleteWorkspace();
-  const openWorkspaceForm = useDialogs((s) => s.openWorkspace);
+  const openWorkspaceEdit = useDialogs((s) => s.openWorkspaceEdit);
   // const openWorkspaceStats = useDialogs((s) => s.openWorkspaceStats);
   const openConfirm = useDialogs((s) => s.openConfirm);
   return (
@@ -61,7 +61,7 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
             {
               label: m.action_edit(),
               icon: 'settings',
-              onClick: () => openWorkspaceForm(workspace),
+              onClick: () => openWorkspaceEdit(workspace, workspace.id),
             },
             // {
             //   label: m.action_view_stats(),

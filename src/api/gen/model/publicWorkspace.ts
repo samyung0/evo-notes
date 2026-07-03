@@ -4,19 +4,20 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { Privacy } from './privacy.ts';
 import type { StrVal } from './strVal.ts';
+import type { UserColor } from './userColor.ts';
 
 export interface PublicWorkspace {
   author: string;
   chapterCount: number;
   clones: number;
-  color: string;
+  color: UserColor;
   createdAt: string;
   fileCount: number;
   id: string;
   lastAccessedAt: string;
   name: string;
-  privacy: string;
-  /** @nullable */
-  tags: StrVal[] | null;
+  privacy: Privacy;
+  tags: StrVal[];
 }

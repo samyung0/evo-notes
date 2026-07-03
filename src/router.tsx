@@ -14,6 +14,7 @@ import { USE_MSW } from '@/api/auth';
 import { queryClient } from '@/api/queryClient';
 import {
   allFilesQuery,
+  attemptQuery,
   attemptsQuery,
   canvasesQuery,
   canvasQuery,
@@ -130,6 +131,16 @@ const appRoutes = [
     '/quizzes/$quizId/attempt',
     () => import('@/routes/QuizAttempt'),
     ({ context: { queryClient: qc }, params }) => qc.prefetchQuery(quizQuery(params.quizId))
+  ),
+  page(
+    '/quizzes/$quizId/edit',
+    () => import('@/routes/QuizEdit'),
+    ({ context: { queryClient: qc }, params }) => qc.prefetchQuery(quizQuery(params.quizId))
+  ),
+  page(
+    '/quizzes/attempts/$attemptId',
+    () => import('@/routes/AttemptResult'),
+    ({ context: { queryClient: qc }, params }) => qc.prefetchQuery(attemptQuery(params.attemptId))
   ),
   page(
     '/schedule',

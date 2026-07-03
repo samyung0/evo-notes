@@ -34,7 +34,7 @@ export default function Workspaces() {
     color: colorFilter,
     q: query,
   });
-  const openWorkspaceForm = useDialogs((s) => s.openWorkspace);
+  const openWorkspaceCreate = useDialogs((s) => s.openWorkspaceCreate);
 
   const sortLabel = useMemo(() => SORTS.find((s) => s.value === sort)?.label() ?? '', [sort]);
 
@@ -47,7 +47,7 @@ export default function Workspaces() {
             icon="plus"
             variant="gray"
             size="lg"
-            onClick={() => openWorkspaceForm()}
+            onClick={() => openWorkspaceCreate()}
             label={m.action_new_workspace()}
           />
         }
@@ -123,7 +123,7 @@ export default function Workspaces() {
             <Card
               border="dashed"
               radius="card-lg"
-              onClick={() => openWorkspaceForm()}
+              onClick={() => openWorkspaceCreate()}
               className="min-h-40 cursor-pointer items-center justify-center"
             >
               <span className="flex flex-col items-center gap-2 text-fg-muted">

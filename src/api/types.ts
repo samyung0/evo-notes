@@ -1,81 +1,98 @@
 /* ============================================================
-   Domain types — shared by the mock API, query hooks, and UI.
+   Domain types — the single import surface for the mock API, query
+   hooks, and UI.
+
+   These are now backed by the orval-generated wire contracts in
+   `src/api/gen/model` (reflected from the backend's OpenAPI spec). We
+   re-export the generated types directly where they match 1:1, and layer
+   thin overrides only where the UI needs a richer shape than the wire can
+   express:
+     - `questions` stays the discriminated `Question` union (opaque
+       `{ [k]: unknown }` on the wire — the frontend owns the polymorphism).
+     - a couple of client-only fields (e.g. `SourceFile.ingestPct`).
+
+   Array fields (tags, chapters, fileIds, labelIds, questions) are
+   non-nullable on the wire: the backend pins them with `nullable:"false"`
+   and always emits `[]`, so no null narrowing is needed here.
+
+   Everything else — enums, scalar shapes — comes straight from generated
+   code, so it stays in lockstep with the backend.
    ============================================================ */
 
-export type UserColor =
-  'green' | 'purple' | 'blue' | 'amber' | 'coral' | 'graphite' | 'transparent';
+import type {
+  Attempt as GenAttempt,
+  AttemptDetail as GenAttemptDetail,
+  Chapter as GenChapter,
+  Event as GenEvent,
+  File as GenFile,
+  Quiz as GenQuiz,
+  SearchResult as GenSearchResult,
+  Workspace as GenWorkspace,
+  UserColor,
+} from './gen/model';
 
+/* ---------------- enums & scalars (straight from the generated spec) ---------------- */
+export {
+  UserColor,
+  Privacy,
+  PlanTier,
+  SubscriptionStatus,
+  FileKind,
+  FileStatus,
+  NotificationKind,
+  SearchKind,
+} from './gen/model';
+export type { StrVal } from './gen/model';
+
+/* ---------------- pass-through wire contracts ---------------- */
+export type {
+  User,
+  BillingInfo,
+  IntegrationsStatus,
+  Deck,
+  Flashcard,
+  SrsState,
+  Label,
+  Task,
+  Notification as AppNotification,
+  Canvas as ThinkingCanvas,
+} from './gen/model';
+
+/* ---------------- UI-only color extras (not on the wire) ---------------- */
 export type SystemColor = 'success' | 'info' | 'warning' | 'error' | 'accent-1' | 'accent-2';
 
-export type Privacy = 'private' | 'public' | 'link';
+/* ---------------- pass-through contracts (identical to the wire) ---------------- */
+export type Workspace = GenWorkspace;
+export type Chapter = GenChapter;
+export type Attempt = GenAttempt;
+export type CalendarEvent = GenEvent;
 
-export type PlanTier = 'free' | 'pro' | 'team';
-export type SubscriptionStatus = 'none' | 'active' | 'past_due' | 'canceled' | 'trialing';
+/** A past attempt with its per-question breakdown. `questions` is the rich
+ * union (opaque on the wire); `answers` maps question id -> the user's answer
+ * (the `Answer` union from grade.ts, kept loose here to avoid an import cycle). */
+export type AttemptDetail = Omit<GenAttemptDetail, 'questions' | 'answers'> & {
+  questions: Question[];
+  answers: Record<string, unknown>;
+};
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  avatarUrl?: string;
-  classLabel?: string;
-  /** Consecutive days logged in. 0 = brand new. */
-  streak: number;
-  planTier: PlanTier;
-  subscriptionStatus: SubscriptionStatus;
-}
+/* ---------------- overridden contracts ----------------
+   Same generated shape, minus the wire's opaque / client-only fields. */
 
-export interface BillingInfo {
-  planTier: PlanTier;
-  subscriptionStatus: SubscriptionStatus;
-  renewalAt?: string;
-}
+/** Adds a transient client-only ingest progress (0–100), driven by SSE. */
+export type SourceFile = GenFile & { ingestPct?: number };
 
-export interface IntegrationsStatus {
-  google: boolean;
-  microsoft: boolean;
-}
+/** `color` is a client-side tint derived from the owning workspace/label/deck. */
+export type SearchResult = GenSearchResult & { color?: UserColor };
 
-export interface Workspace {
-  id: string;
-  name: string;
-  color: UserColor;
-  privacy: Privacy;
-  tags: { value: string }[];
-  chapterCount: number;
-  fileCount: number;
-  createdAt: string; // ISO
-  lastAccessedAt: string; // ISO
-}
+/** `questions` is the rich discriminated union; the wire keeps it opaque. */
+export type Quiz = Omit<GenQuiz, 'questions'> & {
+  questions: Question[];
+};
 
-export interface Chapter {
-  id: string;
-  workspaceId: string;
-  name: string;
-  order: number;
-  fileIds: string[];
-}
+export type PublicWorkspace = Workspace & { author: string; clones: number };
+export type PublicQuiz = Quiz & { author: string; clones: number };
 
-export type FileKind = 'pdf' | 'doc' | 'md' | 'image' | 'txt';
-
-/** Ingest lifecycle. Absent (legacy/seed rows) is treated as `ready`. */
-export type FileStatus = 'processing' | 'ready' | 'failed';
-
-export interface SourceFile {
-  id: string;
-  workspaceId: string;
-  chapterId: string | null; // null = unfiled
-  name: string;
-  kind: FileKind;
-  sizeKb: number;
-  addedAt: string;
-  status?: FileStatus;
-  /** Transient client-only ingest progress (0–100), driven by SSE. Not persisted. */
-  ingestPct?: number;
-  /** For previewable content. PDFs use `url`; text/md use `content`. */
-  url?: string;
-  content?: string;
-}
-
+/* ---------------- chat (not modelled on the wire) ---------------- */
 export interface Citation {
   fileId: string;
   fileName: string;
@@ -89,7 +106,8 @@ export interface ChatMessage {
   citations?: Citation[];
 }
 
-/* ---------------- Quizzes ---------------- */
+/* ---------------- Quizzes: the polymorphic Question union ----------------
+   The backend stores questions opaquely; the frontend owns this shape. */
 export type QuestionType =
   | 'mcq' // single correct
   | 'multi' // multiple correct
@@ -141,125 +159,7 @@ export interface OrderingQuestion extends BaseQuestion {
 export type Question =
   ChoiceQuestion | BooleanQuestion | TextQuestion | MatchingQuestion | OrderingQuestion;
 
-export interface Quiz {
-  id: string;
-  name: string;
-  workspaceId: string;
-  workspaceName: string;
-  chapters: string[];
-  questions: Question[];
-  createdAt: string;
-  privacy: Privacy;
-  timeLimitMin?: number;
-}
-
-export interface Attempt {
-  id: string;
-  quizId: string;
-  quizName: string;
-  workspaceName: string;
-  chapters: string[];
-  correct: number;
-  total: number;
-  pct: number;
-  takenAt: string;
-}
-
-/* ---------------- Flashcards ---------------- */
-export interface Deck {
-  id: string;
-  name: string;
-  workspaceId: string;
-  workspaceName: string;
-  color: UserColor;
-  cardCount: number;
-  knownPct: number;
-  /** Cards whose SRS due date is now or in the past. Drives the study queue. */
-  dueCount: number;
-}
-
-/**
- * Serialized FSRS scheduling state for a single card. Dates are ISO strings so
- * the state round-trips cleanly through JSON / the mock API; the SRS helpers in
- * `@/lib/srs` convert to/from the `ts-fsrs` `Card` shape.
- */
-export interface SrsState {
-  due: string; // ISO — when the card is next due
-  stability: number;
-  difficulty: number;
-  elapsed_days: number;
-  scheduled_days: number;
-  reps: number;
-  lapses: number;
-  /** ts-fsrs State enum: 0 New, 1 Learning, 2 Review, 3 Relearning. */
-  state: number;
-  last_review?: string; // ISO
-  learning_steps?: number;
-}
-
-export interface Flashcard {
-  id: string;
-  deckId: string;
-  front: string;
-  back: string;
-  /** Convenience flag mirrored from SRS (true once the card reaches Review). */
-  known: boolean;
-  srs: SrsState;
-}
-
-/* ---------------- Schedule ---------------- */
-export interface Label {
-  id: string;
-  name: string;
-  color: UserColor;
-}
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  start: string; // ISO
-  end: string; // ISO
-  labelIds: string[];
-  location?: string;
-  note?: string;
-}
-
-/* ---------------- Misc ---------------- */
-export interface Task {
-  id: string;
-  title: string;
-  meta?: string;
-  done: boolean;
-  dueDate: string; // ISO date
-}
-export type NotificationKind = 'event' | 'quiz' | 'system';
-export interface AppNotification {
-  id: string;
-  kind: NotificationKind;
-  title: string;
-  body: string;
-  at: string;
-  read: boolean;
-}
-export interface ThinkingCanvas {
-  id: string;
-  name: string;
-  updatedAt: string;
-  /** Excalidraw scene blob (elements + appState), persisted opaquely. */
-  scene?: unknown;
-}
-
-export type SearchKind = 'workspace' | 'file' | 'event' | 'flashcards' | 'thinking';
-export interface SearchResult {
-  id: string;
-  kind: SearchKind;
-  title: string;
-  subtitle?: string;
-  href: string;
-  /** User color of the owning workspace/label/deck — drives the result icon tint. */
-  color?: UserColor;
-}
-
-/* ---------------- Generate ---------------- */
+/* ---------------- Generate (request options, not wire response types) ---------------- */
 export interface GenerateSummaryOptions {
   kind: 'summary';
   length: 'brief' | 'standard' | 'detailed';
@@ -283,20 +183,7 @@ export interface GenerateQuizOptions {
 export type GenerateOptions =
   GenerateSummaryOptions | GenerateFlashcardsOptions | GenerateQuizOptions;
 
-export interface PublicWorkspace extends Workspace {
-  author: string;
-  clones: number;
-}
-export interface PublicQuiz extends Quiz {
-  author: string;
-  clones: number;
-}
-
-/* ---------------- Generated API contracts ----------------
-   Wire-level request/response types generated by orval from the backend's
-   OpenAPI spec (see `src/api/gen/model`) plus matching zod validators in
-   `src/api/gen/validators.ts`. The hand-written domain types above stay
-   authoritative for the UI (richer unions, branded color/level enums); reach
-   for the `Gen` namespace when you need the exact backend contract — e.g. to
-   validate a request body against the generated zod schema. */
+/* ---------------- Raw generated namespace ----------------
+   Reach for `Gen` when you need the exact backend contract (e.g. nullable
+   arrays, request bodies) rather than the UI-facing domain type above. */
 export * as Gen from './gen/model';

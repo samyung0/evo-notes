@@ -4,12 +4,21 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateAttemptReqAnswers } from './createAttemptReqAnswers.ts';
+import type { CreateAttemptReqQuestionsItem } from './createAttemptReqQuestionsItem.ts';
 import type { CreateAttemptReqWrongItem } from './createAttemptReqWrongItem.ts';
 
 export interface CreateAttemptReq {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
+  /** User answers keyed by question id */
+  answers?: CreateAttemptReqAnswers;
   correct: number;
+  /**
+   * Question snapshot taken at submit time
+   * @nullable
+   */
+  questions?: CreateAttemptReqQuestionsItem[] | null;
   total: number;
   /**
    * Questions answered incorrectly

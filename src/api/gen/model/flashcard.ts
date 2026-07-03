@@ -4,6 +4,7 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { SrsState } from './srsState.ts';
 
 export interface Flashcard {
   /** A URL to the JSON Schema for this object. */
@@ -13,5 +14,5 @@ export interface Flashcard {
   front: string;
   id: string;
   known: boolean;
-  srs: unknown;
+  srs: SrsState;
 }

@@ -37,6 +37,12 @@ type attemptsOutput struct {
 type attemptOutput struct {
 	Body apimodel.Attempt
 }
+type attemptIDInput struct {
+	ID string `path:"id"`
+}
+type attemptDetailOutput struct {
+	Body apimodel.AttemptDetail
+}
 
 func (a *api) registerQuizzes(api huma.API) {
 	const tag = "Quizzes"
@@ -48,6 +54,7 @@ func (a *api) registerQuizzes(api huma.API) {
 	reg(api, http.MethodDelete, "/api/quizzes/{id}", "deleteQuiz", tag, "Delete a quiz", http.StatusNoContent, a.deleteQuiz)
 	reg(api, http.MethodPost, "/api/quizzes/{id}/attempts", "createAttempt", tag, "Record a quiz attempt", http.StatusCreated, a.createAttempt)
 	reg(api, http.MethodGet, "/api/attempts", "listAttempts", tag, "List attempts", http.StatusOK, a.listAttempts)
+	reg(api, http.MethodGet, "/api/attempts/{id}", "getAttempt", tag, "Get an attempt's result breakdown", http.StatusOK, a.getAttempt)
 }
 
 func (a *api) listQuizzes(ctx context.Context, _ *struct{}) (*quizzesOutput, error) {
@@ -150,9 +157,18 @@ func (a *api) createAttempt(ctx context.Context, in *createAttemptInput) (*attem
 	if in.ID == "review_mistakes" {
 		_ = a.s.ClearMistakesExcept(ctx, userID(ctx), ids)
 	}
-	res, err := a.s.CreateAttempt(ctx, in.ID, in.Body.Correct, in.Body.Total)
+	res, err := a.s.CreateAttempt(ctx, in.ID, in.Body.Correct, in.Body.Total,
+		apimodel.EncodeRaw(in.Body.Answers), apimodel.EncodeQuestions(in.Body.Questions))
 	if err != nil {
 		return nil, hErr(err)
 	}
 	return &attemptOutput{Body: res}, nil
+}
+
+func (a *api) getAttempt(ctx context.Context, in *attemptIDInput) (*attemptDetailOutput, error) {
+	res, err := a.s.GetAttempt(ctx, in.ID, userID(ctx))
+	if err != nil {
+		return nil, hErr(err)
+	}
+	return &attemptDetailOutput{Body: apimodel.FromAttemptDetail(res)}, nil
 }

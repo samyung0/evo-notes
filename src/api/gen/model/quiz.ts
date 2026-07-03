@@ -4,19 +4,18 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { Privacy } from './privacy.ts';
 import type { QuizQuestionsItem } from './quizQuestionsItem.ts';
 
 export interface Quiz {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
-  /** @nullable */
-  chapters: string[] | null;
+  chapters: string[];
   createdAt: string;
   id: string;
   name: string;
-  privacy: string;
-  /** @nullable */
-  questions: QuizQuestionsItem[] | null;
+  privacy: Privacy;
+  questions: QuizQuestionsItem[];
   timeLimitMin?: number;
   workspaceId: string;
   workspaceName: string;

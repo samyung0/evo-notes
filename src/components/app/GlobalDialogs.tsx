@@ -5,20 +5,19 @@ import {
   useCreateWorkspace,
   useLabels,
   useUpdateLabel,
-  useUpdateQuiz,
   useUpdateTask,
   useUpdateWorkspace,
   useUploadSource,
   useWorkspaceStats,
 } from '@/api/hooks';
-import { WorkspaceFormModal } from '@/features/workspaces/WorkspaceFormModal';
-import { QuizEditModal } from '@/features/quizzes/QuizEditModal';
+import { WorkspaceFormCreateDialog } from '@/features/workspaces/WorkspaceFormCreateDialog';
 import { TaskEditModal } from '@/features/tasks/TaskEditModal';
 import { LabelEditModal } from '@/features/schedule/LabelEditModal';
 import { EventFormModal } from '@/features/schedule/EventFormModal';
 import { AddSourceModal } from '@/features/workspace/AddSourceModal';
 import { useDialogs } from '@/stores/dialogs';
 import { SearchDialog } from './TopInsetBar';
+import { WorkspaceFormEditDialog } from '@/features/workspaces/WorkspaceFormEditDialog';
 
 function WorkspaceStatsModal({ id, onClose }: { id: string; onClose: () => void }) {
   const { data } = useWorkspaceStats(id);
@@ -51,19 +50,20 @@ function WorkspaceStatsModal({ id, onClose }: { id: string; onClose: () => void 
 }
 
 export function GlobalDialogs() {
-  const workspace = useDialogs((s) => s.workspace);
+  const workspaceCreate = useDialogs((s) => s.workspaceCreate);
+  const workspaceEdit = useDialogs((s) => s.workspaceEdit);
   const workspaceId = useDialogs((s) => s.workspaceId);
   const workspaceStatsId = useDialogs((s) => s.workspaceStatsId);
-  const quizEdit = useDialogs((s) => s.quizEdit);
   const taskEdit = useDialogs((s) => s.taskEdit);
   const labelEdit = useDialogs((s) => s.labelEdit);
   const eventForm = useDialogs((s) => s.eventForm);
   const addSource = useDialogs((s) => s.addSource);
   const confirm = useDialogs((s) => s.confirm);
-  const openWorkspace = useDialogs((s) => s.openWorkspace);
-  const closeWorkspace = useDialogs((s) => s.closeWorkspace);
+  const openWorkspaceCreate = useDialogs((s) => s.openWorkspaceCreate);
+  const openWorkspaceEdit = useDialogs((s) => s.openWorkspaceEdit);
+  const closeWorkspaceCreate = useDialogs((s) => s.closeWorkspaceCreate);
+  const closeWorkspaceEdit = useDialogs((s) => s.closeWorkspaceEdit);
   const closeWorkspaceStats = useDialogs((s) => s.closeWorkspaceStats);
-  const closeQuizEdit = useDialogs((s) => s.closeQuizEdit);
   const closeTaskEdit = useDialogs((s) => s.closeTaskEdit);
   const closeLabelEdit = useDialogs((s) => s.closeLabelEdit);
   const closeEventForm = useDialogs((s) => s.closeEventForm);
@@ -72,7 +72,6 @@ export function GlobalDialogs() {
 
   const createWorkspace = useCreateWorkspace();
   const updateWorkspace = useUpdateWorkspace();
-  const updateQuiz = useUpdateQuiz();
   const updateTask = useUpdateTask();
   const updateLabel = useUpdateLabel();
   const createEvent = useCreateEvent();
@@ -89,35 +88,41 @@ export function GlobalDialogs() {
 
   return (
     <>
-      {workspace && (
-        <WorkspaceFormModal
+      {workspaceCreate && (
+        <WorkspaceFormCreateDialog
           open
-          workspace={workspace}
+          workspace={workspaceCreate}
           setOpen={(open) => {
-            if (!open) closeWorkspace();
-            if (open && !workspace) openWorkspace();
+            if (!open) closeWorkspaceCreate();
+            if (open && !workspaceCreate) openWorkspaceCreate();
           }}
           onSubmit={async (v) => {
-            if (workspaceId) {
-              return await updateWorkspace.mutateAsync({ id: workspaceId, ...v });
-            } else {
-              return await createWorkspace.mutateAsync(v);
+            return await createWorkspace.mutateAsync(v);
+          }}
+        />
+      )}
+
+      {workspaceEdit && (
+        <WorkspaceFormEditDialog
+          open
+          workspace={workspaceEdit}
+          setOpen={(open) => {
+            if (!open) closeWorkspaceEdit();
+            if (open && workspaceId && !workspaceEdit)
+              openWorkspaceEdit(workspaceEdit, workspaceId);
+          }}
+          onSubmit={async (v) => {
+            if (!workspaceId) {
+              // todo: throw error
+              return;
             }
+            return await updateWorkspace.mutateAsync({ id: workspaceId, ...v });
           }}
         />
       )}
 
       {workspaceStatsId && (
         <WorkspaceStatsModal id={workspaceStatsId} onClose={closeWorkspaceStats} />
-      )}
-
-      {quizEdit && (
-        <QuizEditModal
-          quiz={quizEdit}
-          open
-          onClose={closeQuizEdit}
-          onSave={(patch) => updateQuiz.mutate({ id: quizEdit.id, ...patch })}
-        />
       )}
 
       {taskEdit && (

@@ -4,11 +4,13 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { PlanTier } from './planTier.ts';
+import type { SubscriptionStatus } from './subscriptionStatus.ts';
 
 export interface BillingInfo {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
-  planTier: string;
+  planTier: PlanTier;
   renewalAt?: string;
-  subscriptionStatus: string;
+  subscriptionStatus: SubscriptionStatus;
 }

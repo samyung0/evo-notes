@@ -7,8 +7,8 @@ export function UserColorChooser({
   selected,
   onChange,
 }: {
-  selected?: UserColor;
-  onChange: (color: UserColor) => void;
+  selected?: string;
+  onChange: (color: string) => void;
 }) {
   return (
     <div className="flex flex-wrap gap-2">

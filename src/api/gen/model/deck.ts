@@ -4,12 +4,13 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserColor } from './userColor.ts';
 
 export interface Deck {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
   cardCount: number;
-  color: string;
+  color: UserColor;
   dueCount: number;
   id: string;
   knownPct: number;

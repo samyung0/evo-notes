@@ -461,11 +461,23 @@ export const handlers = [
       [...db.attempts].sort((a, b) => +new Date(b.takenAt) - +new Date(a.takenAt))
     );
   }),
+  http.get('/api/attempts/:id', async ({ params }) => {
+    await latency();
+    const at = db.attempts.find((a) => a.id === params.id);
+    if (!at) return new HttpResponse(null, { status: 404 });
+    return HttpResponse.json({
+      ...at,
+      answers: at.answers ?? {},
+      questions: at.questions ?? [],
+    });
+  }),
   http.post('/api/quizzes/:id/attempts', async ({ params, request }) => {
     const body = (await request.json()) as {
       correct: number;
       total: number;
       wrong?: Question[];
+      answers?: Record<string, unknown>;
+      questions?: Question[];
     };
     const quiz = db.quizzes.find((x) => x.id === params.id);
     // Fold any missed questions into the review-mistakes pool (deduped by id).
@@ -493,6 +505,8 @@ export const handlers = [
       total: body.total,
       pct: Math.round((body.correct / Math.max(1, body.total)) * 100),
       takenAt: new Date().toISOString(),
+      answers: body.answers ?? {},
+      questions: body.questions ?? [],
     };
     db.attempts.unshift(at);
     return HttpResponse.json(at, { status: 201 });

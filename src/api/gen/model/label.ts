@@ -4,9 +4,10 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { UserColor } from './userColor.ts';
 
 export interface Label {
-  color: string;
+  color: UserColor;
   id: string;
   name: string;
 }

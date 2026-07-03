@@ -8,6 +8,7 @@ import type {
   AccessTokenResp,
   AddChapterReq,
   Attempt,
+  AttemptDetail,
   BillingCheckoutReq,
   BillingInfo,
   Canvas,
@@ -147,6 +148,47 @@ export const listAttempts = async (options?: RequestInit): Promise<listAttemptsR
 
   const data: listAttemptsResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as listAttemptsResponse;
+};
+
+export type getAttemptResponse200 = {
+  data: AttemptDetail;
+  status: 200;
+};
+
+export type getAttemptResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type getAttemptResponseSuccess = getAttemptResponse200 & {
+  headers: Headers;
+};
+export type getAttemptResponseError = getAttemptResponseDefault & {
+  headers: Headers;
+};
+
+export type getAttemptResponse = getAttemptResponseSuccess | getAttemptResponseError;
+
+export const getGetAttemptUrl = (id: string) => {
+  return `/api/attempts/${id}`;
+};
+
+/**
+ * @summary Get an attempt's result breakdown
+ */
+export const getAttempt = async (
+  id: string,
+  options?: RequestInit
+): Promise<getAttemptResponse> => {
+  const res = await fetch(getGetAttemptUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getAttemptResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as getAttemptResponse;
 };
 
 export type getBillingResponse200 = {

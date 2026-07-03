@@ -4,14 +4,15 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { Privacy } from './privacy.ts';
 import type { StrVal } from './strVal.ts';
-import type { UpdateWorkspaceReqPrivacy } from './updateWorkspaceReqPrivacy.ts';
+import type { UserColor } from './userColor.ts';
 
 export interface UpdateWorkspaceReq {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
-  color?: string;
+  color?: UserColor;
   name?: string;
-  privacy?: UpdateWorkspaceReqPrivacy;
+  privacy?: Privacy;
   tags?: StrVal[];
 }

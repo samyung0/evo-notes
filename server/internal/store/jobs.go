@@ -38,7 +38,7 @@ func (s *Store) CreateSourceWithJob(ctx context.Context, wsID, name, kind string
 		return File{}, "", err
 	}
 
-	f := File{ID: fileID, WorkspaceID: wsID, ChapterID: chapterID, Name: name, Kind: kind, SizeKb: sizeKb, AddedAt: now, Status: "processing", URL: &url}
+	f := File{ID: fileID, WorkspaceID: wsID, ChapterID: chapterID, Name: name, Kind: FileKind(kind), SizeKb: sizeKb, AddedAt: now, Status: "processing", URL: &url}
 	return f, jobID, nil
 }
 

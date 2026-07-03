@@ -309,6 +309,36 @@ export const quizzes: Quiz[] = [
           { left: 'Ribosome', right: 'Builds proteins' },
         ],
       },
+      {
+        id: 'q11',
+        type: 'mcq',
+        level: 'recall',
+        prompt: 'Which structure controls what enters and leaves the cell?',
+        options: wv('Cell wall', 'Cell membrane', 'Nucleolus', 'Vacuole'),
+        correct: [1],
+      },
+      {
+        id: 'q12',
+        type: 'boolean',
+        level: 'recall',
+        prompt: 'Ribosomes are membrane-bound organelles.',
+        correct: false,
+        explanation: 'Ribosomes are not enclosed by a membrane.',
+      },
+      {
+        id: 'q13',
+        type: 'fill',
+        level: 'application',
+        prompt: 'The organelle that produces most of the cell’s ATP is the ____.',
+        accepted: wv('mitochondria', 'mitochondrion'),
+      },
+      {
+        id: 'q14',
+        type: 'short',
+        level: 'analysis',
+        prompt: 'Name the process cells use to convert glucose into ATP.',
+        accepted: wv('cellular respiration', 'aerobic respiration'),
+      },
     ],
   },
   {
@@ -334,6 +364,66 @@ export const quizzes: Quiz[] = [
         level: 'analysis',
         prompt: 'Define a dominant allele in one sentence.',
         accepted: wv('an allele expressed in the phenotype even when only one copy is present'),
+      },
+      {
+        id: 'q15',
+        type: 'mcq',
+        level: 'recall',
+        prompt: 'The genotype AA is described as…',
+        options: wv('Homozygous dominant', 'Heterozygous', 'Homozygous recessive', 'Hemizygous'),
+        correct: [0],
+      },
+      {
+        id: 'q16',
+        type: 'boolean',
+        level: 'recall',
+        prompt: 'Genotype refers to an organism’s observable physical traits.',
+        correct: false,
+        explanation: 'That describes phenotype; genotype is the genetic makeup.',
+      },
+      {
+        id: 'q17',
+        type: 'multi',
+        level: 'application',
+        prompt: 'Select all homozygous genotypes.',
+        options: wv('AA', 'Aa', 'aa', 'Bb'),
+        correct: [0, 2],
+      },
+      {
+        id: 'q18',
+        type: 'fill',
+        level: 'application',
+        prompt: 'A diagram used to predict offspring genotypes is a ____ square.',
+        accepted: wv('Punnett'),
+      },
+      {
+        id: 'q19',
+        type: 'boolean',
+        level: 'recall',
+        prompt: 'Alleles are alternative forms of the same gene.',
+        correct: true,
+      },
+      {
+        id: 'q20',
+        type: 'mcq',
+        level: 'application',
+        prompt: 'A cross Aa × aa gives what phenotype ratio (dominant:recessive)?',
+        options: wv('1:1', '3:1', '1:2:1', 'All dominant'),
+        correct: [0],
+      },
+      {
+        id: 'q21',
+        type: 'ordering',
+        level: 'analysis',
+        prompt: 'Order the phases of mitosis.',
+        items: wv('Prophase', 'Metaphase', 'Anaphase', 'Telophase'),
+      },
+      {
+        id: 'q22',
+        type: 'short',
+        level: 'analysis',
+        prompt: 'Define phenotype in one sentence.',
+        accepted: wv('the observable characteristics of an organism'),
       },
     ],
   },
@@ -361,11 +451,73 @@ export const quizzes: Quiz[] = [
         prompt: '∫ 1/x dx = ln|x| + C',
         correct: true,
       },
+      {
+        id: 'q23',
+        type: 'mcq',
+        level: 'application',
+        prompt: '∫ cos x dx = ?',
+        options: wv('sin x + C', '-sin x + C', 'cos x + C', '-cos x + C'),
+        correct: [0],
+      },
+      {
+        id: 'q24',
+        type: 'boolean',
+        level: 'recall',
+        prompt: 'The integral of a sum equals the sum of the integrals.',
+        correct: true,
+      },
+      {
+        id: 'q25',
+        type: 'fill',
+        level: 'application',
+        prompt: '∫ 2x dx = x² + ____.',
+        accepted: wv('C'),
+      },
+      {
+        id: 'q26',
+        type: 'mcq',
+        level: 'application',
+        prompt: '∫ 1/(1 + x²) dx = ?',
+        options: wv('arctan x + C', 'ln|x| + C', 'arcsin x + C', '1/x + C'),
+        correct: [0],
+      },
+      {
+        id: 'q27',
+        type: 'boolean',
+        level: 'recall',
+        prompt: 'd/dx of ∫ f(x) dx returns f(x).',
+        correct: true,
+      },
+      {
+        id: 'q28',
+        type: 'multi',
+        level: 'application',
+        prompt: 'Which techniques help integrate rational functions?',
+        options: wv('Partial fractions', 'Polynomial long division', 'Integration by parts', 'Trig substitution'),
+        correct: [0, 1],
+      },
+      {
+        id: 'q29',
+        type: 'ordering',
+        level: 'analysis',
+        prompt: 'Order the steps of integration by parts.',
+        items: wv('Choose u and dv', 'Differentiate u', 'Integrate dv', 'Apply the formula'),
+      },
+      {
+        id: 'q30',
+        type: 'short',
+        level: 'recall',
+        prompt: 'Name the constant added to every indefinite integral.',
+        accepted: wv('constant of integration'),
+      },
     ],
   },
 ];
 
-export const attempts: Attempt[] = [
+export const attempts: (Attempt & {
+  answers?: Record<string, unknown>;
+  questions?: Question[];
+})[] = [
   {
     id: 'at_1',
     quizId: 'qz_1',
@@ -376,6 +528,24 @@ export const attempts: Attempt[] = [
     total: 10,
     pct: 80,
     takenAt: days(2),
+    questions: quizzes[0].questions,
+    answers: {
+      q1: [1],
+      q2: true,
+      q3: [1, 2],
+      q4: 'osmosis',
+      q5: ['Ribosome', 'Rough ER', 'Golgi apparatus', 'Vesicle', 'Cell membrane'],
+      // Wrong: swapped Nucleus/Mitochondria functions.
+      q6: {
+        Nucleus: 'Makes ATP',
+        Mitochondria: 'Stores DNA',
+        Ribosome: 'Builds proteins',
+      },
+      q11: [1],
+      q12: true, // Wrong: correct answer is false.
+      q13: 'mitochondria',
+      q14: 'cellular respiration',
+    },
   },
   {
     id: 'at_2',
@@ -387,6 +557,19 @@ export const attempts: Attempt[] = [
     total: 10,
     pct: 60,
     takenAt: days(3),
+    questions: quizzes[2].questions,
+    answers: {
+      q9: [1],
+      q10: true,
+      q23: [0],
+      q24: true,
+      q25: 'C',
+      q26: [0],
+      q27: false, // Wrong: correct answer is true.
+      q28: [0], // Wrong: correct is [0, 1].
+      q29: ['Apply the formula', 'Choose u and dv', 'Integrate dv', 'Differentiate u'], // Wrong order.
+      q30: '', // Blank: unanswered.
+    },
   },
   {
     id: 'at_3',
@@ -398,6 +581,19 @@ export const attempts: Attempt[] = [
     total: 10,
     pct: 40,
     takenAt: days(5),
+    questions: quizzes[1].questions,
+    answers: {
+      q7: [0],
+      q8: '', // Blank: unanswered.
+      q15: [0],
+      q16: true, // Wrong: correct answer is false.
+      q17: [0], // Wrong: correct is [0, 2].
+      q18: 'Punnett',
+      q19: true,
+      q20: [1], // Wrong: correct is [0].
+      q21: ['Telophase', 'Anaphase', 'Metaphase', 'Prophase'], // Wrong order.
+      q22: '', // Blank: unanswered.
+    },
   },
 ];
 

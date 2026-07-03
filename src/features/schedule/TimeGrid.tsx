@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
+import { Icon } from '@/components/ui';
 import { userColorPair } from '@/lib/userColor';
 import type { CalendarEvent, Label } from '@/api/types';
 import { fmtHour, fmtTime, hourOf, sameDay } from './dateUtils';
@@ -31,6 +32,7 @@ export function TimeGrid({
 
   const nowRef = useRef<HTMLDivElement>(null);
   const [pendingSlot, setPendingSlot] = useState<{ day: string; hour: number } | null>(null);
+  const [hoverSlot, setHoverSlot] = useState<{ day: string; hour: number } | null>(null);
 
   // auto-scroll so the now-line sits ~30% from the top of the viewport.
   useEffect(() => {
@@ -59,10 +61,14 @@ export function TimeGrid({
         };
   }
 
+  function hourAt(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return Math.max(0, Math.min(23, Math.floor((e.clientY - rect.top) / HOUR_H)));
+  }
+
   function handleSlotClick(d: Date, e: React.MouseEvent<HTMLDivElement>) {
     if (!onCreateSlot) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const hour = Math.max(0, Math.min(23, Math.floor((e.clientY - rect.top) / HOUR_H)));
+    const hour = hourAt(e);
     const start = new Date(d);
     start.setHours(hour, 0, 0, 0);
     const end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -116,8 +122,13 @@ export function TimeGrid({
               <div
                 key={d.toISOString()}
                 onClick={(e) => handleSlotClick(d, e)}
+                onMouseMove={
+                  onCreateSlot ? (e) => setHoverSlot({ day: d.toDateString(), hour: hourAt(e) }) : undefined
+                }
+                onMouseLeave={onCreateSlot ? () => setHoverSlot(null) : undefined}
                 className={cn(
-                  'relative flex-1 cursor-pointer',
+                  'relative flex-1',
+                  onCreateSlot && 'cursor-pointer',
                   isToday && isWeek && 'overflow-hidden rounded-b-xl bg-page/70'
                 )}
               >
@@ -125,6 +136,18 @@ export function TimeGrid({
                 {Array.from({ length: 24 }, (_, h) => (
                   <div key={h} className="border-b border-divider" style={{ height: HOUR_H }} />
                 ))}
+                {/* hover new-event hint */}
+                {onCreateSlot &&
+                  hoverSlot?.day === d.toDateString() &&
+                  hoverSlot.hour !== pendingSlot?.hour && (
+                    <div
+                      className="pointer-events-none absolute right-1 left-1 z-1 flex items-center gap-1 rounded-row bg-action/10 px-2 text-xs font-semibold text-action ring-1 ring-action/40"
+                      style={{ top: hoverSlot.hour * HOUR_H, height: HOUR_H }}
+                    >
+                      <Icon name="plus" size={13} strokeWidth={2.5} />
+                      {fmtHour(hoverSlot.hour)}
+                    </div>
+                  )}
                 {/* pending new-event highlight */}
                 {pendingSlot?.day === d.toDateString() && (
                   <div

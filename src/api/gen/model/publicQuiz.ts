@@ -4,19 +4,18 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { Privacy } from './privacy.ts';
 import type { PublicQuizQuestionsItem } from './publicQuizQuestionsItem.ts';
 
 export interface PublicQuiz {
   author: string;
-  /** @nullable */
-  chapters: string[] | null;
+  chapters: string[];
   clones: number;
   createdAt: string;
   id: string;
   name: string;
-  privacy: string;
-  /** @nullable */
-  questions: PublicQuizQuestionsItem[] | null;
+  privacy: Privacy;
+  questions: PublicQuizQuestionsItem[];
   timeLimitMin?: number;
   workspaceId: string;
   workspaceName: string;

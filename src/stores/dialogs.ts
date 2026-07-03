@@ -1,7 +1,8 @@
-import { create } from 'zustand';
-import type { Label, Quiz, Task, Workspace } from '@/api/types';
+import { CreateWorkspaceReq, UpdateWorkspaceReq } from '@/api/gen/model';
+import type { Label, Task } from '@/api/types';
 import type { EventDraft } from '@/features/schedule/EventFormModal';
-import { WorkspaceForm, workspaceFormDefaultValues } from '@/api/schema/workspaceFormSchema';
+import { createWorkspaceDefaultValues } from '@/stores/defaultValues';
+import { create } from 'zustand';
 
 export interface ConfirmConfig {
   title: string;
@@ -23,28 +24,28 @@ interface DialogState {
   //      -- get: react query -> map Workspace to WorkspaceForm -> opendialog with existing
   //              -> populate tanstack form with initial values
   //      -- create: open dialog with default values -> submit -> react query mutation -> close dialog
-  workspace: WorkspaceForm | null;
+  workspaceCreate: CreateWorkspaceReq | null;
+  workspaceEdit: UpdateWorkspaceReq | null;
   workspaceId: string | null;
   workspaceStatsId: string | null;
-  quizEdit: Quiz | null;
   taskEdit: Task | null;
   labelEdit: Label | null;
   eventForm: EventDraft | null;
   addSource: { workspaceId: string } | null;
   confirm: ConfirmConfig | null;
 
-  openWorkspace: (workspace?: Workspace | null) => void;
+  openWorkspaceCreate: (workspace?: CreateWorkspaceReq) => void;
+  openWorkspaceEdit: (workspace: UpdateWorkspaceReq, id: string) => void;
   openWorkspaceStats: (id: string) => void;
-  openQuizEdit: (quiz: Quiz) => void;
   openTaskEdit: (task: Task) => void;
   openLabelEdit: (label: Label) => void;
   openEventForm: (draft?: EventDraft) => void;
   openAddSource: (workspaceId: string) => void;
   openConfirm: (config: ConfirmConfig) => void;
 
-  closeWorkspace: () => void;
+  closeWorkspaceCreate: () => void;
+  closeWorkspaceEdit: () => void;
   closeWorkspaceStats: () => void;
-  closeQuizEdit: () => void;
   closeTaskEdit: () => void;
   closeLabelEdit: () => void;
   closeEventForm: () => void;
@@ -56,30 +57,32 @@ interface DialogState {
 }
 
 export const useDialogs = create<DialogState>((set) => ({
-  workspace: null,
+  workspaceCreate: null,
+  workspaceEdit: null,
   workspaceId: null,
   isWorkspaceOpen: false,
   workspaceStatsId: null,
-  quizEdit: null,
   taskEdit: null,
   labelEdit: null,
   eventForm: null,
   addSource: null,
   confirm: null,
 
-  openWorkspace: (workspace?) =>
-    set({ workspace: workspace ?? workspaceFormDefaultValues, workspaceId: workspace?.id ?? null }),
+  openWorkspaceCreate: (workspace?) =>
+    set({
+      workspaceCreate: workspace ?? createWorkspaceDefaultValues,
+    }),
+  openWorkspaceEdit: (workspace, id) => set({ workspaceEdit: workspace, workspaceId: id }),
   openWorkspaceStats: (id) => set({ workspaceStatsId: id }),
-  openQuizEdit: (quiz) => set({ quizEdit: quiz }),
   openTaskEdit: (task) => set({ taskEdit: task }),
   openLabelEdit: (label) => set({ labelEdit: label }),
   openEventForm: (draft) => set({ eventForm: draft ?? {} }),
   openAddSource: (workspaceId) => set({ addSource: { workspaceId } }),
   openConfirm: (config) => set({ confirm: config }),
 
-  closeWorkspace: () => set({ workspace: null, workspaceId: null }),
+  closeWorkspaceCreate: () => set({ workspaceCreate: null }),
+  closeWorkspaceEdit: () => set({ workspaceEdit: null }),
   closeWorkspaceStats: () => set({ workspaceStatsId: null }),
-  closeQuizEdit: () => set({ quizEdit: null }),
   closeTaskEdit: () => set({ taskEdit: null }),
   closeLabelEdit: () => set({ labelEdit: null }),
   closeEventForm: () => set({ eventForm: null }),

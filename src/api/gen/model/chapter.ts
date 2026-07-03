@@ -8,8 +8,7 @@
 export interface Chapter {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
-  /** @nullable */
-  fileIds: string[] | null;
+  fileIds: string[];
   id: string;
   name: string;
   order: number;

@@ -13,10 +13,10 @@ import (
 /* ------------------------------------------------------------------ patches */
 
 type WorkspacePatch struct {
-	Name    *string   `json:"name"`
-	Color   *string   `json:"color"`
-	Privacy *string   `json:"privacy"`
-	Tags    *[]string `json:"tags"`
+	Name    *string    `json:"name"`
+	Color   *UserColor `json:"color"`
+	Privacy *Privacy   `json:"privacy"`
+	Tags    *[]string  `json:"tags"`
 }
 type ChapterPatch struct {
 	Name  *string `json:"name"`
@@ -26,7 +26,7 @@ type QuizPatch struct {
 	Name         *string          `json:"name"`
 	Chapters     *[]string        `json:"chapters"`
 	Questions    *json.RawMessage `json:"questions"`
-	Privacy      *string          `json:"privacy"`
+	Privacy      *Privacy         `json:"privacy"`
 	TimeLimitMin *int             `json:"timeLimitMin"`
 }
 type CardPatch struct {
@@ -236,7 +236,7 @@ func (s *Store) WorkspaceStats(ctx context.Context, userID, id string) (Workspac
 	return st, err
 }
 
-func (s *Store) CreateWorkspace(ctx context.Context, userID, name, color, privacy string, tags []string) (Workspace, error) {
+func (s *Store) CreateWorkspace(ctx context.Context, userID, name string, color UserColor, privacy Privacy, tags []string) (Workspace, error) {
 	id := uid("ws")
 	_, err := s.pool.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy, tags) VALUES ($1,$2,$3,$4,$5,$6)`,
 		id, userID, name, color, privacy, tags)
@@ -493,7 +493,7 @@ func (s *Store) ListAttempts(ctx context.Context, userID string) ([]Attempt, err
 	return out, rows.Err()
 }
 
-func (s *Store) CreateAttempt(ctx context.Context, quizID string, correct, total int) (Attempt, error) {
+func (s *Store) CreateAttempt(ctx context.Context, quizID string, correct, total int, answers, questions json.RawMessage) (Attempt, error) {
 	q, err := s.GetQuiz(ctx, quizID)
 	if err != nil && err != ErrNotFound {
 		return Attempt{}, err
@@ -509,9 +509,33 @@ func (s *Store) CreateAttempt(ctx context.Context, quizID string, correct, total
 	if a.Chapters == nil {
 		a.Chapters = []string{}
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO attempts (id, quiz_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, a.ID, a.QuizID, a.QuizName, a.WorkspaceName, a.Chapters, a.Correct, a.Total, a.Pct, a.TakenAt)
+	if len(answers) == 0 {
+		answers = json.RawMessage("{}")
+	}
+	if len(questions) == 0 {
+		questions = json.RawMessage("[]")
+	}
+	_, err = s.pool.Exec(ctx, `INSERT INTO attempts (id, quiz_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at, answers, questions)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, a.ID, a.QuizID, a.QuizName, a.WorkspaceName, a.Chapters, a.Correct, a.Total, a.Pct, a.TakenAt, []byte(answers), []byte(questions))
 	return a, err
+}
+
+// GetAttempt returns a single attempt with its per-question breakdown, scoped
+// to the owner via the quiz -> workspace join (virtual "review_mistakes"
+// attempts have no quiz row and are therefore not retrievable here).
+func (s *Store) GetAttempt(ctx context.Context, id, userID string) (AttemptDetail, error) {
+	var d AttemptDetail
+	err := s.pool.QueryRow(ctx, `SELECT a.id, a.quiz_id, a.quiz_name, a.workspace_name, a.chapters, a.correct, a.total, a.pct, a.taken_at, a.answers, a.questions
+		FROM attempts a JOIN quizzes q ON q.id=a.quiz_id JOIN workspaces w ON w.id=q.workspace_id
+		WHERE a.id=$1 AND w.user_id=$2`, id, userID).
+		Scan(&d.ID, &d.QuizID, &d.QuizName, &d.WorkspaceName, &d.Chapters, &d.Correct, &d.Total, &d.Pct, &d.TakenAt, &d.Answers, &d.Questions)
+	if isNoRows(err) {
+		return d, ErrNotFound
+	}
+	if d.Chapters == nil {
+		d.Chapters = []string{}
+	}
+	return d, err
 }
 
 /* -------------------------------------------------------------- flashcards */
@@ -549,7 +573,7 @@ func (s *Store) GetDeck(ctx context.Context, id string) (Deck, error) {
 
 // CreateDeck attaches to the given workspace (falling back to the user's most
 // recent one) so the deck shows up in ListDecks' owner-scoped join.
-func (s *Store) CreateDeck(ctx context.Context, userID, name, color, wsID string) (Deck, error) {
+func (s *Store) CreateDeck(ctx context.Context, userID, name string, color UserColor, wsID string) (Deck, error) {
 	var wsName string
 	if wsID == "" {
 		if err := s.pool.QueryRow(ctx, `SELECT id, name FROM workspaces WHERE user_id=$1 ORDER BY last_accessed_at DESC LIMIT 1`, userID).Scan(&wsID, &wsName); err != nil {

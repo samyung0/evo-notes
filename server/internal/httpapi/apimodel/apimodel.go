@@ -14,8 +14,11 @@ import (
 )
 
 // StrVal wraps a bare string so it can bind to react-hook-form useFieldArray.
+// IMPORTANT
+// used in Tags and have constraints
+// if want a different constraint, use a different type
 type StrVal struct {
-	Value string `json:"value"`
+	Value string `json:"value" minLength:"1" maxLength:"50"`
 }
 
 // WrapStrings turns a []string (DB shape) into the []StrVal wire shape.
@@ -62,15 +65,15 @@ type (
 
 // Workspace is the response contract. Tags are object-wrapped for useFieldArray.
 type Workspace struct {
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	Color          string    `json:"color"`
-	Privacy        string    `json:"privacy"`
-	Tags           []StrVal  `json:"tags"`
-	ChapterCount   int       `json:"chapterCount"`
-	FileCount      int       `json:"fileCount"`
-	CreatedAt      time.Time `json:"createdAt"`
-	LastAccessedAt time.Time `json:"lastAccessedAt"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	Color          store.UserColor `json:"color"`
+	Privacy        store.Privacy   `json:"privacy"`
+	Tags           []StrVal        `json:"tags" nullable:"false"`
+	ChapterCount   int             `json:"chapterCount"`
+	FileCount      int             `json:"fileCount"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	LastAccessedAt time.Time       `json:"lastAccessedAt"`
 }
 
 func FromWorkspace(w store.Workspace) Workspace {
@@ -111,10 +114,10 @@ type Quiz struct {
 	Name          string           `json:"name"`
 	WorkspaceID   string           `json:"workspaceId"`
 	WorkspaceName string           `json:"workspaceName"`
-	Chapters      []string         `json:"chapters"`
-	Questions     []map[string]any `json:"questions"`
+	Chapters      []string         `json:"chapters" nullable:"false"`
+	Questions     []map[string]any `json:"questions" nullable:"false"`
 	CreatedAt     time.Time        `json:"createdAt"`
-	Privacy       string           `json:"privacy"`
+	Privacy       store.Privacy    `json:"privacy"`
 	TimeLimitMin  *int             `json:"timeLimitMin,omitempty"`
 }
 
@@ -136,6 +139,23 @@ func FromQuizzes(qs []store.Quiz) []Quiz {
 		out[i] = FromQuiz(q)
 	}
 	return out
+}
+
+// AttemptDetail is the response contract for GET /api/attempts/{id}. Answers
+// and Questions stay opaque (the frontend owns the Answer/Question shapes) so
+// they are surfaced as free-form JSON, mirroring how Quiz.Questions works.
+type AttemptDetail struct {
+	store.Attempt
+	Answers   map[string]any   `json:"answers" nullable:"false"`
+	Questions []map[string]any `json:"questions" nullable:"false"`
+}
+
+func FromAttemptDetail(d store.AttemptDetail) AttemptDetail {
+	return AttemptDetail{
+		Attempt:   d.Attempt,
+		Answers:   decodeAnswers(d.Answers),
+		Questions: decodeQuestions(d.Questions),
+	}
 }
 
 // PublicQuiz is a quiz shared on Explore.
