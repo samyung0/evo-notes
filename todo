@@ -12,12 +12,17 @@ low priority:
 10. rewrite progress bar/other components in cva
 11. check accessibility and aria labels (use radix-ui as primitive as often as possible, which means to enforce the radius primitives in ui components and ensure these ui components are reused as often as possible)
 12. folder organization
+13. investigate how to tie the state between search params and dialog open/close state, right now I see that we listen to change in dialog state in useeffect and then manually remove search params, and listening to change in search params to manually open the dialog. and we also need to factor in navigating cross pages and dont strip the search params on initial mount (because dialog will be initially closed)
+14. elastic search?
 
 high PRIORITIES:
 
-1. in dashboard, change the mini calendar so that every hour shows (similar to how the timegrid does it, and include the hover and click to add event directly on the schedule)
+1. currently the identical tags are removed upon workspace/quizzes/cards creation which isnt correct, we want to reuse the existing tags so whatever metadata associated with the tag is not lost, this requires UI + backend change, in ui we need like a dropdown that searches extsing tags while user type (prob just use data from react hook instead of querying on every keyustroke), if none exist let user create new one. when passing the workspace request, the tag needs to be an object of {id: string|null, value: string}, if id exist then backend reuse existing tags, else make a new one with the passed in value
 2. in workspaces (change color filter to a general filter with a color section and a tag section (limit max height of the popover))
 3. in calendar page timegrid component, use a kind of striped background when adding events directly by hovering/clicking on the calendar (lighter vs darker gray for hovering/selected) use thick border
 4. unify use Dialog instead of modal (popover is ok as its already shadcn) (for dialog usage refer to the search bar in topsetbar) (there should not be the use of the useOutsideClick hook)
 5. add in input components like dropdown, date picker etc
 6. nav sidebar theme configuration (use dialog)
+
+risk?
+QueryParam.ids behavior on lightrag-hku 1.5.4 in mode="mix" is unverified (plan risk #2). Code degrades safely: if ids errors it logs and falls back to unscoped, and the natural-language scope hint still steers the answer. Worth a live smoke test once the pipeline runs.

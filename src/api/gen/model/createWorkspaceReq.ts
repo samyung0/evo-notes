@@ -5,7 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Privacy } from './privacy.ts';
-import type { StrVal } from './strVal.ts';
+import type { TagInput } from './tagInput.ts';
 import type { UserColor } from './userColor.ts';
 
 export interface CreateWorkspaceReq {
@@ -22,8 +22,8 @@ export interface CreateWorkspaceReq {
   /** Visibility */
   privacy: Privacy;
   /**
-   * Free-text tags
+   * Tags; reuse existing by id or create new by value
    * @nullable
    */
-  tags?: StrVal[] | null;
+  tags?: TagInput[] | null;
 }

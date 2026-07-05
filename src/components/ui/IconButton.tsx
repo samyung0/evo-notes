@@ -5,11 +5,11 @@ import { cva, VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
 
 const iconButtonVariants = cva(
-  'relative inline-flex cursor-pointer items-center justify-center transition-colors',
+  'relative inline-flex cursor-pointer items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-action',
   {
     variants: {
       variant: {
-        dark: 'bg-action text-action-fg hover:bg-action-hover',
+        dark: 'bg-action text-action-fg outline-offset-2 hover:bg-action-hover focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-action',
         accent: 'bg-accent text-accent-fg hover:bg-accent-hover',
         neutral: 'bg-surface text-surface-fg hover:bg-surface-hover-bg',
         gray: 'bg-page text-surface-dark-fg hover:bg-surface-dark',

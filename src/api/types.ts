@@ -29,6 +29,7 @@ import type {
   SearchResult as GenSearchResult,
   Workspace as GenWorkspace,
   UserColor,
+  Privacy,
 } from './gen/model';
 
 /* ---------------- enums & scalars (straight from the generated spec) ---------------- */
@@ -42,7 +43,7 @@ export {
   NotificationKind,
   SearchKind,
 } from './gen/model';
-export type { StrVal } from './gen/model';
+export type { Tag, TagInput } from './gen/model';
 
 /* ---------------- pass-through wire contracts ---------------- */
 export type {
@@ -92,18 +93,25 @@ export type Quiz = Omit<GenQuiz, 'questions'> & {
 export type PublicWorkspace = Workspace & { author: string; clones: number };
 export type PublicQuiz = Quiz & { author: string; clones: number };
 
-/* ---------------- chat (not modelled on the wire) ---------------- */
-export interface Citation {
-  fileId: string;
-  fileName: string;
-  snippet: string;
-}
+/* ---------------- chat ----------------
+   Conversation + Message + Citation are modelled on the wire (huma) and come
+   from the generated spec. ChatMessage is the UI-facing turn: the generated
+   Message shape with role/status narrowed to unions and an optional client-only
+   `pending` flag while a temp (pre-persisted) row streams. */
+export type { Conversation, Citation } from './gen/model';
+export type { Message as WireMessage } from './gen/model';
+
+export type ChatRole = 'user' | 'assistant' | 'system';
+export type ChatStatus = 'streaming' | 'complete' | 'aborted' | 'error';
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  citations?: Citation[];
+  conversationId?: string;
+  role: ChatRole;
+  content: string;
+  status: ChatStatus;
+  citations?: import('./gen/model').Citation[];
+  createdAt?: string;
 }
 
 /* ---------------- Quizzes: the polymorphic Question union ----------------
@@ -133,8 +141,11 @@ interface BaseQuestion {
 }
 export interface ChoiceQuestion extends BaseQuestion {
   type: 'mcq' | 'multi';
-  /** Object-wrapped so react-hook-form useFieldArray can bind each row. */
-  options: { value: string }[];
+  /** Object-wrapped so react-hook-form useFieldArray can bind each row. Each
+   * option can carry its own explanation (why it is right or wrong), surfaced
+   * during review. Question-level `explanation` still applies to non-choice
+   * types. */
+  options: { value: string; explanation?: string }[];
   /** indices into `options` */
   correct: number[];
 }
@@ -159,29 +170,74 @@ export interface OrderingQuestion extends BaseQuestion {
 export type Question =
   ChoiceQuestion | BooleanQuestion | TextQuestion | MatchingQuestion | OrderingQuestion;
 
-/* ---------------- Generate (request options, not wire response types) ---------------- */
-export interface GenerateSummaryOptions {
-  kind: 'summary';
-  length: 'brief' | 'standard' | 'detailed';
-  format: 'bullets' | 'outline' | 'prose';
+/* ---------------- Generate (request options, not wire response types) ----------------
+   Every generation is scoped: `chapters` (names) and/or `fileIds` narrow the
+   source material. Empty scope means the whole workspace. */
+export type GenerateKind = 'flashcards' | 'quiz' | 'mindmap' | 'diagram';
+
+export interface GenerateScope {
   chapters: string[];
+  fileIds: string[];
 }
-export interface GenerateFlashcardsOptions {
+export interface GenerateFlashcardsOptions extends GenerateScope {
   kind: 'flashcards';
   count: number;
   style: 'term-def' | 'qa' | 'cloze';
-  chapters: string[];
 }
-export interface GenerateQuizOptions {
+export interface GenerateQuizOptions extends GenerateScope {
   kind: 'quiz';
   count: number;
   types: QuestionType[];
   levels: CognitiveLevel[];
-  chapters: string[];
   timeLimitMin?: number;
 }
+export type DiagramType = 'auto' | 'flowchart' | 'sequence' | 'class' | 'state' | 'er';
+export interface GenerateMindmapOptions extends GenerateScope {
+  kind: 'mindmap';
+  detail: 'brief' | 'standard' | 'detailed';
+}
+export interface GenerateDiagramOptions extends GenerateScope {
+  kind: 'diagram';
+  diagramType: DiagramType;
+}
 export type GenerateOptions =
-  GenerateSummaryOptions | GenerateFlashcardsOptions | GenerateQuizOptions;
+  | GenerateFlashcardsOptions
+  | GenerateQuizOptions
+  | GenerateMindmapOptions
+  | GenerateDiagramOptions;
+
+/* ---------------- Study materials ----------------
+   Persisted, workspace-scoped (not chapter-scoped) study artifacts rendered
+   in-pane. Mindmaps and diagrams are markdown documents (mermaid fences);
+   quizzes and decks are referenced by the unified materials index. */
+export type MaterialKind = 'mindmap' | 'diagram' | 'quiz' | 'flashcards';
+
+export interface Material {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  kind: MaterialKind;
+  title: string;
+  /** Markdown body. Mindmaps/diagrams embed ```mermaid fences; quizzes and
+   * flashcards embed ```quiz / ```flashcards fences (YAML payload). */
+  content: string;
+  scopeChapters: string[];
+  scopeFileIds: string[];
+  privacy: Privacy;
+  /** Presentation tint; only meaningful for flashcards decks. */
+  color?: UserColor;
+  createdAt: string;
+}
+
+/** A row in the left-panel materials list. Aggregates markdown materials plus
+ * the workspace's quizzes and decks into one flat (non chapter-scoped) list. */
+export type MaterialRefType = 'mindmap' | 'diagram' | 'quiz' | 'deck';
+export interface MaterialRef {
+  id: string;
+  type: MaterialRefType;
+  title: string;
+  createdAt: string;
+}
 
 /* ---------------- Raw generated namespace ----------------
    Reach for `Gen` when you need the exact backend contract (e.g. nullable

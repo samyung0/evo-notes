@@ -10,11 +10,11 @@ export function AppShell() {
   const hidden = /^\/workspaces\/[^/]+$/.test(pathname);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-page text-fg">
+    <div className="flex h-dvh overflow-hidden bg-page text-fg">
       <div className={cn('hidden lg:flex', hidden && 'hidden!')}>
         <Sidebar collapsed={false} />
       </div>
-      <main className="min-w-0 flex-1 overflow-hidden p-1.5 sm:p-2.5">
+      <main className="h-full min-w-0 flex-1 overflow-hidden p-1.5 sm:p-2.5">
         <Outlet />
       </main>
       <Toaster />

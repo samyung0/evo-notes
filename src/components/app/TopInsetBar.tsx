@@ -65,69 +65,66 @@ export function SearchDialog({
         }}
         className="top-[12vh] translate-y-0"
         showCloseButton={false}
+        cardClassName="p-0"
       >
         <VisuallyHidden.Root asChild>
           <DialogTitle>{m.search_placeholder()}</DialogTitle>
         </VisuallyHidden.Root>
-        <Card radius="card-lg" raised className="w-full items-stretch gap-0 overflow-hidden p-0">
-          <div className="flex max-h-[70vh] flex-col">
-            <div className="flex items-center gap-2.5 border-b border-divider px-4 py-3">
-              <Icon name="search" size={18} />
-              <Input
-                variant="transparent"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder={m.search_placeholder()}
-                wrapperClassName="flex-1 translate-y-px"
-              />
-              <DialogClose asChild>
-                <IconButton icon="x" variant="ghost" size="sm" label="Close" />
-              </DialogClose>
-            </div>
-            <div className="relative min-h-40 flex-1 overflow-auto py-1">
-              {isFetching && <SkeletonList count={5} rowHeight={48} className="p-1" />}
-              {!isFetching && !query && (
-                <div className="t-body absolute inset-0 flex items-center justify-center text-center text-fg-muted">
-                  <span className="-translate-y-1/2">{m.search_result_placeholder()}</span>
-                </div>
-              )}
-              {!isFetching && query && !data?.length && (
-                <div className="t-body absolute inset-0 flex items-center justify-center text-center text-fg-muted">
-                  <span className="-translate-y-1/2">No matches for "{query}".</span>
-                </div>
-              )}
-              {!isFetching &&
-                data?.map((r) => {
-                  const c = r.color ? userColorPair(r.color) : null;
-                  return (
-                    <button
-                      key={`${r.kind}-${r.id}`}
-                      onClick={() => {
-                        setOpen(false);
-                        navigate({ to: r.href });
-                      }}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover-bg"
-                    >
-                      <span
-                        className="flex h-8 w-8 items-center justify-center rounded-row bg-surface-hover-bg text-fg-secondary"
-                        style={c ? { background: c.bg, color: c.fg } : undefined}
-                      >
-                        <Icon name={KIND_ICON[r.kind]} size={16} />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-fg">
-                          {r.title}
-                        </span>
-                        {r.subtitle && (
-                          <span className="block truncate text-xs text-fg-muted">{r.subtitle}</span>
-                        )}
-                      </span>
-                    </button>
-                  );
-                })}
-            </div>
+        <div className="flex max-h-[70vh] flex-col">
+          <div className="flex items-center gap-2.5 border-b border-divider px-4 py-3">
+            <Icon name="search" size={18} />
+            <Input
+              variant="transparent"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={m.search_placeholder()}
+              wrapperClassName="flex-1 translate-y-px"
+            />
+            <DialogClose asChild>
+              <IconButton icon="x" variant="ghost" size="sm" label="Close" />
+            </DialogClose>
           </div>
-        </Card>
+          <div className="relative min-h-40 flex-1 overflow-auto py-1">
+            {isFetching && <SkeletonList count={5} rowHeight={48} className="p-1" />}
+            {!isFetching && !query && (
+              <div className="t-body absolute inset-0 flex items-center justify-center text-center text-fg-muted">
+                <span className="-translate-y-1/2">{m.search_result_placeholder()}</span>
+              </div>
+            )}
+            {!isFetching && query && !data?.length && (
+              <div className="t-body absolute inset-0 flex items-center justify-center text-center text-fg-muted">
+                <span className="-translate-y-1/2">No matches for "{query}".</span>
+              </div>
+            )}
+            {!isFetching &&
+              data?.map((r) => {
+                const c = r.color ? userColorPair(r.color) : null;
+                return (
+                  <button
+                    key={`${r.kind}-${r.id}`}
+                    onClick={() => {
+                      setOpen(false);
+                      navigate({ to: r.href });
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-hover-bg"
+                  >
+                    <span
+                      className="flex h-8 w-8 items-center justify-center rounded-row bg-surface-hover-bg text-fg-secondary"
+                      style={c ? { background: c.bg, color: c.fg } : undefined}
+                    >
+                      <Icon name={KIND_ICON[r.kind]} size={16} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-fg">{r.title}</span>
+                      {r.subtitle && (
+                        <span className="block truncate text-xs text-fg-muted">{r.subtitle}</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

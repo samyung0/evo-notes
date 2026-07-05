@@ -67,7 +67,10 @@ type Empty struct{}
 func registerRoutes(api huma.API, a *api) {
 	a.registerAccount(api)
 	a.registerWorkspaces(api)
+	a.registerTags(api)
+	a.registerChat(api)
 	a.registerContent(api)
+	a.registerMaterials(api)
 	a.registerQuizzes(api)
 	a.registerFlashcards(api)
 	a.registerSchedule(api)

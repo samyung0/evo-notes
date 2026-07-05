@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Input, Modal, Text } from '@/components/ui';
+import { Button, Input, SimpleDialog, Text } from '@/components/ui';
 import type { Task } from '@/api/types';
 import { m } from '@/i18n';
 
@@ -17,7 +17,7 @@ export function TaskEditModal({
   const [title, setTitle] = useState(task.title);
 
   return (
-    <Modal
+    <SimpleDialog
       open={open}
       onClose={onClose}
       title={m.action_edit()}
@@ -45,6 +45,6 @@ export function TaskEditModal({
         </Text>
         <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
       </label>
-    </Modal>
+    </SimpleDialog>
   );
 }

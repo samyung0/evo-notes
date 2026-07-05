@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
 import {
-  Badge,
   Card,
   HoverActions,
   Icon,
@@ -16,32 +16,33 @@ import { m } from '@/i18n';
 import { MiniCalendar } from '@/features/schedule/MiniCalendar';
 import { TimeGrid } from '@/features/schedule/TimeGrid';
 import { MonthView } from '@/features/schedule/MonthView';
-import { MONTHS, fmtTime, weekDays } from '@/features/schedule/dateUtils';
-import type { CalendarEvent } from '@/api/types';
+import { MONTHS, weekDays } from '@/features/schedule/dateUtils';
 
 type View = 'month' | 'week' | 'day';
 
 const LABEL_LIMIT = 7;
 
 export default function Schedule() {
+  const navigate = useNavigate();
+  const { event: eventParam } = useSearch({ from: '/auth-shell/schedule' });
   const { data: events, isLoading } = useEvents();
   const { data: labels } = useLabels();
   const deleteLabel = useDeleteLabel();
   const openLabelEdit = useDialogs((s) => s.openLabelEdit);
   const openConfirm = useDialogs((s) => s.openConfirm);
   const openEventForm = useDialogs((s) => s.openEventForm);
+  const openEventDetail = useDialogs((s) => s.openEventDetail);
+  const eventDetail = useDialogs((s) => s.eventDetail);
   const [view, setView] = useState<View>('week');
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState(() => new Date());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [labelsOpen, setLabelsOpen] = useState(true);
   const [showAllLabels, setShowAllLabels] = useState(false);
-  const [active, setActive] = useState<{
-    ev: CalendarEvent;
-    x: number;
-    y: number;
-  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // track whether the open detail dialog originated from the ?event= param so
+  // we only strip the param from the URL when that specific dialog closes.
+  const openedFromParam = useRef(false);
 
   const visibleEvents = useMemo(
     () =>
@@ -55,14 +56,29 @@ export default function Schedule() {
     [events]
   );
 
-  // popup disappears when the calendar scrolls
+  // open the details dialog when navigated here with an ?event=<id> param
+  // (e.g. from the dashboard calendar). Jumps the grid to that day too.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const onScroll = () => setActive(null);
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, []);
+    if (!eventParam || !events) return;
+    const ev = events.find((e) => e.id === eventParam);
+    if (!ev) return;
+    setSelected(new Date(ev.start));
+    openedFromParam.current = true;
+    openEventDetail(ev);
+  }, [eventParam, events, openEventDetail]);
+
+  // once a param-opened dialog is dismissed, drop the ?event= param from the URL.
+  // guard on a truthy→null transition so we don't strip on the initial mount,
+  // where the open effect sets eventDetail but this render still sees it null.
+  const prevDetail = useRef(eventDetail);
+  useEffect(() => {
+    const wasOpen = prevDetail.current;
+    prevDetail.current = eventDetail;
+    if (openedFromParam.current && wasOpen && !eventDetail) {
+      openedFromParam.current = false;
+      navigate({ to: '/schedule', search: {}, replace: true });
+    }
+  }, [eventDetail, navigate]);
 
   const days = view === 'week' ? weekDays(selected) : [selected];
 
@@ -230,7 +246,6 @@ export default function Schedule() {
                 month={month}
                 events={visibleEvents}
                 labels={labels ?? []}
-                onSelectEvent={(ev, a) => setActive({ ev, ...a })}
                 onCreate={createOnDay}
               />
             </div>
@@ -239,61 +254,13 @@ export default function Schedule() {
               days={days}
               events={visibleEvents}
               labels={labels ?? []}
-              selectedId={active?.ev.id ?? null}
-              onSelectEvent={(ev, a) => setActive({ ev, ...a })}
+              selectedId={eventDetail?.id ?? null}
               onCreateSlot={createAt}
               scrollContainerRef={scrollRef}
             />
           )}
         </div>
       </PanelWithInvertedRadius>
-
-      {active && <EventPopup data={active} labels={labels ?? []} onClose={() => setActive(null)} />}
     </div>
-  );
-}
-
-function EventPopup({
-  data,
-  labels,
-  onClose,
-}: {
-  data: { ev: CalendarEvent; x: number; y: number };
-  labels: { id: string; name: string }[];
-  onClose: () => void;
-}) {
-  const { ev, x, y } = data;
-  const left = Math.min(x, window.innerWidth - 320);
-  const top = Math.min(y, window.innerHeight - 220);
-  return (
-    <Card className="fixed z-50 w-[300px] gap-0 p-4 shadow-pop" style={{ left, top }}>
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="t-card-title flex-1">{ev.title}</h3>
-        <div className="flex gap-1">
-          <IconButton icon="notes" variant="ghost" size="sm" label="Edit" />
-          <IconButton icon="x" variant="ghost" size="sm" onClick={onClose} label="Close" />
-        </div>
-      </div>
-      <div className="t-body mt-2 flex items-center gap-2 text-fg-secondary">
-        <Icon name="clock" size={15} /> {fmtTime(ev.start)} – {fmtTime(ev.end)}
-      </div>
-      {ev.location && (
-        <div className="t-body mt-1 flex items-center gap-2 text-fg-secondary">
-          <Icon name="location" size={15} /> {ev.location}
-        </div>
-      )}
-      {ev.labelIds.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {ev.labelIds.map((id) => {
-            const l = labels.find((x) => x.id === id);
-            return l ? (
-              <Badge key={id} tone="neutral" size="sm">
-                {l.name}
-              </Badge>
-            ) : null;
-          })}
-        </div>
-      )}
-    </Card>
   );
 }

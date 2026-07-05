@@ -94,7 +94,7 @@ func (a *api) deleteEvent(ctx context.Context, in *eventIDInput) (*Empty, error)
 }
 
 func (a *api) listLabels(ctx context.Context, _ *struct{}) (*labelsOutput, error) {
-	res, err := a.s.ListLabels(ctx)
+	res, err := a.s.ListLabels(ctx, userID(ctx))
 	if err != nil {
 		return nil, hErr(err)
 	}

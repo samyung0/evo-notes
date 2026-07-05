@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, Button, Input, Text } from '@/components/ui';
+import { SimpleDialog, Button, Input, Text } from '@/components/ui';
 import { useCreateCard, useUpdateCard } from '@/api/hooks';
 import type { Flashcard } from '@/api/types';
 
@@ -41,7 +41,7 @@ export function CardEditModal({
   }
 
   return (
-    <Modal
+    <SimpleDialog
       open={open}
       onClose={onClose}
       title={card ? 'Edit card' : 'New card'}
@@ -71,6 +71,6 @@ export function CardEditModal({
           <Input value={back} onChange={(e) => setBack(e.target.value)} />
         </label>
       </div>
-    </Modal>
+    </SimpleDialog>
   );
 }

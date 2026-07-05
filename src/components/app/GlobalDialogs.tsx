@@ -1,9 +1,10 @@
-import { ConfirmDialog, Modal, Text } from '@/components/ui';
+import { ConfirmDialog, SimpleDialog, Text } from '@/components/ui';
 import {
   useChapters,
   useCreateEvent,
   useCreateWorkspace,
   useLabels,
+  useUpdateEvent,
   useUpdateLabel,
   useUpdateTask,
   useUpdateWorkspace,
@@ -14,6 +15,7 @@ import { WorkspaceFormCreateDialog } from '@/features/workspaces/WorkspaceFormCr
 import { TaskEditModal } from '@/features/tasks/TaskEditModal';
 import { LabelEditModal } from '@/features/schedule/LabelEditModal';
 import { EventFormModal } from '@/features/schedule/EventFormModal';
+import { EventDetailDialog } from '@/features/schedule/EventDetailDialog';
 import { AddSourceModal } from '@/features/workspace/AddSourceModal';
 import { useDialogs } from '@/stores/dialogs';
 import { SearchDialog } from './TopInsetBar';
@@ -29,7 +31,7 @@ function WorkspaceStatsModal({ id, onClose }: { id: string; onClose: () => void 
     ['Average score', data ? `${data.avgScore}%` : undefined],
   ] as const;
   return (
-    <Modal open onClose={onClose} title="Workspace statistics" width={420}>
+    <SimpleDialog open onClose={onClose} title="Workspace statistics" width={420}>
       <div className="grid grid-cols-2 gap-3">
         {rows.map(([label, val]) => (
           <div
@@ -45,7 +47,7 @@ function WorkspaceStatsModal({ id, onClose }: { id: string; onClose: () => void 
           </div>
         ))}
       </div>
-    </Modal>
+    </SimpleDialog>
   );
 }
 
@@ -57,16 +59,19 @@ export function GlobalDialogs() {
   const taskEdit = useDialogs((s) => s.taskEdit);
   const labelEdit = useDialogs((s) => s.labelEdit);
   const eventForm = useDialogs((s) => s.eventForm);
+  const eventDetail = useDialogs((s) => s.eventDetail);
   const addSource = useDialogs((s) => s.addSource);
   const confirm = useDialogs((s) => s.confirm);
   const openWorkspaceCreate = useDialogs((s) => s.openWorkspaceCreate);
   const openWorkspaceEdit = useDialogs((s) => s.openWorkspaceEdit);
+  const openEventForm = useDialogs((s) => s.openEventForm);
   const closeWorkspaceCreate = useDialogs((s) => s.closeWorkspaceCreate);
   const closeWorkspaceEdit = useDialogs((s) => s.closeWorkspaceEdit);
   const closeWorkspaceStats = useDialogs((s) => s.closeWorkspaceStats);
   const closeTaskEdit = useDialogs((s) => s.closeTaskEdit);
   const closeLabelEdit = useDialogs((s) => s.closeLabelEdit);
   const closeEventForm = useDialogs((s) => s.closeEventForm);
+  const closeEventDetail = useDialogs((s) => s.closeEventDetail);
   const closeAddSource = useDialogs((s) => s.closeAddSource);
   const closeConfirm = useDialogs((s) => s.closeConfirm);
 
@@ -75,6 +80,7 @@ export function GlobalDialogs() {
   const updateTask = useUpdateTask();
   const updateLabel = useUpdateLabel();
   const createEvent = useCreateEvent();
+  const updateEvent = useUpdateEvent();
   const { data: labels } = useLabels();
 
   // Hooks must run unconditionally; the workspace-scoped queries are gated on an
@@ -146,14 +152,35 @@ export function GlobalDialogs() {
 
       {eventForm && (
         <EventFormModal
-          key={`${eventForm.start ?? ''}-${eventForm.end ?? ''}`}
+          key={eventForm.id ?? `${eventForm.start ?? ''}-${eventForm.end ?? ''}`}
           open
           labels={labels ?? []}
           draft={eventForm}
           onClose={closeEventForm}
-          onSubmit={(v) => createEvent.mutate(v)}
+          onSubmit={(v) =>
+            eventForm.id
+              ? updateEvent.mutate({ id: eventForm.id, ...v })
+              : createEvent.mutate(v)
+          }
         />
       )}
+
+      <EventDetailDialog
+        event={eventDetail}
+        labels={labels ?? []}
+        onClose={closeEventDetail}
+        onEdit={(ev) => {
+          closeEventDetail();
+          openEventForm({
+            id: ev.id,
+            title: ev.title,
+            start: ev.start,
+            end: ev.end,
+            location: ev.location,
+            labelIds: ev.labelIds,
+          });
+        }}
+      />
 
       {addSource && (
         <AddSourceModal

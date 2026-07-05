@@ -24,11 +24,37 @@ type Workspace struct {
 	Name           string    `json:"name"`
 	Color          UserColor `json:"color"`
 	Privacy        Privacy   `json:"privacy"`
-	Tags           []string  `json:"tags"`
+	Tags           []Tag     `json:"tags"`
 	ChapterCount   int       `json:"chapterCount"`
 	FileCount      int       `json:"fileCount"`
 	CreatedAt      time.Time `json:"createdAt"`
 	LastAccessedAt time.Time `json:"lastAccessedAt"`
+}
+
+// Tag is a catalog tag as read back for an entity: a stable catalog id plus its
+// display value (the tag name). The id lets clients reference the same catalog
+// row on the next write so per-tag metadata is reused rather than recreated.
+type Tag struct {
+	ID    string `json:"id"`
+	Value string `json:"value"`
+}
+
+// TagRef is one tag on an incoming write. ID is nil when the client is proposing
+// a brand-new tag (resolved find-or-create by Value); when set, the backend
+// reuses that catalog row (preserving its metadata).
+type TagRef struct {
+	ID    *string
+	Value string
+}
+
+// tagsFromNames wraps bare tag names (e.g. the denormalized public snapshot,
+// which has no catalog ids) as Tag rows with empty ids.
+func tagsFromNames(names []string) []Tag {
+	out := make([]Tag, len(names))
+	for i, n := range names {
+		out[i] = Tag{Value: n}
+	}
+	return out
 }
 
 type Chapter struct {
@@ -105,6 +131,31 @@ type Flashcard struct {
 	Back   string   `json:"back"`
 	Known  bool     `json:"known"`
 	Srs    SrsState `json:"srs"`
+}
+
+// Material is a persisted mindmap/diagram: a markdown document (mermaid fences)
+// scoped to chapters and/or files. Workspace-scoped, not chapter-scoped.
+type Material struct {
+	ID            string    `json:"id"`
+	WorkspaceID   string    `json:"workspaceId"`
+	WorkspaceName string    `json:"workspaceName"`
+	Kind          string    `json:"kind"` // mindmap | diagram | quiz | flashcards
+	Title         string    `json:"title"`
+	Content       string    `json:"content"`
+	ScopeChapters []string  `json:"scopeChapters" nullable:"false"`
+	ScopeFileIDs  []string  `json:"scopeFileIds" nullable:"false"`
+	Privacy       Privacy   `json:"privacy"`
+	Color         UserColor `json:"color,omitempty"` // decks only; presentation tint
+	CreatedAt     time.Time `json:"createdAt"`
+}
+
+// MaterialRef is one row in the unified left-panel materials list, aggregating
+// markdown materials plus the workspace's quizzes and decks.
+type MaterialRef struct {
+	ID        string    `json:"id"`
+	Type      string    `json:"type"` // mindmap | diagram | quiz | deck
+	Title     string    `json:"title"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type Label struct {

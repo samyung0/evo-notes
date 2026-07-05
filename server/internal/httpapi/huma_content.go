@@ -40,6 +40,10 @@ type fileOutput struct {
 type fileIDInput struct {
 	ID string `path:"id"`
 }
+type updateFileInput struct {
+	ID   string `path:"id"`
+	Body apimodel.UpdateFileReq
+}
 
 func (a *api) registerContent(api huma.API) {
 	const tag = "Content"
@@ -52,6 +56,8 @@ func (a *api) registerContent(api huma.API) {
 	reg(api, http.MethodGet, "/api/files", "listAllFiles", tag, "List all files", http.StatusOK, a.listAllFiles)
 	reg(api, http.MethodGet, "/api/workspaces/{id}/files", "listWorkspaceFiles", tag, "List workspace files", http.StatusOK, a.listWorkspaceFiles)
 	reg(api, http.MethodGet, "/api/files/{id}", "getFile", tag, "Get a file", http.StatusOK, a.getFile)
+	reg(api, http.MethodPatch, "/api/files/{id}", "updateFile", tag, "Update a file", http.StatusOK, a.updateFile)
+	reg(api, http.MethodDelete, "/api/files/{id}", "deleteFile", tag, "Delete a file", http.StatusNoContent, a.deleteFile)
 }
 
 func (a *api) assertOwner(ctx context.Context, wsID string) error {
@@ -130,4 +136,24 @@ func (a *api) getFile(ctx context.Context, in *fileIDInput) (*fileOutput, error)
 		return nil, hErr(err)
 	}
 	return &fileOutput{Body: res}, nil
+}
+
+func (a *api) updateFile(ctx context.Context, in *updateFileInput) (*fileOutput, error) {
+	patch := store.FilePatch{Name: in.Body.Name}
+	if in.Body.ChapterID != nil {
+		cid := in.Body.ChapterID
+		patch.ChapterID = &cid
+	}
+	res, err := a.s.UpdateFile(ctx, in.ID, patch)
+	if err != nil {
+		return nil, hErr(err)
+	}
+	return &fileOutput{Body: res}, nil
+}
+
+func (a *api) deleteFile(ctx context.Context, in *fileIDInput) (*Empty, error) {
+	if err := a.s.DeleteFile(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
+	return &Empty{}, nil
 }

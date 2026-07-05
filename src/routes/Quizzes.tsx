@@ -8,7 +8,7 @@ import {
   Icon,
   IconButton,
   Menu,
-  Modal,
+  SimpleDialog,
   SkeletonCardGrid,
   SkeletonList,
   Tabs,
@@ -120,7 +120,7 @@ function AllQuizzes() {
         ))}
       </div>
 
-      <Modal
+      <SimpleDialog
         open={!!info}
         onClose={() => setInfo(null)}
         title={info?.name}
@@ -169,7 +169,7 @@ function AllQuizzes() {
             </div>
           </div>
         )}
-      </Modal>
+      </SimpleDialog>
     </>
   );
 }

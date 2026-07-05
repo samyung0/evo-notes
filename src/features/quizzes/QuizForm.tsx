@@ -151,45 +151,57 @@ export function QuizForm({
           />
 
           {(q.type === 'mcq' || q.type === 'multi') && (
-            <div className="mt-3 flex flex-col gap-2">
+            <div className="mt-3 flex flex-col gap-3">
               {q.options.map((opt, oi) => (
-                <div key={oi} className="flex items-center gap-2">
-                  <Checkbox
-                    checked={q.correct.includes(oi)}
-                    tone="green"
-                    size={20}
-                    onChange={(c) => {
-                      const correct = c ? [...q.correct, oi] : q.correct.filter((x) => x !== oi);
-                      update(i, {
-                        ...q,
-                        correct: q.type === 'mcq' ? (c ? [oi] : []) : correct,
-                      });
-                    }}
-                  />
+                <div key={oi} className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={q.correct.includes(oi)}
+                      tone="green"
+                      size={20}
+                      onChange={(c) => {
+                        const correct = c ? [...q.correct, oi] : q.correct.filter((x) => x !== oi);
+                        update(i, {
+                          ...q,
+                          correct: q.type === 'mcq' ? (c ? [oi] : []) : correct,
+                        });
+                      }}
+                    />
+                    <Input
+                      value={opt.value}
+                      onChange={(e) => {
+                        const options = [...q.options];
+                        options[oi] = { ...options[oi], value: e.target.value };
+                        update(i, { ...q, options });
+                      }}
+                      placeholder={`Option ${oi + 1}`}
+                      wrapperClassName="flex-1"
+                    />
+                    <button
+                      onClick={() => {
+                        const options = q.options.filter((_, x) => x !== oi);
+                        const correct = q.correct
+                          .filter((x) => x !== oi)
+                          .map((x) => (x > oi ? x - 1 : x));
+                        update(i, { ...q, options, correct });
+                      }}
+                      disabled={q.options.length <= 2}
+                      className="text-fg-muted hover:text-fg disabled:opacity-30"
+                      aria-label="Remove option"
+                    >
+                      <Icon name="x" size={15} />
+                    </button>
+                  </div>
                   <Input
-                    value={opt.value}
+                    value={opt.explanation ?? ''}
                     onChange={(e) => {
                       const options = [...q.options];
-                      options[oi] = { value: e.target.value };
+                      options[oi] = { ...options[oi], explanation: e.target.value };
                       update(i, { ...q, options });
                     }}
-                    placeholder={`Option ${oi + 1}`}
-                    wrapperClassName="flex-1"
+                    placeholder={`Why option ${oi + 1} is right / wrong (optional)`}
+                    wrapperClassName="ml-7"
                   />
-                  <button
-                    onClick={() => {
-                      const options = q.options.filter((_, x) => x !== oi);
-                      const correct = q.correct
-                        .filter((x) => x !== oi)
-                        .map((x) => (x > oi ? x - 1 : x));
-                      update(i, { ...q, options, correct });
-                    }}
-                    disabled={q.options.length <= 2}
-                    className="text-fg-muted hover:text-fg disabled:opacity-30"
-                    aria-label="Remove option"
-                  >
-                    <Icon name="x" size={15} />
-                  </button>
                 </div>
               ))}
               <AddRowButton

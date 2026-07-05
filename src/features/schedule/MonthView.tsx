@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { userColorPair } from '@/lib/userColor';
 import type { CalendarEvent, Label } from '@/api/types';
@@ -7,13 +8,11 @@ export function MonthView({
   month,
   events,
   labels,
-  onSelectEvent,
   onCreate,
 }: {
   month: Date;
   events: CalendarEvent[];
   labels: Label[];
-  onSelectEvent: (ev: CalendarEvent, anchor: { x: number; y: number }) => void;
   onCreate?: (day: Date) => void;
 }) {
   const grid = monthGrid(month);
@@ -23,14 +22,14 @@ export function MonthView({
     const first = labels.find((l) => l.id === ev.labelIds[0]);
     return first
       ? userColorPair(first.color)
-      : { bg: 'var(--surface-inset-bg)', fg: 'var(--text-secondary)' };
+      : { bg: 'var(--color-surface)', fg: 'var(--color-fg-secondary)' };
   }
 
   return (
     <div className="flex h-full flex-col">
       <div className="grid grid-cols-7 border-b border-divider">
         {WEEKDAYS.map((w) => (
-          <div key={w} className="py-2 text-center text-[0.7rem] font-semibold text-fg-muted">
+          <div key={w} className="py-2 text-center font-semibold">
             {w}
           </div>
         ))}
@@ -48,7 +47,7 @@ export function MonthView({
             >
               <div
                 className={cn(
-                  'mb-1 flex h-6 w-6 items-center justify-center rounded-pill text-xs',
+                  'mb-1 flex h-6 w-6 items-center justify-center rounded-lg text-xs',
                   isToday
                     ? 'bg-action font-bold text-action-fg'
                     : inMonth
@@ -62,17 +61,16 @@ export function MonthView({
                 {dayEvents.slice(0, 3).map((ev) => {
                   const c = colorFor(ev);
                   return (
-                    <button
+                    <Link
                       key={ev.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectEvent(ev, { x: e.clientX, y: e.clientY });
-                      }}
-                      className="truncate rounded px-1.5 py-0.5 text-left text-[0.66rem] font-medium"
+                      to="/schedule"
+                      search={{ event: ev.id }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="block truncate rounded px-1.5 py-0.5 text-left text-[0.66rem] font-medium"
                       style={{ background: c.bg, color: c.fg }}
                     >
                       {ev.title}
-                    </button>
+                    </Link>
                   );
                 })}
                 {dayEvents.length > 3 && (

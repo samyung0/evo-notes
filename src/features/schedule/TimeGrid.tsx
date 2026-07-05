@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
-import { Icon } from '@/components/ui';
 import { userColorPair } from '@/lib/userColor';
+import { useDialogs } from '@/stores/dialogs';
 import type { CalendarEvent, Label } from '@/api/types';
 import { fmtHour, fmtTime, hourOf, sameDay } from './dateUtils';
 
@@ -13,17 +14,17 @@ export function TimeGrid({
   events,
   labels,
   selectedId,
-  onSelectEvent,
   onCreateSlot,
   scrollContainerRef,
+  hideHeader = false,
 }: {
   days: Date[];
   events: CalendarEvent[];
   labels: Label[];
   selectedId: string | null;
-  onSelectEvent: (ev: CalendarEvent, anchor: { x: number; y: number }) => void;
   onCreateSlot?: (start: Date, end: Date) => void;
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
+  hideHeader?: boolean;
 }) {
   const today = new Date();
   const nowTop = (today.getHours() + today.getMinutes() / 60) * HOUR_H;
@@ -33,6 +34,7 @@ export function TimeGrid({
   const nowRef = useRef<HTMLDivElement>(null);
   const [pendingSlot, setPendingSlot] = useState<{ day: string; hour: number } | null>(null);
   const [hoverSlot, setHoverSlot] = useState<{ day: string; hour: number } | null>(null);
+  const isEventFormOpen = useDialogs((s) => s.eventForm !== null);
 
   // auto-scroll so the now-line sits ~30% from the top of the viewport.
   useEffect(() => {
@@ -49,12 +51,17 @@ export function TimeGrid({
   // drop the pending highlight once the data updates (e.g. event created).
   useEffect(() => setPendingSlot(null), [events]);
 
+  // drop the pending highlight when the event form dialog closes.
+  useEffect(() => {
+    if (!isEventFormOpen) setPendingSlot(null);
+  }, [isEventFormOpen]);
+
   function colorFor(ev: CalendarEvent) {
     const first = labels.find((l) => l.id === ev.labelIds[0]);
     return first
       ? userColorPair(first.color)
       : {
-          bg: 'var(--surface-inset-bg)',
+          bg: 'var(--color-surface)',
           fg: 'var(--text-secondary)',
           fgMuted: 'var(--text-muted)',
           solid: 'var(--text-muted)',
@@ -79,26 +86,28 @@ export function TimeGrid({
   return (
     <div className="flex flex-col">
       {/* header row */}
-      <div className="sticky top-0 z-10 flex border-b border-divider bg-surface">
-        <div className="w-14 shrink-0" />
-        {days.map((d) => {
-          const isToday = sameDay(d, today);
-          return (
-            <div
-              key={d.toISOString()}
-              className={cn(
-                'flex-1 py-2 text-center',
-                isToday && isWeek && 'rounded-t-xl bg-page/70'
-              )}
-            >
-              <div className="text-sm font-semibold text-fg-muted">
-                {WEEKDAY_SHORT[(d.getDay() + 6) % 7]}
+      {!hideHeader && (
+        <div className="sticky top-0 z-10 flex border-b border-divider bg-surface">
+          <div className="w-14 shrink-0" />
+          {days.map((d) => {
+            const isToday = sameDay(d, today);
+            return (
+              <div
+                key={d.toISOString()}
+                className={cn(
+                  'flex-1 py-2 text-center',
+                  isToday && isWeek && 'rounded-t-xl bg-page/70'
+                )}
+              >
+                <div className="text-sm font-semibold text-fg-muted">
+                  {WEEKDAY_SHORT[(d.getDay() + 6) % 7]}
+                </div>
+                <div className="mt-0.5 font-semibold">{d.getDate()}</div>
               </div>
-              <div className="mt-0.5 font-semibold">{d.getDate()}</div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* scroll body */}
       <div className="relative flex" style={{ height: HOUR_H * 24 }}>
@@ -123,7 +132,9 @@ export function TimeGrid({
                 key={d.toISOString()}
                 onClick={(e) => handleSlotClick(d, e)}
                 onMouseMove={
-                  onCreateSlot ? (e) => setHoverSlot({ day: d.toDateString(), hour: hourAt(e) }) : undefined
+                  onCreateSlot
+                    ? (e) => setHoverSlot({ day: d.toDateString(), hour: hourAt(e) })
+                    : undefined
                 }
                 onMouseLeave={onCreateSlot ? () => setHoverSlot(null) : undefined}
                 className={cn(
@@ -141,18 +152,25 @@ export function TimeGrid({
                   hoverSlot?.day === d.toDateString() &&
                   hoverSlot.hour !== pendingSlot?.hour && (
                     <div
-                      className="pointer-events-none absolute right-1 left-1 z-1 flex items-center gap-1 rounded-row bg-action/10 px-2 text-xs font-semibold text-action ring-1 ring-action/40"
+                      className="pointer-events-none absolute right-1 left-1 z-1 flex items-center gap-1 rounded-row bg-tint-accent-1/30 px-2 text-xs font-semibold"
                       style={{ top: hoverSlot.hour * HOUR_H, height: HOUR_H }}
                     >
-                      <Icon name="plus" size={13} strokeWidth={2.5} />
-                      {fmtHour(hoverSlot.hour)}
+                      {/* the text will be hard to read, leave empty for now */}
+                      {/* <Icon name="plus" size={13} strokeWidth={2.5} />
+                      {fmtHour(hoverSlot.hour)} */}
                     </div>
                   )}
                 {/* pending new-event highlight */}
                 {pendingSlot?.day === d.toDateString() && (
                   <div
-                    className="pointer-events-none absolute right-1 left-1 z-1 rounded-row bg-page/70 ring-1 ring-action"
-                    style={{ top: pendingSlot.hour * HOUR_H, height: HOUR_H }}
+                    className="pointer-events-none absolute right-1 left-1 z-1 rounded-row"
+                    style={{
+                      top: pendingSlot.hour * HOUR_H,
+                      height: HOUR_H,
+                      backgroundColor: 'var(--color-surface)',
+                      backgroundImage:
+                        'repeating-linear-gradient(45deg, color-mix(in srgb, var(--tint-accent-1-bg) 100%, transparent) 0, color-mix(in srgb, var(--tint-accent-1-bg) 100%, transparent) 6px, transparent 6px, transparent 12px)',
+                    }}
                   />
                 )}
                 {/* events */}
@@ -161,12 +179,11 @@ export function TimeGrid({
                   const top = hourOf(ev.start) * HOUR_H;
                   const height = Math.max(24, (hourOf(ev.end) - hourOf(ev.start)) * HOUR_H);
                   return (
-                    <button
+                    <Link
                       key={ev.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectEvent(ev, { x: e.clientX, y: e.clientY });
-                      }}
+                      to="/schedule"
+                      search={{ event: ev.id }}
+                      onClick={(e) => e.stopPropagation()}
                       className={cn(
                         'absolute right-1 left-1 z-2 flex flex-col overflow-hidden rounded-row px-2 py-1.5 text-left shadow-xs',
                         selectedId === ev.id && 'ring-2 ring-fg'
@@ -177,7 +194,7 @@ export function TimeGrid({
                       <span className="block truncate text-xs font-semibold opacity-80">
                         {fmtTime(ev.start)}
                       </span>
-                    </button>
+                    </Link>
                   );
                 })}
               </div>

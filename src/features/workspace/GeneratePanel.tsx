@@ -1,46 +1,68 @@
 import { useState } from 'react';
-import { Link } from '@tanstack/react-router';
 import { Button, Icon, Text } from '@/components/ui';
 import { useGenerate } from '@/api/hooks';
-import type { Chapter, GenerateOptions, Quiz } from '@/api/types';
+import type {
+  Chapter,
+  Deck,
+  GenerateOptions,
+  Material,
+  Quiz,
+  SourceFile,
+} from '@/api/types';
 import { m } from '@/i18n';
 import { GenerateFormDialog, type GenerateMode } from './GenerateFormDialog';
+import type { OpenItem } from '@/features/materials/openItem';
+
+type GenerateResultData =
+  | { kind: 'flashcards'; deck?: Deck; cards?: unknown[] }
+  | { kind: 'quiz'; quiz?: Quiz }
+  | { kind: 'mindmap' | 'diagram'; material?: Material };
+
+const TILES: [GenerateMode, Parameters<typeof Icon>[0]['name'], string][] = [
+  ['flashcards', 'flashcards', m.generate_flashcards()],
+  ['quiz', 'quiz', m.generate_quiz()],
+  ['mindmap', 'workspaces', 'Mindmap'],
+  ['diagram', 'grid', 'Diagram'],
+];
 
 export function GeneratePanel({
   workspaceId,
   chapters,
+  files,
+  onOpenItem,
 }: {
   workspaceId: string;
   chapters: Chapter[];
+  files: SourceFile[];
+  onOpenItem?: (item: OpenItem) => void;
 }) {
   const gen = useGenerate(workspaceId);
   const [mode, setMode] = useState<GenerateMode | null>(null);
-  const [resultMode, setResultMode] = useState<GenerateMode | null>(null);
-  const [result, setResult] = useState<unknown>(null);
+  const [result, setResult] = useState<GenerateResultData | null>(null);
 
   async function handleGenerate(opts: GenerateOptions) {
-    const r = await gen.mutateAsync(opts);
+    const r = (await gen.mutateAsync(opts)) as GenerateResultData;
     setResult(r);
-    setResultMode(mode);
     setMode(null);
+    // Reveal the freshly-generated artifact in the center pane.
+    const materialId =
+      r.kind === 'quiz'
+        ? r.quiz?.id
+        : r.kind === 'flashcards'
+          ? r.deck?.id
+          : r.material?.id;
+    if (materialId) onOpenItem?.({ kind: 'material', id: materialId });
   }
 
   return (
     <div className="flex flex-col gap-4 overflow-auto p-4">
       <Text variant="subtitle">{m.generate_title()}</Text>
-      <div className="grid grid-cols-3 gap-3">
-        {(
-          [
-            ['summary', 'message', m.generate_summary()],
-            ['flashcards', 'flashcards', m.generate_flashcards()],
-            ['quiz', 'quiz', m.generate_quiz()],
-          ] as const
-        ).map(([k, icon, label]) => (
+      <div className="grid grid-cols-2 gap-3">
+        {TILES.map(([k, icon, label]) => (
           <button
             key={k}
             onClick={() => {
               setResult(null);
-              setResultMode(null);
               setMode(k);
             }}
             className="flex aspect-square flex-col items-center justify-center gap-2 rounded-card border border-line bg-surface text-fg transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-card"
@@ -51,7 +73,7 @@ export function GeneratePanel({
         ))}
       </div>
 
-      {result != null && resultMode && <GenerateResult mode={resultMode} result={result} />}
+      {result && <GenerateResult result={result} onOpenItem={onOpenItem} />}
 
       {mode && (
         <GenerateFormDialog
@@ -62,6 +84,7 @@ export function GeneratePanel({
           }}
           mode={mode}
           chapters={chapters}
+          files={files}
           pending={gen.isPending}
           onGenerate={handleGenerate}
         />
@@ -70,41 +93,35 @@ export function GeneratePanel({
   );
 }
 
-function GenerateResult({ mode, result }: { mode: GenerateMode; result: unknown }) {
-  const r = result as {
-    kind: string;
-    title?: string;
-    body?: string;
-    cards?: unknown[];
-    quiz?: Quiz;
-  };
+function GenerateResult({
+  result,
+  onOpenItem,
+}: {
+  result: GenerateResultData;
+  onOpenItem?: (item: OpenItem) => void;
+}) {
+  let label = '';
+  let open: OpenItem | null = null;
+  if (result.kind === 'quiz') {
+    if (result.quiz) {
+      label = `Quiz "${result.quiz.name}" ready — ${result.quiz.questions.length} questions.`;
+      open = { kind: 'material', id: result.quiz.id };
+    }
+  } else if (result.kind === 'flashcards') {
+    label = `Deck ready — ${result.cards?.length ?? 0} cards.`;
+    if (result.deck) open = { kind: 'material', id: result.deck.id };
+  } else if (result.material) {
+    label = `${result.kind === 'mindmap' ? 'Mindmap' : 'Diagram'} "${result.material.title}" ready.`;
+    open = { kind: 'material', id: result.material.id };
+  }
+
   return (
-    <div className="bg-surface-hover-bg rounded-card border border-line p-4">
-      {mode === 'summary' && (
-        <>
-          <Text variant="subtitle" className="mb-2">
-            {r.title}
-          </Text>
-          <p className="text-sm whitespace-pre-wrap text-fg">{r.body}</p>
-        </>
-      )}
-      {mode === 'flashcards' && (
-        <Text variant="body">
-          Generated {r.cards?.length ?? 0} flashcards. Find them in your Flashcards library.
-        </Text>
-      )}
-      {mode === 'quiz' && r.quiz && (
-        <div className="flex flex-col gap-2">
-          <Text variant="subtitle">{r.quiz.name}</Text>
-          <Text variant="meta" tone="muted">
-            {r.quiz.questions.length} questions ready.
-          </Text>
-          <Link to="/quizzes" preload="intent">
-            <Button size="sm" variant="accent" iconRight="arrowRight">
-              Open in Quizzes
-            </Button>
-          </Link>
-        </div>
+    <div className="bg-surface-hover-bg flex flex-col gap-2 rounded-card border border-line p-4">
+      <Text variant="body">{label}</Text>
+      {open && onOpenItem && (
+        <Button size="sm" variant="accent" iconRight="arrowRight" onClick={() => onOpenItem(open!)}>
+          Open in view
+        </Button>
       )}
     </div>
   );

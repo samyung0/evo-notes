@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Modal, Button, Icon, Text } from '@/components/ui';
+import { SimpleDialog, Button, Icon, Text } from '@/components/ui';
 import { useImportSources, useIntegrations, useMicrosoftRecentFiles } from '@/api/hooks';
 import { API_BASE, integrationConnectUrl } from '@/api/client';
 import { USE_MSW } from '@/api/auth';
@@ -154,7 +154,7 @@ export function AddSourceModal({
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title="Add source" width={520}>
+      <SimpleDialog open={open} onClose={onClose} title="Add source" width={520}>
         <div className="flex flex-col gap-4">
           <label className="flex flex-col gap-1.5">
             <Text variant="label" tone="muted">
@@ -224,9 +224,14 @@ export function AddSourceModal({
             </Text>
           )}
         </div>
-      </Modal>
+      </SimpleDialog>
 
-      <Modal open={msOpen} onClose={() => setMsOpen(false)} title="OneDrive files" width={480}>
+      <SimpleDialog
+        open={msOpen}
+        onClose={() => setMsOpen(false)}
+        title="OneDrive files"
+        width={480}
+      >
         <div className="flex max-h-64 flex-col gap-1 overflow-auto">
           {(msFiles ?? []).map((f) => (
             <button
@@ -244,7 +249,7 @@ export function AddSourceModal({
             </Text>
           )}
         </div>
-      </Modal>
+      </SimpleDialog>
     </>
   );
 }

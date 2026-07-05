@@ -7,6 +7,7 @@ import { queryClient } from './api/queryClient';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { AppAuthProvider } from './components/app/AuthProvider';
 import './styles/tailwind.css';
+import 'streamdown/styles.css';
 
 // Mocks are on by default; set VITE_USE_MSW=false to hit the real Go gateway
 // (Vite proxies /api → http://localhost:8080).

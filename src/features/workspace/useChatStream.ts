@@ -1,0 +1,117 @@
+import { useCallback, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { qk } from '@/api/client';
+import { streamChat } from '@/api/chatStream';
+import type { ChatMessage, ChatRole, ChatStatus, WireMessage } from '@/api/types';
+
+/** Map a persisted wire message onto the UI turn shape (narrowing role/status). */
+export function toChatMessage(m: WireMessage): ChatMessage {
+  return {
+    id: m.id,
+    conversationId: m.conversationId,
+    role: m.role as ChatRole,
+    content: m.content,
+    status: m.status as ChatStatus,
+    citations: m.citations ?? undefined,
+    createdAt: m.createdAt,
+  };
+}
+
+const tempId = () => `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+/**
+ * Client state machine for a single active conversation. Holds the message list,
+ * drives the SSE stream, and tracks the in-flight assistant turn so tokens land
+ * on the right bubble. Abort propagates through the fetch signal to the gateway.
+ */
+export function useChatStream(workspaceId: string) {
+  const qc = useQueryClient();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const patch = useCallback((id: string, up: Partial<ChatMessage>) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...up } : m)));
+  }, []);
+
+  /** Replace local state with a loaded conversation (history) or a blank thread. */
+  const hydrate = useCallback((convId: string | null, history: ChatMessage[]) => {
+    setConversationId(convId);
+    setMessages(history);
+  }, []);
+
+  const startNew = useCallback(() => {
+    abortRef.current?.abort();
+    setConversationId(null);
+    setMessages([]);
+  }, []);
+
+  const stop = useCallback(() => abortRef.current?.abort(), []);
+
+  const send = useCallback(
+    async (text: string, model?: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || streaming) return;
+
+      const userMsg: ChatMessage = {
+        id: tempId(),
+        role: 'user',
+        content: trimmed,
+        status: 'complete',
+      };
+      const placeholderId = tempId();
+      let currentId = placeholderId;
+      setMessages((prev) => [
+        ...prev,
+        userMsg,
+        { id: placeholderId, role: 'assistant', content: '', status: 'streaming' },
+      ]);
+      setStreaming(true);
+
+      const ac = new AbortController();
+      abortRef.current = ac;
+
+      await streamChat(
+        workspaceId,
+        { conversationId: conversationId ?? undefined, text: trimmed, model },
+        {
+          onStart: ({ messageId, conversationId: cid }) => {
+            currentId = messageId;
+            setConversationId(cid);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === placeholderId ? { ...m, id: messageId, conversationId: cid } : m
+              )
+            );
+          },
+          onToken: (t) =>
+            setMessages((prev) =>
+              prev.map((m) => (m.id === currentId ? { ...m, content: m.content + t } : m))
+            ),
+          onCitations: (c) => patch(currentId, { citations: c }),
+          onDone: ({ status }) => patch(currentId, { status }),
+          onError: (msg) =>
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === currentId
+                  ? { ...m, status: 'error', content: m.content || `⚠ ${msg}` }
+                  : m
+              )
+            ),
+        },
+        ac.signal
+      );
+
+      // Aborted streams finalize server-side as 'aborted'; reflect it locally.
+      if (ac.signal.aborted) patch(currentId, { status: 'aborted' });
+
+      setStreaming(false);
+      abortRef.current = null;
+      qc.invalidateQueries({ queryKey: qk.conversations(workspaceId) });
+    },
+    [workspaceId, conversationId, streaming, patch, qc]
+  );
+
+  return { messages, conversationId, streaming, send, stop, startNew, hydrate };
+}

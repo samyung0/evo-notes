@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Input, Modal, Text } from '@/components/ui';
+import { Button, Input, SimpleDialog, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { USER_COLORS, userColorPair } from '@/lib/userColor';
 import type { Label, UserColor } from '@/api/types';
@@ -25,7 +25,7 @@ export function LabelEditModal({
   const [color, setColor] = useState<UserColor>(label.color);
 
   return (
-    <Modal
+    <SimpleDialog
       open={open}
       onClose={onClose}
       title={m.action_edit()}
@@ -78,6 +78,6 @@ export function LabelEditModal({
           </div>
         </div>
       </div>
-    </Modal>
+    </SimpleDialog>
   );
 }

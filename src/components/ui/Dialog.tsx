@@ -3,7 +3,8 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 
 import { cn } from '@/lib/cn';
 import { IconButton } from './IconButton';
-import { Button } from '@excalidraw/excalidraw/index';
+import { Button } from './Button';
+import { Text } from './Text';
 import { Card } from '@/components/ui/Card';
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -42,9 +43,11 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  cardClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
+  cardClassName?: string;
 }) {
   return (
     <DialogPortal>
@@ -60,7 +63,10 @@ function DialogContent({
         <Card
           radius="card-lg"
           raised
-          className="relative max-h-[88vh] w-full items-stretch gap-0 overflow-auto"
+          className={cn(
+            'relative max-h-[88vh] w-full items-stretch gap-0 overflow-auto',
+            cardClassName
+          )}
         >
           {children}
           {showCloseButton && (
@@ -106,6 +112,97 @@ function DialogFooter({ className, children, ...props }: React.ComponentProps<'d
   );
 }
 
+/**
+ * Convenience wrapper for the common "title + body + footer" dialog. Built on
+ * the Radix primitives above so every modal in the app shares the same
+ * open/close animation. Mirrors the old `Modal` API for a drop-in swap.
+ */
+function SimpleDialog({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  width = 520,
+  className,
+  showCloseButton = true,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title?: React.ReactNode;
+  children?: React.ReactNode;
+  footer?: React.ReactNode;
+  width?: number;
+  className?: string;
+  showCloseButton?: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        showCloseButton={showCloseButton}
+        style={{ maxWidth: width }}
+        className={className}
+      >
+        {title != null && <DialogTitle className="pr-10 pb-4">{title}</DialogTitle>}
+        {children}
+        {footer && <DialogFooter>{footer}</DialogFooter>}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface ConfirmDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  body?: string;
+  confirmLabel?: string;
+  danger?: boolean;
+}
+
+function ConfirmDialog({
+  open,
+  onClose,
+  onConfirm,
+  title,
+  body,
+  confirmLabel = 'Delete',
+  danger = true,
+}: ConfirmDialogProps) {
+  return (
+    <SimpleDialog
+      open={open}
+      onClose={onClose}
+      title={title}
+      width={420}
+      footer={
+        <>
+          <Button variant="ghost-hover" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant={danger ? 'primary' : 'accent'}
+            className={danger ? 'bg-solid-error text-white hover:brightness-95' : undefined}
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+          >
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      {body && (
+        <Text variant="body" tone="secondary">
+          {body}
+        </Text>
+      )}
+    </SimpleDialog>
+  );
+}
+
 export {
   Dialog,
   DialogClose,
@@ -115,4 +212,7 @@ export {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  SimpleDialog,
+  ConfirmDialog,
+  type ConfirmDialogProps,
 };

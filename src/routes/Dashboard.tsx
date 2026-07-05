@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Panel, RightRail } from '@/components/app/layout';
+import { Panel } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
 import { DashboardCalendar } from '@/features/schedule/DashboardCalendar';
 import {
@@ -237,13 +237,13 @@ export default function Dashboard() {
         {/* <ThinkingSection /> */}
       </Panel>
 
-      <RightRail className="order-first h-auto min-h-0 w-full shrink-0 overflow-visible lg:order-last lg:h-full lg:min-h-full lg:w-75 lg:overflow-hidden xl:w-90">
+      <div className="order-first flex h-auto min-h-0 w-full shrink-0 flex-col gap-2.5 overflow-visible lg:order-last lg:h-full lg:min-h-full lg:w-75 lg:overflow-hidden xl:w-90">
         <TopInsetBar />
         <Panel className="hidden min-h-0 flex-1 lg:flex" sectionClassName="gap-2.5 p-5">
           <TasksCard />
           <DashboardCalendar />
         </Panel>
-      </RightRail>
+      </div>
     </div>
   );
 }

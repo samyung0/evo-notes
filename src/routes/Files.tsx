@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
-import { Badge, Card, Icon, Modal, SkeletonCardGrid, Text } from '@/components/ui';
+import { Badge, Card, Icon, SimpleDialog, SkeletonCardGrid, Text } from '@/components/ui';
 import { useAllFiles } from '@/api/hooks';
 import { FileViewer } from '@/features/files/FileViewer';
 import type { SourceFile } from '@/api/types';
@@ -45,9 +45,9 @@ export default function Files() {
           </div>
         )}
       </div>
-      <Modal open={!!open} onClose={() => setOpen(null)} title={open?.name} width={760}>
+      <SimpleDialog open={!!open} onClose={() => setOpen(null)} title={open?.name} width={760}>
         <div className="min-h-[50vh]">{open && <FileViewer file={open} />}</div>
-      </Modal>
+      </SimpleDialog>
     </PanelWithInvertedRadius>
   );
 }

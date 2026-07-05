@@ -84,7 +84,6 @@
   --surface-rail-border: #e6e6e6;
   --surface-card-hover-bg: #f7f8f8;
   --surface-card-dark-hover-bg: #f1f3f2;
-  --surface-inset-border: transparent;
   --surface-darker-bg: #e0e5e2;
 
   /* Text roles */
@@ -131,11 +130,11 @@
   --tint-accent-2-bg: #eaf3e6;
   --tint-accent-2-fg: #3c5230;
   --solid-accent-1: #8c7bd9;
-  --solid-accent-2: #aef07f;
+  --solid-accent-2: #7bd9ab;
   /* user colors (used for assigned colors to workspaces/quiz/event/custom cards) */
   --solid-purple: #8c7bd9;
   --solid-purple-fg: #ffffff;
-  --solid-green: #aef07f;
+  --solid-green: #7bd9ab;
   --solid-green-fg: #222222;
   --solid-blue: #8ec9f9;
   --solid-blue-fg: #222222;
@@ -180,9 +179,6 @@
   --surface-rail-bg: #20241f;
   --surface-rail-fg: #f1f3f0;
   --surface-rail-border: #2c302d;
-  --surface-inset-bg: #262b28;
-  --surface-inset-fg: #f1f3f0;
-  --surface-inset-border: transparent;
   --surface-sidebar-bg: #121513;
   --surface-sidebar-fg: #f1f3f0;
   --surface-topbar-bg: #2b302c;

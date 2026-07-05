@@ -13,9 +13,11 @@ import type {
   BillingInfo,
   Canvas,
   Chapter,
+  Conversation,
   CreateAttemptReq,
   CreateCanvasReq,
   CreateCardReq,
+  CreateConversationReq,
   CreateDeckReq,
   CreateEventReq,
   CreateQuizReq,
@@ -25,9 +27,15 @@ import type {
   Event,
   File,
   Flashcard,
+  GenerateOptions,
+  GenerateResult,
   IntegrationsStatus,
   Label,
+  ListTagsParams,
   ListWorkspacesParams,
+  Material,
+  MaterialRef,
+  Message,
   Notification,
   PublicQuiz,
   PublicWorkspace,
@@ -37,11 +45,13 @@ import type {
   SaveCanvasReq,
   SearchParams,
   SearchResult,
+  Tag,
   Task,
   URLResp,
   UpdateCardReq,
   UpdateChapterReq,
   UpdateEventReq,
+  UpdateFileReq,
   UpdateQuizReq,
   UpdateTaskReq,
   UpdateWorkspaceReq,
@@ -478,6 +488,90 @@ export const updateChapter = async (
 
   const data: updateChapterResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as updateChapterResponse;
+};
+
+export type deleteConversationResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteConversationResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type deleteConversationResponseSuccess = deleteConversationResponse204 & {
+  headers: Headers;
+};
+export type deleteConversationResponseError = deleteConversationResponseDefault & {
+  headers: Headers;
+};
+
+export type deleteConversationResponse =
+  | deleteConversationResponseSuccess
+  | deleteConversationResponseError;
+
+export const getDeleteConversationUrl = (id: string) => {
+  return `/api/conversations/${id}`;
+};
+
+/**
+ * @summary Delete a conversation
+ */
+export const deleteConversation = async (
+  id: string,
+  options?: RequestInit
+): Promise<deleteConversationResponse> => {
+  const res = await fetch(getDeleteConversationUrl(id), {
+    ...options,
+    method: 'DELETE',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteConversationResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as deleteConversationResponse;
+};
+
+export type listMessagesResponse200 = {
+  data: Message[] | null;
+  status: 200;
+};
+
+export type listMessagesResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listMessagesResponseSuccess = listMessagesResponse200 & {
+  headers: Headers;
+};
+export type listMessagesResponseError = listMessagesResponseDefault & {
+  headers: Headers;
+};
+
+export type listMessagesResponse = listMessagesResponseSuccess | listMessagesResponseError;
+
+export const getListMessagesUrl = (id: string) => {
+  return `/api/conversations/${id}/messages`;
+};
+
+/**
+ * @summary Load a conversation's message history
+ */
+export const listMessages = async (
+  id: string,
+  options?: RequestInit
+): Promise<listMessagesResponse> => {
+  const res = await fetch(getListMessagesUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMessagesResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listMessagesResponse;
 };
 
 export type listDecksResponse200 = {
@@ -965,6 +1059,47 @@ export const listAllFiles = async (options?: RequestInit): Promise<listAllFilesR
   return { data, status: res.status, headers: res.headers } as listAllFilesResponse;
 };
 
+export type deleteFileResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteFileResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type deleteFileResponseSuccess = deleteFileResponse204 & {
+  headers: Headers;
+};
+export type deleteFileResponseError = deleteFileResponseDefault & {
+  headers: Headers;
+};
+
+export type deleteFileResponse = deleteFileResponseSuccess | deleteFileResponseError;
+
+export const getDeleteFileUrl = (id: string) => {
+  return `/api/files/${id}`;
+};
+
+/**
+ * @summary Delete a file
+ */
+export const deleteFile = async (
+  id: string,
+  options?: RequestInit
+): Promise<deleteFileResponse> => {
+  const res = await fetch(getDeleteFileUrl(id), {
+    ...options,
+    method: 'DELETE',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteFileResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as deleteFileResponse;
+};
+
 export type getFileResponse200 = {
   data: File;
   status: 200;
@@ -1001,6 +1136,50 @@ export const getFile = async (id: string, options?: RequestInit): Promise<getFil
 
   const data: getFileResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as getFileResponse;
+};
+
+export type updateFileResponse200 = {
+  data: File;
+  status: 200;
+};
+
+export type updateFileResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type updateFileResponseSuccess = updateFileResponse200 & {
+  headers: Headers;
+};
+export type updateFileResponseError = updateFileResponseDefault & {
+  headers: Headers;
+};
+
+export type updateFileResponse = updateFileResponseSuccess | updateFileResponseError;
+
+export const getUpdateFileUrl = (id: string) => {
+  return `/api/files/${id}`;
+};
+
+/**
+ * @summary Update a file
+ */
+export const updateFile = async (
+  id: string,
+  updateFileReq: NonReadonly<UpdateFileReq>,
+  options?: RequestInit
+): Promise<updateFileResponse> => {
+  const res = await fetch(getUpdateFileUrl(id), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateFileReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateFileResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as updateFileResponse;
 };
 
 export type getIntegrationsResponse200 = {
@@ -1200,6 +1379,88 @@ export const listLabels = async (options?: RequestInit): Promise<listLabelsRespo
 
   const data: listLabelsResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as listLabelsResponse;
+};
+
+export type deleteMaterialResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteMaterialResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type deleteMaterialResponseSuccess = deleteMaterialResponse204 & {
+  headers: Headers;
+};
+export type deleteMaterialResponseError = deleteMaterialResponseDefault & {
+  headers: Headers;
+};
+
+export type deleteMaterialResponse = deleteMaterialResponseSuccess | deleteMaterialResponseError;
+
+export const getDeleteMaterialUrl = (id: string) => {
+  return `/api/materials/${id}`;
+};
+
+/**
+ * @summary Delete a material
+ */
+export const deleteMaterial = async (
+  id: string,
+  options?: RequestInit
+): Promise<deleteMaterialResponse> => {
+  const res = await fetch(getDeleteMaterialUrl(id), {
+    ...options,
+    method: 'DELETE',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteMaterialResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as deleteMaterialResponse;
+};
+
+export type getMaterialResponse200 = {
+  data: Material;
+  status: 200;
+};
+
+export type getMaterialResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type getMaterialResponseSuccess = getMaterialResponse200 & {
+  headers: Headers;
+};
+export type getMaterialResponseError = getMaterialResponseDefault & {
+  headers: Headers;
+};
+
+export type getMaterialResponse = getMaterialResponseSuccess | getMaterialResponseError;
+
+export const getGetMaterialUrl = (id: string) => {
+  return `/api/materials/${id}`;
+};
+
+/**
+ * @summary Get a material
+ */
+export const getMaterial = async (
+  id: string,
+  options?: RequestInit
+): Promise<getMaterialResponse> => {
+  const res = await fetch(getGetMaterialUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getMaterialResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as getMaterialResponse;
 };
 
 export type getMeResponse200 = {
@@ -1659,6 +1920,57 @@ export const search = async (
 
   const data: searchResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as searchResponse;
+};
+
+export type listTagsResponse200 = {
+  data: Tag[] | null;
+  status: 200;
+};
+
+export type listTagsResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listTagsResponseSuccess = listTagsResponse200 & {
+  headers: Headers;
+};
+export type listTagsResponseError = listTagsResponseDefault & {
+  headers: Headers;
+};
+
+export type listTagsResponse = listTagsResponseSuccess | listTagsResponseError;
+
+export const getListTagsUrl = (params?: ListTagsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/tags?${stringifiedParams}` : `/api/tags`;
+};
+
+/**
+ * @summary List the user's tag catalog for a kind
+ */
+export const listTags = async (
+  params?: ListTagsParams,
+  options?: RequestInit
+): Promise<listTagsResponse> => {
+  const res = await fetch(getListTagsUrl(params), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listTagsResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listTagsResponse;
 };
 
 export type listTasksResponse200 = {
@@ -2255,6 +2567,95 @@ export const reorderChapters = async (
   return { data, status: res.status, headers: res.headers } as reorderChaptersResponse;
 };
 
+export type listConversationsResponse200 = {
+  data: Conversation[] | null;
+  status: 200;
+};
+
+export type listConversationsResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listConversationsResponseSuccess = listConversationsResponse200 & {
+  headers: Headers;
+};
+export type listConversationsResponseError = listConversationsResponseDefault & {
+  headers: Headers;
+};
+
+export type listConversationsResponse =
+  | listConversationsResponseSuccess
+  | listConversationsResponseError;
+
+export const getListConversationsUrl = (id: string) => {
+  return `/api/workspaces/${id}/conversations`;
+};
+
+/**
+ * @summary List a workspace's chat conversations
+ */
+export const listConversations = async (
+  id: string,
+  options?: RequestInit
+): Promise<listConversationsResponse> => {
+  const res = await fetch(getListConversationsUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listConversationsResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listConversationsResponse;
+};
+
+export type createConversationResponse201 = {
+  data: Conversation;
+  status: 201;
+};
+
+export type createConversationResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type createConversationResponseSuccess = createConversationResponse201 & {
+  headers: Headers;
+};
+export type createConversationResponseError = createConversationResponseDefault & {
+  headers: Headers;
+};
+
+export type createConversationResponse =
+  | createConversationResponseSuccess
+  | createConversationResponseError;
+
+export const getCreateConversationUrl = (id: string) => {
+  return `/api/workspaces/${id}/conversations`;
+};
+
+/**
+ * @summary Start a new chat conversation
+ */
+export const createConversation = async (
+  id: string,
+  createConversationReq: NonReadonly<CreateConversationReq>,
+  options?: RequestInit
+): Promise<createConversationResponse> => {
+  const res = await fetch(getCreateConversationUrl(id), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createConversationReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createConversationResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as createConversationResponse;
+};
+
 export type listWorkspaceFilesResponse200 = {
   data: File[] | null;
   status: 200;
@@ -2296,6 +2697,93 @@ export const listWorkspaceFiles = async (
 
   const data: listWorkspaceFilesResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as listWorkspaceFilesResponse;
+};
+
+export type listMaterialsResponse200 = {
+  data: MaterialRef[] | null;
+  status: 200;
+};
+
+export type listMaterialsResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listMaterialsResponseSuccess = listMaterialsResponse200 & {
+  headers: Headers;
+};
+export type listMaterialsResponseError = listMaterialsResponseDefault & {
+  headers: Headers;
+};
+
+export type listMaterialsResponse = listMaterialsResponseSuccess | listMaterialsResponseError;
+
+export const getListMaterialsUrl = (id: string) => {
+  return `/api/workspaces/${id}/materials`;
+};
+
+/**
+ * @summary List study materials
+ */
+export const listMaterials = async (
+  id: string,
+  options?: RequestInit
+): Promise<listMaterialsResponse> => {
+  const res = await fetch(getListMaterialsUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMaterialsResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listMaterialsResponse;
+};
+
+export type generateMaterialResponse200 = {
+  data: GenerateResult;
+  status: 200;
+};
+
+export type generateMaterialResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type generateMaterialResponseSuccess = generateMaterialResponse200 & {
+  headers: Headers;
+};
+export type generateMaterialResponseError = generateMaterialResponseDefault & {
+  headers: Headers;
+};
+
+export type generateMaterialResponse =
+  | generateMaterialResponseSuccess
+  | generateMaterialResponseError;
+
+export const getGenerateMaterialUrl = (id: string) => {
+  return `/api/workspaces/${id}/generate`;
+};
+
+/**
+ * @summary Generate study material from workspace scope
+ */
+export const generateMaterial = async (
+  id: string,
+  generateOptions: GenerateOptions,
+  options?: RequestInit
+): Promise<generateMaterialResponse> => {
+  const res = await fetch(getGenerateMaterialUrl(id), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(generateOptions),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: generateMaterialResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as generateMaterialResponse;
 };
 
 export type getWorkspaceStatsResponse200 = {

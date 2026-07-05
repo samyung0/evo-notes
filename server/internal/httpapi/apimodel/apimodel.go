@@ -2,9 +2,10 @@
 // kept separate from the persistence models in internal/store. huma reflects
 // these types to generate the OpenAPI spec that the frontend consumes.
 //
-// Arrays that the frontend edits as dynamic free-text rows (react-hook-form's
+// Arrays that the frontend edits as dynamic rows (react-hook-form's
 // useFieldArray rejects primitive arrays) are shaped as objects here — e.g.
-// workspace tags are []StrVal on the wire but stay []string in the database.
+// workspace tags are []Tag / []TagInput on the wire, backed by the catalog +
+// entity_tags tables in the database.
 package apimodel
 
 import (
@@ -13,28 +14,38 @@ import (
 	"github.com/evonotes/server/internal/store"
 )
 
-// StrVal wraps a bare string so it can bind to react-hook-form useFieldArray.
-// IMPORTANT
-// used in Tags and have constraints
-// if want a different constraint, use a different type
-type StrVal struct {
+// Tag is the response shape for one tag on an entity: a stable catalog id plus
+// its display value. Clients echo the id back on the next write so the backend
+// reuses that catalog row (preserving its metadata) instead of recreating it.
+// The object wrapping (vs a bare string) also lets react-hook-form's
+// useFieldArray bind each row.
+type Tag struct {
+	ID    string `json:"id"`
 	Value string `json:"value" minLength:"1" maxLength:"50"`
 }
 
-// WrapStrings turns a []string (DB shape) into the []StrVal wire shape.
-func WrapStrings(ss []string) []StrVal {
-	out := make([]StrVal, len(ss))
-	for i, s := range ss {
-		out[i] = StrVal{Value: s}
+// TagInput is one tag on an incoming write. A non-null ID reuses that existing
+// catalog tag; a null/absent ID asks the backend to find-or-create a tag from
+// Value.
+type TagInput struct {
+	ID    *string `json:"id,omitempty"`
+	Value string  `json:"value" minLength:"1" maxLength:"50"`
+}
+
+// WrapTags turns the DB tag shape into the wire response shape.
+func WrapTags(ts []store.Tag) []Tag {
+	out := make([]Tag, len(ts))
+	for i, t := range ts {
+		out[i] = Tag{ID: t.ID, Value: t.Value}
 	}
 	return out
 }
 
-// UnwrapStrings turns the []StrVal wire shape back into a []string for the DB.
-func UnwrapStrings(vs []StrVal) []string {
-	out := make([]string, len(vs))
+// ToTagRefs turns the incoming wire tags into store refs for a write.
+func ToTagRefs(vs []TagInput) []store.TagRef {
+	out := make([]store.TagRef, len(vs))
 	for i, v := range vs {
-		out[i] = v.Value
+		out[i] = store.TagRef{ID: v.ID, Value: v.Value}
 	}
 	return out
 }
@@ -61,6 +72,11 @@ type (
 	WorkspaceStats     = store.WorkspaceStats
 	BillingInfo        = store.BillingInfo
 	IntegrationsStatus = store.IntegrationsStatus
+	Conversation       = store.Conversation
+	Message            = store.Message
+	Citation           = store.Citation
+	Material           = store.Material
+	MaterialRef        = store.MaterialRef
 )
 
 // Workspace is the response contract. Tags are object-wrapped for useFieldArray.
@@ -69,7 +85,7 @@ type Workspace struct {
 	Name           string          `json:"name"`
 	Color          store.UserColor `json:"color"`
 	Privacy        store.Privacy   `json:"privacy"`
-	Tags           []StrVal        `json:"tags" nullable:"false"`
+	Tags           []Tag           `json:"tags" nullable:"false"`
 	ChapterCount   int             `json:"chapterCount"`
 	FileCount      int             `json:"fileCount"`
 	CreatedAt      time.Time       `json:"createdAt"`
@@ -79,7 +95,7 @@ type Workspace struct {
 func FromWorkspace(w store.Workspace) Workspace {
 	return Workspace{
 		ID: w.ID, Name: w.Name, Color: w.Color, Privacy: w.Privacy,
-		Tags: WrapStrings(w.Tags), ChapterCount: w.ChapterCount, FileCount: w.FileCount,
+		Tags: WrapTags(w.Tags), ChapterCount: w.ChapterCount, FileCount: w.FileCount,
 		CreatedAt: w.CreatedAt, LastAccessedAt: w.LastAccessedAt,
 	}
 }

@@ -8,9 +8,11 @@ import type {
   Attempt,
   CalendarEvent,
   Chapter,
+  Conversation,
   Deck,
   Flashcard,
   Label,
+  Material,
   PublicQuiz,
   PublicWorkspace,
   Question,
@@ -20,14 +22,45 @@ import type {
   Task,
   ThinkingCanvas,
   User,
+  WireMessage,
   Workspace,
 } from '@/api/types';
-import { isKnown, newSrsState, reviewSrs } from '@/lib/srs';
+import { isDue, isKnown, newSrsState, reviewSrs } from '@/lib/srs';
+import { flashcardsMarkdown, parseFlashcardsBlock, parseQuizBlock, quizMarkdown } from '@/features/materials/blocks';
 
 export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
 /** Wrap bare strings as {value} rows (matches useFieldArray-friendly shapes). */
 const wv = (...ss: string[]) => ss.map((value) => ({ value }));
+
+/**
+ * Mock tag catalog (mirrors the backend `tags` table: per-user, per-kind, id +
+ * name). Entities reference these by id so reuse preserves the row. Handlers
+ * read/mutate this array for GET /api/tags and workspace create/update.
+ */
+export interface CatalogTag {
+  id: string;
+  kind: string;
+  value: string;
+}
+export const tagCatalog: CatalogTag[] = [
+  { id: 'tag_1', kind: 'workspace', value: 'Cells' },
+  { id: 'tag_2', kind: 'workspace', value: 'Genetics' },
+  { id: 'tag_3', kind: 'workspace', value: 'Integrals' },
+  { id: 'tag_4', kind: 'workspace', value: 'Series' },
+  { id: 'tag_5', kind: 'workspace', value: 'Modern' },
+  { id: 'tag_6', kind: 'workspace', value: 'Essays' },
+  { id: 'tag_7', kind: 'workspace', value: 'Reactions' },
+  { id: 'tag_8', kind: 'workspace', value: 'Poetry' },
+  { id: 'tag_9', kind: 'workspace', value: 'Shakespeare' },
+  { id: 'tag_war', kind: 'workspace', value: 'War' },
+];
+/** Build the {id, value} tag rows for an entity from catalog ids. */
+const ct = (...ids: string[]) =>
+  ids.map((id) => {
+    const t = tagCatalog.find((x) => x.id === id)!;
+    return { id: t.id, value: t.value };
+  });
 
 /**
  * Seed SRS scheduling state. Unknown cards stay due now (they surface in the
@@ -86,7 +119,7 @@ export const workspaces: Workspace[] = [
     name: 'Biology 101',
     color: 'green',
     privacy: 'private',
-    tags: [{ value: 'Cells' }, { value: 'Genetics' }],
+    tags: ct('tag_1', 'tag_2'),
     chapterCount: 6,
     fileCount: 24,
     createdAt: days(40),
@@ -97,7 +130,7 @@ export const workspaces: Workspace[] = [
     name: 'Calculus II',
     color: 'purple',
     privacy: 'private',
-    tags: [{ value: 'Integrals' }, { value: 'Series' }],
+    tags: ct('tag_3', 'tag_4'),
     chapterCount: 4,
     fileCount: 12,
     createdAt: days(30),
@@ -108,7 +141,7 @@ export const workspaces: Workspace[] = [
     name: 'World History',
     color: 'amber',
     privacy: 'link',
-    tags: [{ value: 'Modern' }, { value: 'Essays' }, { value: 'War' }],
+    tags: ct('tag_5', 'tag_6', 'tag_war'),
     chapterCount: 5,
     fileCount: 18,
     createdAt: days(22),
@@ -119,7 +152,7 @@ export const workspaces: Workspace[] = [
     name: 'Organic Chemistry',
     color: 'blue',
     privacy: 'private',
-    tags: [{ value: 'Reactions' }],
+    tags: ct('tag_7'),
     chapterCount: 3,
     fileCount: 9,
     createdAt: days(12),
@@ -130,7 +163,7 @@ export const workspaces: Workspace[] = [
     name: 'English Literature',
     color: 'coral',
     privacy: 'public',
-    tags: [{ value: 'Poetry' }, { value: 'Shakespeare' }],
+    tags: ct('tag_8', 'tag_9'),
     chapterCount: 7,
     fileCount: 21,
     createdAt: days(8),
@@ -250,7 +283,7 @@ export const files: SourceFile[] = [
   },
 ];
 
-export const quizzes: Quiz[] = [
+const seedQuizzes: Quiz[] = [
   {
     id: 'qz_1',
     name: 'Cell biology basics',
@@ -265,7 +298,15 @@ export const quizzes: Quiz[] = [
         type: 'mcq',
         level: 'recall',
         prompt: 'Which organelle is the powerhouse of the cell?',
-        options: wv('Nucleus', 'Mitochondria', 'Ribosome', 'Golgi apparatus'),
+        options: [
+          { value: 'Nucleus', explanation: 'The nucleus stores DNA; it does not make ATP.' },
+          {
+            value: 'Mitochondria',
+            explanation: 'Correct — mitochondria produce ATP via cellular respiration.',
+          },
+          { value: 'Ribosome', explanation: 'Ribosomes build proteins, not energy.' },
+          { value: 'Golgi apparatus', explanation: 'The Golgi packages and ships proteins.' },
+        ],
         correct: [1],
         explanation: 'Mitochondria produce ATP through cellular respiration.',
       },
@@ -528,7 +569,7 @@ export const attempts: (Attempt & {
     total: 10,
     pct: 80,
     takenAt: days(2),
-    questions: quizzes[0].questions,
+    questions: seedQuizzes[0].questions,
     answers: {
       q1: [1],
       q2: true,
@@ -557,7 +598,7 @@ export const attempts: (Attempt & {
     total: 10,
     pct: 60,
     takenAt: days(3),
-    questions: quizzes[2].questions,
+    questions: seedQuizzes[2].questions,
     answers: {
       q9: [1],
       q10: true,
@@ -581,7 +622,7 @@ export const attempts: (Attempt & {
     total: 10,
     pct: 40,
     takenAt: days(5),
-    questions: quizzes[1].questions,
+    questions: seedQuizzes[1].questions,
     answers: {
       q7: [0],
       q8: '', // Blank: unanswered.
@@ -597,7 +638,7 @@ export const attempts: (Attempt & {
   },
 ];
 
-export const decks: Deck[] = [
+const seedDecks: Deck[] = [
   {
     id: 'dk_1',
     name: 'Cell organelles',
@@ -630,7 +671,7 @@ export const decks: Deck[] = [
   },
 ];
 
-export const cards: Flashcard[] = [
+const seedCards: Flashcard[] = [
   seedCard('c_1', 'dk_1', 'Mitochondria', 'Powerhouse of the cell — produces ATP.', true),
   seedCard('c_2', 'dk_1', 'Nucleus', 'Stores DNA and controls cell activity.', true),
   seedCard('c_3', 'dk_1', 'Ribosome', 'Site of protein synthesis.', false),
@@ -777,6 +818,100 @@ export const canvases: ThinkingCanvas[] = [
   { id: 'cv_2', name: 'Essay brainstorm', updatedAt: days(2) },
 ];
 
+/* ---------------- study materials (mindmaps / diagrams) ---------------- */
+export const materials: Material[] = [
+  {
+    id: 'mat_1',
+    workspaceId: 'ws_bio',
+    workspaceName: 'Biology 101',
+    kind: 'mindmap',
+    title: 'Cell biology mindmap',
+    content: [
+      '# Cell biology mindmap',
+      '',
+      '```mermaid',
+      'mindmap',
+      '  root((Cell))',
+      '    Membrane',
+      '      Phospholipid bilayer',
+      '      Transport',
+      '        Diffusion',
+      '        Osmosis',
+      '    Organelles',
+      '      Nucleus',
+      '      Mitochondria',
+      '      Ribosome',
+      '    Energy',
+      '      ATP',
+      '      Respiration',
+      '```',
+    ].join('\n'),
+    scopeChapters: ['Cell structure', 'Membranes & transport'],
+    scopeFileIds: [],
+    privacy: 'private',
+    createdAt: days(3),
+  },
+  {
+    id: 'mat_2',
+    workspaceId: 'ws_bio',
+    workspaceName: 'Biology 101',
+    kind: 'diagram',
+    title: 'Protein secretion pathway',
+    content: [
+      '# Protein secretion pathway',
+      '',
+      'The path a secreted protein takes through the cell:',
+      '',
+      '```mermaid',
+      'flowchart LR',
+      '  Ribosome --> RoughER',
+      '  RoughER --> Golgi',
+      '  Golgi --> Vesicle',
+      '  Vesicle --> Membrane[Cell membrane]',
+      '```',
+    ].join('\n'),
+    scopeChapters: [],
+    scopeFileIds: ['f_1'],
+    privacy: 'private',
+    createdAt: days(1),
+  },
+];
+
+/* ---------------- chat: conversations + messages ---------------- */
+export const conversations: Conversation[] = [
+  {
+    id: 'conv_seed1',
+    workspaceId: workspaces[0].id,
+    title: 'What is a cell?',
+    createdAt: days(1),
+    updatedAt: hours(3),
+  },
+];
+
+export const chatMessages: WireMessage[] = [
+  {
+    id: 'm_seed1',
+    conversationId: 'conv_seed1',
+    role: 'user',
+    content: 'What is a cell?',
+    status: 'complete',
+    citations: null,
+    createdAt: days(1),
+  },
+  {
+    id: 'm_seed2',
+    conversationId: 'conv_seed1',
+    role: 'assistant',
+    content:
+      'A **cell** is the basic structural and functional unit of life.\n\n- Bounded by a **membrane** that controls transport\n- Contains **organelles** like the nucleus and mitochondria\n- Produces energy (ATP) in the **mitochondria**',
+    status: 'complete',
+    citations: files[0]
+      ? [{ fileId: files[0].id, fileName: files[0].name, snippet: 'The cell is the basic unit of life…' }]
+      : null,
+    createdAt: days(1),
+  },
+];
+
 export const publicWorkspaces: PublicWorkspace[] = [
   {
     ...workspaces[0],
@@ -797,7 +932,7 @@ export const publicWorkspaces: PublicWorkspace[] = [
 ];
 export const publicQuizzes: PublicQuiz[] = [
   {
-    ...quizzes[0],
+    ...seedQuizzes[0],
     id: 'pub_qz_1',
     name: 'Cell biology — 50 questions',
     author: 'mrslee',
@@ -805,7 +940,7 @@ export const publicQuizzes: PublicQuiz[] = [
     clones: 540,
   },
   {
-    ...quizzes[2],
+    ...seedQuizzes[2],
     id: 'pub_qz_2',
     name: 'Calculus II mega quiz',
     author: 'mathpro',
@@ -813,3 +948,93 @@ export const publicQuizzes: PublicQuiz[] = [
     clones: 410,
   },
 ];
+
+/* ---------------- unified markdown materials + derived views ----------------
+   Markdown (materials[].content) is the source of truth for quiz/flashcard
+   content; per-card FSRS state lives in cardStats. The seed quizzes/decks/cards
+   above are authored as typed data, then folded into markdown materials here so
+   the mock mirrors the backend's single-table model. */
+
+/** Per-card scheduling state, keyed by card id (the flashcards fence owns the
+ * front/back; this owns FSRS + known). */
+export const cardStats: Record<string, { materialId: string; srs: SrsState; known: boolean }> = {};
+for (const c of seedCards) cardStats[c.id] = { materialId: c.deckId, srs: c.srs, known: c.known };
+
+seedQuizzes.forEach((q) => {
+  materials.push({
+    id: q.id,
+    workspaceId: q.workspaceId,
+    workspaceName: q.workspaceName,
+    kind: 'quiz',
+    title: q.name,
+    content: quizMarkdown(q.name, { questions: q.questions, timeLimitMin: q.timeLimitMin }),
+    scopeChapters: q.chapters,
+    scopeFileIds: [],
+    privacy: q.privacy,
+    createdAt: q.createdAt,
+  });
+});
+seedDecks.forEach((d, i) => {
+  const deckCards = seedCards.filter((c) => c.deckId === d.id);
+  materials.push({
+    id: d.id,
+    workspaceId: d.workspaceId,
+    workspaceName: d.workspaceName,
+    kind: 'flashcards',
+    title: d.name,
+    color: d.color,
+    content: flashcardsMarkdown(
+      d.name,
+      deckCards.map((c) => ({ id: c.id, front: c.front, back: c.back }))
+    ),
+    scopeChapters: [],
+    scopeFileIds: [],
+    privacy: 'private',
+    createdAt: days(5 + i),
+  });
+});
+
+/** Derive the typed Quiz view from a quiz material (questions from the fence). */
+export function quizFromMaterial(mt: Material): Quiz {
+  const { questions, timeLimitMin } = parseQuizBlock(mt.content);
+  return {
+    id: mt.id,
+    name: mt.title,
+    workspaceId: mt.workspaceId,
+    workspaceName: mt.workspaceName,
+    chapters: mt.scopeChapters,
+    questions,
+    createdAt: mt.createdAt,
+    privacy: mt.privacy,
+    timeLimitMin,
+  };
+}
+
+/** Derive the typed cards for a flashcards material (fence + cardStats join). */
+export function cardsFromMaterial(mt: Material): Flashcard[] {
+  return parseFlashcardsBlock(mt.content).cards.map((c) => {
+    const st = cardStats[c.id];
+    const srs = st?.srs ?? newSrsState();
+    return { id: c.id, deckId: mt.id, front: c.front, back: c.back, known: st?.known ?? false, srs };
+  });
+}
+
+/** Derive the typed Deck view (counts computed live from cardStats). */
+export function deckFromMaterial(mt: Material): Deck {
+  const cs = cardsFromMaterial(mt);
+  const known = cs.filter((c) => c.known).length;
+  return {
+    id: mt.id,
+    name: mt.title,
+    workspaceId: mt.workspaceId,
+    workspaceName: mt.workspaceName,
+    color: mt.color ?? 'green',
+    cardCount: cs.length,
+    knownPct: cs.length ? Math.round((100 * known) / cs.length) : 0,
+    dueCount: cs.filter((c) => isDue(c.srs)).length,
+  };
+}
+
+/** Convenience accessors for the two derived material kinds. */
+export const quizMaterials = () => materials.filter((m) => m.kind === 'quiz');
+export const deckMaterials = () => materials.filter((m) => m.kind === 'flashcards');

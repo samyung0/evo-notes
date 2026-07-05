@@ -163,6 +163,41 @@ export const UpdateChapterResponse = zod.object({
 });
 
 /**
+ * @summary Delete a conversation
+ */
+export const DeleteConversationParams = zod.object({
+  id: zod.string().describe('Conversation id'),
+});
+
+export const DeleteConversationResponse = zod.void();
+
+/**
+ * @summary Load a conversation's message history
+ */
+export const ListMessagesParams = zod.object({
+  id: zod.string().describe('Conversation id'),
+});
+
+export const ListMessagesResponseItem = zod.object({
+  citations: zod
+    .array(
+      zod.object({
+        fileId: zod.string(),
+        fileName: zod.string(),
+        snippet: zod.string(),
+      })
+    )
+    .nullish(),
+  content: zod.string(),
+  conversationId: zod.string(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  role: zod.string(),
+  status: zod.string(),
+});
+export const ListMessagesResponse = zod.array(ListMessagesResponseItem);
+
+/**
  * @summary List decks
  */
 export const ListDecksResponseItem = zod.object({
@@ -393,6 +428,7 @@ export const ExploreWorkspacesResponseItem = zod.object({
   privacy: zod.enum(['private', 'public', 'link']),
   tags: zod.array(
     zod.object({
+      id: zod.string(),
       value: zod.string().min(1).max(exploreWorkspacesResponseTagsItemValueMax),
     })
   ),
@@ -418,6 +454,15 @@ export const ListAllFilesResponseItem = zod.object({
 export const ListAllFilesResponse = zod.array(ListAllFilesResponseItem);
 
 /**
+ * @summary Delete a file
+ */
+export const DeleteFileParams = zod.object({
+  id: zod.string(),
+});
+
+export const DeleteFileResponse = zod.void();
+
+/**
  * @summary Get a file
  */
 export const GetFileParams = zod.object({
@@ -425,6 +470,32 @@ export const GetFileParams = zod.object({
 });
 
 export const GetFileResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  addedAt: zod.iso.datetime({ offset: true }),
+  chapterId: zod.string().nullable(),
+  content: zod.string().optional(),
+  id: zod.string(),
+  kind: zod.enum(['pdf', 'doc', 'md', 'image', 'txt']),
+  name: zod.string(),
+  sizeKb: zod.number(),
+  status: zod.enum(['processing', 'ready', 'failed']).optional(),
+  url: zod.string().optional(),
+  workspaceId: zod.string(),
+});
+
+/**
+ * @summary Update a file
+ */
+export const UpdateFileParams = zod.object({
+  id: zod.string(),
+});
+
+export const UpdateFileBody = zod.object({
+  chapterId: zod.string().optional(),
+  name: zod.string().optional(),
+});
+
+export const UpdateFileResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
   addedAt: zod.iso.datetime({ offset: true }),
   chapterId: zod.string().nullable(),
@@ -482,6 +553,41 @@ export const ListLabelsResponseItem = zod.object({
   name: zod.string(),
 });
 export const ListLabelsResponse = zod.array(ListLabelsResponseItem);
+
+/**
+ * @summary Delete a material
+ */
+export const DeleteMaterialParams = zod.object({
+  id: zod.string(),
+});
+
+export const DeleteMaterialResponse = zod.void();
+
+/**
+ * @summary Get a material
+ */
+export const GetMaterialParams = zod.object({
+  id: zod.string(),
+});
+
+export const GetMaterialResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  content: zod.string(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  kind: zod
+    .enum(['mindmap', 'diagram', 'quiz', 'flashcards'])
+    .describe('mindmap | diagram | quiz | flashcards'),
+  color: zod
+    .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
+    .optional(),
+  privacy: zod.enum(['private', 'public', 'link']),
+  scopeChapters: zod.array(zod.string()),
+  scopeFileIds: zod.array(zod.string()),
+  title: zod.string(),
+  workspaceId: zod.string(),
+  workspaceName: zod.string(),
+});
 
 /**
  * @summary Current user
@@ -685,6 +791,26 @@ export const SearchResponseItem = zod.object({
 export const SearchResponse = zod.array(SearchResponseItem);
 
 /**
+ * @summary List the user's tag catalog for a kind
+ */
+export const listTagsQueryKindDefault = `workspace`;
+
+export const ListTagsQueryParams = zod.object({
+  kind: zod
+    .string()
+    .default(listTagsQueryKindDefault)
+    .describe('Tag kind: workspace | quiz | card'),
+});
+
+export const listTagsResponseValueMax = 50;
+
+export const ListTagsResponseItem = zod.object({
+  id: zod.string(),
+  value: zod.string().min(1).max(listTagsResponseValueMax),
+});
+export const ListTagsResponse = zod.array(ListTagsResponseItem);
+
+/**
  * @summary List tasks
  */
 export const ListTasksResponseItem = zod.object({
@@ -805,6 +931,7 @@ export const ListWorkspacesResponseItem = zod.object({
   privacy: zod.enum(['private', 'public', 'link']),
   tags: zod.array(
     zod.object({
+      id: zod.string(),
       value: zod.string().min(1).max(listWorkspacesResponseTagsItemValueMax),
     })
   ),
@@ -828,11 +955,12 @@ export const CreateWorkspaceBody = zod.object({
   tags: zod
     .array(
       zod.object({
+        id: zod.string().optional(),
         value: zod.string().min(1).max(createWorkspaceBodyTagsItemValueMax),
       })
     )
     .nullish()
-    .describe('Free-text tags'),
+    .describe('Tags; reuse existing by id or create new by value'),
 });
 
 export const createWorkspaceResponseTagsItemValueMax = 50;
@@ -849,6 +977,7 @@ export const CreateWorkspaceResponse = zod.object({
   privacy: zod.enum(['private', 'public', 'link']),
   tags: zod.array(
     zod.object({
+      id: zod.string(),
       value: zod.string().min(1).max(createWorkspaceResponseTagsItemValueMax),
     })
   ),
@@ -884,6 +1013,7 @@ export const GetWorkspaceResponse = zod.object({
   privacy: zod.enum(['private', 'public', 'link']),
   tags: zod.array(
     zod.object({
+      id: zod.string(),
       value: zod.string().min(1).max(getWorkspaceResponseTagsItemValueMax),
     })
   ),
@@ -907,6 +1037,7 @@ export const UpdateWorkspaceBody = zod.object({
   tags: zod
     .array(
       zod.object({
+        id: zod.string().optional(),
         value: zod.string().min(1).max(updateWorkspaceBodyTagsItemValueMax),
       })
     )
@@ -927,6 +1058,7 @@ export const UpdateWorkspaceResponse = zod.object({
   privacy: zod.enum(['private', 'public', 'link']),
   tags: zod.array(
     zod.object({
+      id: zod.string(),
       value: zod.string().min(1).max(updateWorkspaceResponseTagsItemValueMax),
     })
   ),
@@ -983,6 +1115,49 @@ export const ReorderChaptersBody = zod.object({
 export const ReorderChaptersResponse = zod.void();
 
 /**
+ * @summary List a workspace's chat conversations
+ */
+export const ListConversationsParams = zod.object({
+  id: zod.string().describe('Workspace id'),
+});
+
+export const ListConversationsResponseItem = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  title: zod.string(),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  workspaceId: zod.string(),
+});
+export const ListConversationsResponse = zod.array(ListConversationsResponseItem);
+
+/**
+ * @summary Start a new chat conversation
+ */
+export const CreateConversationParams = zod.object({
+  id: zod.string().describe('Workspace id'),
+});
+
+export const createConversationBodyTitleMax = 200;
+
+export const CreateConversationBody = zod.object({
+  title: zod
+    .string()
+    .max(createConversationBodyTitleMax)
+    .optional()
+    .describe('Optional thread title'),
+});
+
+export const CreateConversationResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  title: zod.string(),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  workspaceId: zod.string(),
+});
+
+/**
  * @summary List workspace files
  */
 export const ListWorkspaceFilesParams = zod.object({
@@ -1003,6 +1178,122 @@ export const ListWorkspaceFilesResponseItem = zod.object({
   workspaceId: zod.string(),
 });
 export const ListWorkspaceFilesResponse = zod.array(ListWorkspaceFilesResponseItem);
+
+/**
+ * @summary List study materials
+ */
+export const ListMaterialsParams = zod.object({
+  id: zod.string(),
+});
+
+export const ListMaterialsResponseItem = zod.object({
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  title: zod.string(),
+  type: zod
+    .enum(['mindmap', 'diagram', 'quiz', 'deck'])
+    .describe('mindmap | diagram | quiz | deck (flashcards surfaced as deck)'),
+});
+export const ListMaterialsResponse = zod.array(ListMaterialsResponseItem);
+
+/**
+ * @summary Generate study material from workspace scope
+ */
+export const GenerateMaterialParams = zod.object({
+  id: zod.string(),
+});
+
+export const GenerateMaterialBody = zod
+  .object({
+    kind: zod.enum(['flashcards', 'quiz', 'mindmap', 'diagram']),
+    chapters: zod.array(zod.string()).optional(),
+    fileIds: zod.array(zod.string()).optional(),
+    count: zod.number().optional(),
+    style: zod.string().optional(),
+    types: zod.array(zod.string()).optional(),
+    levels: zod.array(zod.string()).optional(),
+    timeLimitMin: zod.number().optional(),
+    detail: zod.string().optional(),
+    diagramType: zod.string().optional(),
+  })
+  .describe('Polymorphic generate request (kind discriminates fields).');
+
+export const GenerateMaterialResponse = zod
+  .object({
+    kind: zod.string(),
+    quiz: zod
+      .object({
+        $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+        chapters: zod.array(zod.string()),
+        createdAt: zod.iso.datetime({ offset: true }),
+        id: zod.string(),
+        name: zod.string(),
+        privacy: zod.enum(['private', 'public', 'link']),
+        questions: zod.array(zod.record(zod.string(), zod.unknown())),
+        timeLimitMin: zod.number().optional(),
+        workspaceId: zod.string(),
+        workspaceName: zod.string(),
+      })
+      .optional(),
+    deck: zod
+      .object({
+        $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+        cardCount: zod.number(),
+        color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
+        dueCount: zod.number(),
+        id: zod.string(),
+        knownPct: zod.number(),
+        name: zod.string(),
+        workspaceId: zod.string(),
+        workspaceName: zod.string(),
+      })
+      .optional(),
+    cards: zod
+      .array(
+        zod.object({
+          $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+          back: zod.string(),
+          deckId: zod.string(),
+          front: zod.string(),
+          id: zod.string(),
+          known: zod.boolean(),
+          srs: zod.object({
+            difficulty: zod.number(),
+            due: zod.string(),
+            elapsed_days: zod.number(),
+            lapses: zod.number(),
+            last_review: zod.string().optional(),
+            learning_steps: zod.number().optional(),
+            reps: zod.number(),
+            scheduled_days: zod.number(),
+            stability: zod.number(),
+            state: zod.number(),
+          }),
+        })
+      )
+      .optional(),
+    material: zod
+      .object({
+        $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+        content: zod.string(),
+        createdAt: zod.iso.datetime({ offset: true }),
+        id: zod.string(),
+        kind: zod
+          .enum(['mindmap', 'diagram', 'quiz', 'flashcards'])
+          .describe('mindmap | diagram | quiz | flashcards'),
+        color: zod
+          .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
+          .optional(),
+        privacy: zod.enum(['private', 'public', 'link']),
+        scopeChapters: zod.array(zod.string()),
+        scopeFileIds: zod.array(zod.string()),
+        title: zod.string(),
+        workspaceId: zod.string(),
+        workspaceName: zod.string(),
+      })
+      .optional(),
+  })
+  .describe('Polymorphic generate response (kind discriminates payload).');
 
 /**
  * @summary Workspace stats

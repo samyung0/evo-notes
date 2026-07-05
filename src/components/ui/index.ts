@@ -4,6 +4,7 @@ export { Button } from './Button';
 export { Card } from './Card';
 export { Checkbox } from './Checkbox';
 export {
+  ConfirmDialog,
   Dialog,
   DialogClose,
   DialogContent,
@@ -12,6 +13,7 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  SimpleDialog,
 } from './Dialog';
 export {
   Drawer,
@@ -28,7 +30,6 @@ export { IconButton } from './IconButton';
 export { Input, InputError } from './Input';
 export { LogoMark } from './Logo';
 export { Menu, type MenuItem } from './Menu';
-export { ConfirmDialog, Modal } from './Modal';
 export { NoteCard } from './NoteCard';
 export { Popover, PopoverAnchor, PopoverContent, PopoverTitle, PopoverTrigger } from './Popover';
 export { ProgressBar } from './ProgressBar';
@@ -48,6 +49,7 @@ export {
 export { toast, type ToastProps } from './Sonner';
 export { Switch } from './Switch';
 export { Tabs } from './Tabs';
+export { TagSelect } from './TagSelect';
 export { Text } from './Text';
 export { Textarea } from './TextArea';
 export { UserColorChooser } from './UserColorChooser';

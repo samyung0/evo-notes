@@ -79,6 +79,8 @@ export const qk = {
   file: (id: string) => ['file', id] as const,
   quizzes: ['quizzes'] as const,
   quiz: (id: string) => ['quiz', id] as const,
+  materials: (wsId: string) => ['workspace', wsId, 'materials'] as const,
+  material: (id: string) => ['material', id] as const,
   attempts: ['attempts'] as const,
   attempt: (id: string) => ['attempt', id] as const,
   mistakes: ['mistakes'] as const,
@@ -92,6 +94,9 @@ export const qk = {
   canvas: (id: string) => ['canvas', id] as const,
   exploreWorkspaces: ['explore', 'workspaces'] as const,
   exploreQuizzes: ['explore', 'quizzes'] as const,
+  tags: (kind: string) => ['tags', kind] as const,
+  conversations: (wsId: string) => ['workspace', wsId, 'conversations'] as const,
+  messages: (convId: string) => ['conversation', convId, 'messages'] as const,
 };
 
 /** OAuth connect URLs hit the Go gateway directly (not MSW). */

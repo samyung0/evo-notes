@@ -13,6 +13,7 @@ import {
   Input,
   InputError,
   Spinner,
+  TagSelect,
   toast,
   UserColorChooser,
 } from '@/components/ui';
@@ -27,8 +28,7 @@ import {
 import { m } from '@/i18n';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback } from 'react';
-import { Controller, useFieldArray, useForm } from 'react-hook-form';
-import z from 'zod';
+import { Controller, useForm } from 'react-hook-form';
 
 const PRIVACY_OPTIONS: { value: Privacy; label: string; icon: IconName }[] = [
   { value: 'private', label: 'Private', icon: 'lock' },
@@ -50,10 +50,6 @@ export function WorkspaceFormEditDialog({
   const form = useForm<UpdateWorkspaceReq>({
     defaultValues: workspace,
     resolver: zodResolver(UpdateWorkspaceBody),
-  });
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: 'tags',
   });
 
   const handleSubmit = useCallback(
@@ -147,53 +143,24 @@ export function WorkspaceFormEditDialog({
               );
             }}
           />
-          {/* replace with type and enter and new badge appears kind of input */}
-          <div className="flex flex-col gap-1.5">
-            <div className="t-subtitle flex items-center gap-1 font-medium">
-              <span>Tags</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              {fields.map((field, index) => (
-                <Controller
-                  key={field.id}
-                  name={`tags.${index}.value`}
-                  control={form.control}
-                  render={({ field: controllerField, fieldState }) => {
-                    return (
-                      <>
-                        <label className="flex flex-col gap-1.5">
-                          <Input
-                            {...controllerField}
-                            placeholder="Tag Name, e.g. Cells, Genetics"
-                            autoFocus
-                            aria-invalid={fieldState.invalid}
-                            autoComplete="off"
-                            actionIcon="x"
-                            actionSide="right"
-                            actionShowIcon={fields.length > 1}
-                            actionCallback={() => {
-                              remove(index);
-                            }}
-                          />
-                        </label>
-                        {fieldState.invalid && <InputError errors={[fieldState.error]} />}
-                      </>
-                    );
-                  }}
+          <Controller
+            name={'tags'}
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <div className="flex flex-col gap-1.5">
+                <div className="t-subtitle flex items-center gap-1 font-medium">
+                  <span>Tags</span>
+                </div>
+                <TagSelect
+                  kind="workspace"
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  invalid={fieldState.invalid}
                 />
-              ))}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              iconLeft="plus"
-              onClick={() => append({ value: '' })}
-              className="mt-1 w-fit px-0 font-medium"
-            >
-              Add Tag
-            </Button>
-          </div>
+                {fieldState.invalid && <InputError errors={[fieldState.error]} />}
+              </div>
+            )}
+          />
           <Controller
             name={'color'}
             control={form.control}

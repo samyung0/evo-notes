@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS workspaces (
   name             text NOT NULL,
   color            text NOT NULL DEFAULT 'green',
   privacy          text NOT NULL DEFAULT 'private',
-  tags             text[] NOT NULL DEFAULT '{}',
   created_at       timestamptz NOT NULL DEFAULT now(),
   last_accessed_at timestamptz NOT NULL DEFAULT now()
 );
@@ -93,10 +92,29 @@ CREATE TABLE IF NOT EXISTS cards (
 CREATE INDEX IF NOT EXISTS cards_deck_idx ON cards(deck_id);
 
 CREATE TABLE IF NOT EXISTS labels (
-  id    text PRIMARY KEY,
-  name  text NOT NULL,
-  color text NOT NULL DEFAULT 'green'
+  id      text PRIMARY KEY,
+  user_id text REFERENCES users(id),   -- labels are user-owned calendar categories
+  name    text NOT NULL,
+  color   text NOT NULL DEFAULT 'green'
 );
+CREATE INDEX IF NOT EXISTS labels_user_idx ON labels(user_id);
+
+-- Polymorphic tags. `kind` marks the owning entity type so workspaces, quizzes,
+-- and cards can share one table; `metadata` is reserved for future per-tag data.
+-- Only workspaces populate this today — quizzes/cards are intentionally empty.
+CREATE TABLE IF NOT EXISTS tags (
+  id         text PRIMARY KEY,
+  user_id    text REFERENCES users(id),
+  kind       text NOT NULL,               -- 'workspace' | 'quiz' | 'card'
+  entity_id  text NOT NULL,               -- id of the owning workspace/quiz/card
+  name       text NOT NULL,
+  metadata   jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (kind, entity_id, name)
+);
+CREATE INDEX IF NOT EXISTS tags_entity_idx ON tags(kind, entity_id);
+CREATE INDEX IF NOT EXISTS tags_user_idx ON tags(user_id);
+CREATE INDEX IF NOT EXISTS tags_name_idx ON tags(lower(name));  -- cross-user search
 
 CREATE TABLE IF NOT EXISTS events (
   id        text PRIMARY KEY,
@@ -145,6 +163,9 @@ CREATE TABLE IF NOT EXISTS public_workspaces (
   author           text NOT NULL,
   clones           int NOT NULL DEFAULT 0
 );
+-- public_workspaces.tags is a denormalized published snapshot (not user-editable),
+-- so it stays an array; GIN accelerates the explore-page tag search.
+CREATE INDEX IF NOT EXISTS public_workspaces_tags_gin ON public_workspaces USING gin (tags);
 
 CREATE TABLE IF NOT EXISTS public_quizzes (
   id             text PRIMARY KEY,

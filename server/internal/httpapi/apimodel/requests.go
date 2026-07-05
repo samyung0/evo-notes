@@ -15,7 +15,7 @@ type CreateWorkspaceReq struct {
 	Name    string          `json:"name" minLength:"1" maxLength:"100" doc:"Workspace name"`
 	Color   store.UserColor `json:"color,omitempty" doc:"User color; defaults to graphite"`
 	Privacy store.Privacy   `json:"privacy" doc:"Visibility"`
-	Tags    []StrVal        `json:"tags,omitempty" doc:"Free-text tags"`
+	Tags    []TagInput      `json:"tags,omitempty" doc:"Tags; reuse existing by id or create new by value"`
 }
 
 // UpdateWorkspaceReq is the (partial) body for PATCH /api/workspaces/{id}.
@@ -23,7 +23,7 @@ type UpdateWorkspaceReq struct {
 	Name    *string          `json:"name,omitempty"`
 	Color   *store.UserColor `json:"color,omitempty"`
 	Privacy *store.Privacy   `json:"privacy,omitempty"`
-	Tags    *[]StrVal        `json:"tags,omitempty"`
+	Tags    *[]TagInput      `json:"tags,omitempty"`
 }
 
 type AddChapterReq struct {
@@ -37,6 +37,13 @@ type UpdateChapterReq struct {
 
 type ReorderChaptersReq struct {
 	IDs []string `json:"ids" doc:"Chapter ids in the desired order"`
+}
+
+// UpdateFileReq is the (partial) body for PATCH /api/files/{id} — rename and/or
+// move to a chapter.
+type UpdateFileReq struct {
+	Name      *string `json:"name,omitempty"`
+	ChapterID *string `json:"chapterId,omitempty"`
 }
 
 type CreateQuizReq struct {
@@ -104,6 +111,10 @@ type UpdateTaskReq struct {
 	Title *string `json:"title,omitempty"`
 	Meta  *string `json:"meta,omitempty"`
 	Done  *bool   `json:"done,omitempty"`
+}
+
+type CreateConversationReq struct {
+	Title string `json:"title,omitempty" maxLength:"200" doc:"Optional thread title"`
 }
 
 type CreateCanvasReq struct {

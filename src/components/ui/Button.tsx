@@ -5,11 +5,12 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
 
 const buttonVariants = cva(
-  'inline-flex min-w-0 cursor-pointer items-center justify-center leading-none font-semibold whitespace-nowrap transition-all duration-150 outline-none select-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex min-w-0 cursor-pointer items-center justify-center leading-none font-semibold whitespace-nowrap transition-all duration-150 outline-none select-none focus-visible:ring-2 focus-visible:ring-action active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        primary: 'border border-transparent bg-action text-action-fg hover:bg-action-hover',
+        primary:
+          'border border-transparent bg-action text-action-fg outline-offset-2 hover:bg-action-hover focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-action',
         accent: 'border border-transparent bg-accent text-accent-fg hover:bg-accent-hover',
         outline: 'border border-line bg-surface text-fg hover:bg-surface-hover-bg',
         surface: 'border border-transparent bg-surface text-fg hover:bg-surface-hover-bg',

@@ -19,18 +19,23 @@ import type {
   BillingInfo,
   CalendarEvent,
   Chapter,
+  Conversation,
+  WireMessage,
   Deck,
   FileStatus,
   Flashcard,
   GenerateOptions,
   IntegrationsStatus,
   Label,
+  Material,
+  MaterialRef,
   AppNotification,
   PlanTier,
   Question,
   Quiz,
   SearchResult,
   SourceFile,
+  Tag,
   Task,
   ThinkingCanvas,
   User,
@@ -115,6 +120,16 @@ export function useMicrosoftRecentFiles(enabled: boolean) {
   });
 }
 
+/* ---------------- tags ---------------- */
+/** The user's tag catalog for one kind — feeds the reuse-existing autocomplete.
+ * Loaded once and filtered client-side (no per-keystroke request). */
+export const tagsQuery = (kind = 'workspace') =>
+  queryOptions({
+    queryKey: qk.tags(kind),
+    queryFn: () => api.get<Tag[]>(`/tags?kind=${encodeURIComponent(kind)}`),
+  });
+export const useTags = (kind = 'workspace') => useQuery(tagsQuery(kind));
+
 /* ---------------- workspaces ---------------- */
 export interface WorkspaceQuery {
   q?: string;
@@ -163,7 +178,10 @@ export function useCreateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateWorkspaceReq) => api.post<Workspace>('/workspaces', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['workspaces'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      qc.invalidateQueries({ queryKey: ['tags'] });
+    },
   });
 }
 export function useUpdateWorkspace() {
@@ -174,6 +192,7 @@ export function useUpdateWorkspace() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       qc.invalidateQueries({ queryKey: qk.workspace(v.id) });
+      qc.invalidateQueries({ queryKey: ['tags'] });
     },
   });
 }
@@ -215,6 +234,30 @@ export const allFilesQuery = () =>
     queryFn: () => api.get<SourceFile[]>('/files'),
   });
 export const useAllFiles = () => useQuery(allFilesQuery());
+
+export function useUpdateFile(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; chapterId?: string | null }) =>
+      api.patch<SourceFile>(`/files/${id}`, body),
+    onSuccess: (file) => {
+      qc.invalidateQueries({ queryKey: qk.files(wsId) });
+      qc.invalidateQueries({ queryKey: qk.file(file.id) });
+      qc.invalidateQueries({ queryKey: qk.chapters(wsId) });
+    },
+  });
+}
+export function useDeleteFile(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del<void>(`/files/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.files(wsId) });
+      qc.invalidateQueries({ queryKey: qk.chapters(wsId) });
+      qc.invalidateQueries({ queryKey: qk.workspaceStats(wsId) });
+    },
+  });
+}
 
 export function useAddChapter(wsId: string) {
   const qc = useQueryClient();
@@ -334,19 +377,66 @@ export function useIngestProgress(wsId: string) {
 }
 
 /* ---------------- chat & generate ---------------- */
-export function useChat(wsId: string) {
+
+export const conversationsQuery = (wsId: string) =>
+  queryOptions({
+    queryKey: qk.conversations(wsId),
+    queryFn: () => api.get<Conversation[]>(`/workspaces/${wsId}/conversations`),
+    enabled: !!wsId,
+  });
+export const useConversations = (wsId: string) => useQuery(conversationsQuery(wsId));
+
+export const messagesQuery = (convId: string | null) =>
+  queryOptions({
+    queryKey: qk.messages(convId ?? ''),
+    queryFn: () => api.get<WireMessage[]>(`/conversations/${convId}/messages`),
+    enabled: !!convId,
+  });
+export const useMessages = (convId: string | null) => useQuery(messagesQuery(convId));
+
+export function useDeleteConversation(wsId: string) {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (text: string) =>
-      api.post<import('./types').ChatMessage>(`/workspaces/${wsId}/chat`, {
-        text,
-      }),
+    mutationFn: (convId: string) => api.del<void>(`/conversations/${convId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.conversations(wsId) }),
   });
 }
 export function useGenerate(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (opts: GenerateOptions) => api.post<unknown>(`/workspaces/${wsId}/generate`, opts),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.quizzes }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.quizzes });
+      qc.invalidateQueries({ queryKey: qk.decks });
+      qc.invalidateQueries({ queryKey: qk.materials(wsId) });
+    },
+  });
+}
+
+/* ---------------- study materials ---------------- */
+/** Unified, workspace-scoped list of study materials (mindmaps, diagrams,
+ * quizzes, decks) for the left panel. Not chapter-scoped. */
+export const materialsQuery = (wsId: string) =>
+  queryOptions({
+    queryKey: qk.materials(wsId),
+    queryFn: () => api.get<MaterialRef[]>(`/workspaces/${wsId}/materials`),
+    enabled: !!wsId,
+  });
+export const useMaterials = (wsId: string) => useQuery(materialsQuery(wsId));
+
+export const materialQuery = (id: string | null) =>
+  queryOptions({
+    queryKey: qk.material(id ?? ''),
+    queryFn: () => api.get<Material>(`/materials/${id}`),
+    enabled: !!id,
+  });
+export const useMaterial = (id: string | null) => useQuery(materialQuery(id));
+
+export function useDeleteMaterial(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del<void>(`/materials/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.materials(wsId) }),
   });
 }
 
@@ -552,6 +642,14 @@ export function useCreateEvent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateEventReq) => api.post<CalendarEvent>('/events', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.events }),
+  });
+}
+export function useUpdateEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: Partial<CreateEventReq> & { id: string }) =>
+      api.patch<CalendarEvent>(`/events/${id}`, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.events }),
   });
 }

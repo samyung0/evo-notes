@@ -102,17 +102,6 @@ export function PageHeader({
   );
 }
 
-/** Fixed-width right column used by the dashboard and opened-workspace views. */
-export function RightRail({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <aside
-      className={cn('flex h-full min-h-full shrink-0 flex-col gap-2.5 overflow-hidden', className)}
-    >
-      {children}
-    </aside>
-  );
-}
-
 /** Sort/filter control cluster shared by Workspaces, Quizzes, Schedule. */
 export function Toolbar({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('flex items-center gap-2', className)}>{children}</div>;

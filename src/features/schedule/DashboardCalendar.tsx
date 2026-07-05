@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { Button, IconButton } from '@/components/ui';
 import { useEvents, useLabels } from '@/api/hooks';
@@ -16,7 +16,6 @@ const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
  * and clicking opens the event form pre-filled for that hour.
  */
 export function DashboardCalendar() {
-  const navigate = useNavigate();
   const { data: events } = useEvents();
   const { data: labels } = useLabels();
   const openEventForm = useDialogs((s) => s.openEventForm);
@@ -94,7 +93,7 @@ export function DashboardCalendar() {
               </span>
               <span
                 className={cn(
-                  'relative flex h-8 w-8 items-center justify-center rounded-full text-[0.8rem] font-semibold transition-colors',
+                  'relative flex h-8 w-8 items-center justify-center rounded-row text-[0.8rem] font-semibold transition-colors',
                   isToday && 'bg-action font-bold text-action-fg',
                   !isToday && isSel && 'text-fg ring-[1.5px] ring-action',
                   !isToday && !isSel && 'text-fg hover:bg-surface-hover-bg'
@@ -102,7 +101,7 @@ export function DashboardCalendar() {
               >
                 {day.getDate()}
                 {hasEvent && !isToday && (
-                  <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-fg-muted" />
+                  <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-solid-accent-1" />
                 )}
               </span>
             </button>
@@ -127,11 +126,11 @@ export function DashboardCalendar() {
           events={events ?? []}
           labels={labels ?? []}
           selectedId={null}
-          onSelectEvent={() => navigate({ to: '/schedule' })}
           onCreateSlot={(start, end) =>
             openEventForm({ start: start.toISOString(), end: end.toISOString() })
           }
           scrollContainerRef={scrollRef}
+          hideHeader
         />
       </div>
     </div>

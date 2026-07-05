@@ -53,32 +53,37 @@ export function QuestionRunner({
                   else onChange(selected ? cur.filter((x) => x !== i) : [...cur, i]);
                 }}
                 className={cn(
-                  'flex items-center gap-3 rounded-card border px-4 py-3 text-left text-sm transition-colors',
+                  'flex flex-col gap-1.5 rounded-card border px-4 py-3 text-left text-sm transition-colors',
                   review && 'cursor-default',
                   reviewTint
                 )}
               >
-                <span
-                  className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded-pill border',
-                    review
-                      ? isCorrect
-                        ? 'border-solid-success bg-solid-success text-white'
+                <span className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      'flex h-5 w-5 items-center justify-center rounded-pill border',
+                      review
+                        ? isCorrect
+                          ? 'border-solid-success bg-solid-success text-white'
+                          : selected
+                            ? 'border-solid-error bg-solid-error text-white'
+                            : 'border-line-strong'
                         : selected
-                          ? 'border-solid-error bg-solid-error text-white'
+                          ? 'border-accent bg-accent text-accent-fg'
                           : 'border-line-strong'
-                      : selected
-                        ? 'border-accent bg-accent text-accent-fg'
-                        : 'border-line-strong'
-                  )}
-                >
-                  {review
-                    ? (isCorrect || selected) && (
-                        <Icon name={isCorrect ? 'check' : 'x'} size={13} strokeWidth={2.5} />
-                      )
-                    : selected && <Icon name="check" size={13} strokeWidth={2.5} />}
+                    )}
+                  >
+                    {review
+                      ? (isCorrect || selected) && (
+                          <Icon name={isCorrect ? 'check' : 'x'} size={13} strokeWidth={2.5} />
+                        )
+                      : selected && <Icon name="check" size={13} strokeWidth={2.5} />}
+                  </span>
+                  {opt.value}
                 </span>
-                {opt.value}
+                {review && opt.explanation && (
+                  <span className="pl-8 text-xs text-fg-muted">{opt.explanation}</span>
+                )}
               </button>
             );
           })}

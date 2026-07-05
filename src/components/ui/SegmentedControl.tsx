@@ -19,7 +19,7 @@ const segmentVariants = cva('font-semibold transition-colors', {
   variants: {
     variant: {
       solid: 'rounded-pill',
-      ghost: 'rounded-row',
+      ghost: 'rounded-card-lg',
     },
     size: {
       sm: 'px-[15px] py-2 text-[12.5px]',

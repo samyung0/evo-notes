@@ -157,7 +157,7 @@ func (a *api) createAttempt(ctx context.Context, in *createAttemptInput) (*attem
 	if in.ID == "review_mistakes" {
 		_ = a.s.ClearMistakesExcept(ctx, userID(ctx), ids)
 	}
-	res, err := a.s.CreateAttempt(ctx, in.ID, in.Body.Correct, in.Body.Total,
+	res, err := a.s.CreateAttempt(ctx, userID(ctx), in.ID, in.Body.Correct, in.Body.Total,
 		apimodel.EncodeRaw(in.Body.Answers), apimodel.EncodeQuestions(in.Body.Questions))
 	if err != nil {
 		return nil, hErr(err)

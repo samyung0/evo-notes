@@ -3,24 +3,54 @@ import type {
   Deck,
   Flashcard,
   GenerateOptions,
+  Material,
+  MaterialRef,
+  MaterialRefType,
   Question,
   Quiz,
   SearchResult,
+  SourceFile,
+  Tag,
+  TagInput,
   Task,
   UserColor,
   Workspace,
 } from '@/api/types';
-import { isDue, isKnown, newSrsState } from '@/lib/srs';
+import { isKnown, newSrsState } from '@/lib/srs';
+import { flashcardsMarkdown, parseFlashcardsBlock, quizMarkdown } from '@/features/materials/blocks';
 import { delay, http, HttpResponse } from 'msw';
 import * as db from './db';
 import { uid } from './db';
 
-/** Recompute the live due-card count for a deck from its cards' SRS state. */
-function withDueCount(deck: Deck): Deck {
-  return { ...deck, dueCount: db.cards.filter((c) => c.deckId === deck.id && isDue(c.srs)).length };
-}
+/** Map a material's storage kind to the legacy left-panel ref type. */
+const refType = (kind: Material['kind']): MaterialRefType => (kind === 'flashcards' ? 'deck' : kind);
 
 const latency = () => delay(180 + Math.random() * 220);
+
+/** Resolve incoming tag refs against the catalog: reuse by id (preserving the
+ * row), else match by value, else create a new catalog entry. Mirrors the
+ * backend's resolveTag + syncEntityTags so dev mode matches prod behavior. */
+function resolveTags(kind: string, refs: TagInput[] | null | undefined): Tag[] {
+  const out: Tag[] = [];
+  const seen = new Set<string>();
+  for (const r of refs ?? []) {
+    const value = (r.value ?? '').trim();
+    if (!value) continue;
+    let entry = r.id ? db.tagCatalog.find((t) => t.id === r.id && t.kind === kind) : undefined;
+    if (!entry)
+      entry = db.tagCatalog.find(
+        (t) => t.kind === kind && t.value.toLowerCase() === value.toLowerCase()
+      );
+    if (!entry) {
+      entry = { id: uid('tag'), kind, value };
+      db.tagCatalog.push(entry);
+    }
+    if (seen.has(entry.id)) continue;
+    seen.add(entry.id);
+    out.push({ id: entry.id, value: entry.value });
+  }
+  return out;
+}
 
 function sortWorkspaces(list: Workspace[], sort: string | null): Workspace[] {
   const copy = [...list];
@@ -82,15 +112,15 @@ export const handlers = [
           href: '/schedule',
           color: db.labels.find((l) => l.id === e.labelIds[0])?.color,
         });
-    for (const d of db.decks)
-      if (d.name.toLowerCase().includes(q))
+    for (const mt of db.deckMaterials())
+      if (mt.title.toLowerCase().includes(q))
         results.push({
-          id: d.id,
+          id: mt.id,
           kind: 'flashcards',
-          title: d.name,
-          subtitle: d.workspaceName,
-          href: `/flashcards/${d.id}`,
-          color: d.color,
+          title: mt.title,
+          subtitle: mt.workspaceName,
+          href: `/flashcards/${mt.id}`,
+          color: mt.color,
         });
     for (const c of db.canvases)
       if (c.name.toLowerCase().includes(q))
@@ -111,6 +141,17 @@ export const handlers = [
   http.post('/api/notifications/read', async () => {
     db.notifications.forEach((n) => (n.read = true));
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  /* ---------------- tags ---------------- */
+  http.get('/api/tags', async ({ request }) => {
+    await latency();
+    const kind = new URL(request.url).searchParams.get('kind') ?? 'workspace';
+    const list = db.tagCatalog
+      .filter((t) => t.kind === kind)
+      .map((t) => ({ id: t.id, value: t.value }))
+      .sort((a, b) => a.value.localeCompare(b.value));
+    return HttpResponse.json(list as Tag[]);
   }),
 
   /* ---------------- workspaces ---------------- */
@@ -143,27 +184,25 @@ export const handlers = [
     await latency();
     const ws = db.workspaces.find((w) => w.id === params.id);
     if (!ws) return new HttpResponse(null, { status: 404 });
-    const quizCount = db.quizzes.filter((q) => q.workspaceId === ws.id).length;
-    const att = db.attempts.filter(
-      (a) => db.quizzes.find((q) => q.id === a.quizId)?.workspaceId === ws.id
-    );
+    const wsQuizIds = new Set(db.quizMaterials().filter((m) => m.workspaceId === ws.id).map((m) => m.id));
+    const att = db.attempts.filter((a) => wsQuizIds.has(a.quizId));
     const avg = att.length ? Math.round(att.reduce((s, a) => s + a.pct, 0) / att.length) : 0;
     return HttpResponse.json({
       chapters: ws.chapterCount,
       files: ws.fileCount,
-      quizzes: quizCount,
+      quizzes: wsQuizIds.size,
       attempts: att.length,
       avgScore: avg,
     });
   }),
   http.post('/api/workspaces', async ({ request }) => {
-    const body = (await request.json()) as Partial<Workspace>;
+    const body = (await request.json()) as Partial<Workspace> & { tags?: TagInput[] };
     const ws: Workspace = {
       id: uid('ws'),
       name: body.name ?? 'Untitled workspace',
       color: (body.color as UserColor) ?? 'green',
       privacy: body.privacy ?? 'private',
-      tags: body.tags ?? [],
+      tags: resolveTags('workspace', body.tags),
       chapterCount: 0,
       fileCount: 0,
       createdAt: new Date().toISOString(),
@@ -175,7 +214,10 @@ export const handlers = [
   http.patch('/api/workspaces/:id', async ({ params, request }) => {
     const ws = db.workspaces.find((w) => w.id === params.id);
     if (!ws) return new HttpResponse(null, { status: 404 });
-    Object.assign(ws, await request.json());
+    const body = (await request.json()) as Partial<Workspace> & { tags?: TagInput[] };
+    if (body.tags !== undefined) ws.tags = resolveTags('workspace', body.tags);
+    const { tags: _tags, ...rest } = body;
+    Object.assign(ws, rest);
     return HttpResponse.json(ws);
   }),
   http.delete('/api/workspaces/:id', async ({ params }) => {
@@ -244,6 +286,45 @@ export const handlers = [
     const f = db.files.find((x) => x.id === params.id);
     return f ? HttpResponse.json(f) : new HttpResponse(null, { status: 404 });
   }),
+  http.patch('/api/files/:id', async ({ params, request }) => {
+    const f = db.files.find((x) => x.id === params.id);
+    if (!f) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as Partial<Pick<SourceFile, 'name' | 'chapterId'>>;
+    if (body.name !== undefined) f.name = body.name;
+    if (body.chapterId !== undefined) f.chapterId = body.chapterId;
+    return HttpResponse.json(f);
+  }),
+  http.delete('/api/files/:id', async ({ params }) => {
+    const i = db.files.findIndex((x) => x.id === params.id);
+    if (i >= 0) {
+      const [removed] = db.files.splice(i, 1);
+      const ws = db.workspaces.find((w) => w.id === removed.workspaceId);
+      if (ws) ws.fileCount = Math.max(0, ws.fileCount - 1);
+      for (const ch of db.chapters) ch.fileIds = ch.fileIds.filter((id) => id !== removed.id);
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  /* ---------------- study materials ---------------- */
+  http.get('/api/workspaces/:id/materials', async ({ params }) => {
+    await latency();
+    const wsId = String(params.id);
+    const refs: MaterialRef[] = db.materials
+      .filter((mt) => mt.workspaceId === wsId)
+      .map((mt) => ({ id: mt.id, type: refType(mt.kind), title: mt.title, createdAt: mt.createdAt }))
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+    return HttpResponse.json(refs);
+  }),
+  http.get('/api/materials/:id', async ({ params }) => {
+    await latency();
+    const mt = db.materials.find((x) => x.id === params.id);
+    return mt ? HttpResponse.json(mt) : new HttpResponse(null, { status: 404 });
+  }),
+  http.delete('/api/materials/:id', async ({ params }) => {
+    const i = db.materials.findIndex((x) => x.id === params.id);
+    if (i >= 0) db.materials.splice(i, 1);
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.post('/api/workspaces/:id/sources', async ({ params, request }) => {
     await delay(500);
     // Real uploads are multipart (file bytes); fall back to JSON for any
@@ -307,28 +388,219 @@ export const handlers = [
       })),
     });
   }),
+
+  /* ---------------- conversations ---------------- */
+  http.get('/api/workspaces/:id/conversations', async ({ params }) => {
+    await latency();
+    const list = db.conversations
+      .filter((c) => c.workspaceId === params.id)
+      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt));
+    return HttpResponse.json(list);
+  }),
+  http.post('/api/workspaces/:id/conversations', async ({ params, request }) => {
+    await latency();
+    const body = (await request.json().catch(() => ({}))) as { title?: string };
+    const now = new Date().toISOString();
+    const conv = {
+      id: uid('conv'),
+      workspaceId: params.id as string,
+      title: body.title ?? '',
+      createdAt: now,
+      updatedAt: now,
+    };
+    db.conversations.push(conv);
+    return HttpResponse.json(conv, { status: 201 });
+  }),
+  http.get('/api/conversations/:id/messages', async ({ params }) => {
+    await latency();
+    const list = db.chatMessages.filter(
+      (msg) => msg.conversationId === params.id && msg.status !== 'streaming'
+    );
+    return HttpResponse.json(list);
+  }),
+  http.delete('/api/conversations/:id', async ({ params }) => {
+    await latency();
+    const i = db.conversations.findIndex((c) => c.id === params.id);
+    if (i >= 0) db.conversations.splice(i, 1);
+    for (let j = db.chatMessages.length - 1; j >= 0; j--) {
+      if (db.chatMessages[j].conversationId === params.id) db.chatMessages.splice(j, 1);
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  /* ---------------- chat streaming (SSE) ----------------
+     Mirrors the Go gateway: persists the user turn, streams the answer
+     token-by-token as `data: {type,...}` events, then saves the assistant
+     turn. Honors the client AbortController so Stop works in dev. */
+  http.post('/api/workspaces/:id/chat/stream', async ({ params, request }) => {
+    const body = (await request.json()) as { conversationId?: string; text: string };
+    const now = new Date().toISOString();
+
+    let conv = body.conversationId
+      ? db.conversations.find((c) => c.id === body.conversationId)
+      : undefined;
+    if (!conv) {
+      conv = {
+        id: uid('conv'),
+        workspaceId: params.id as string,
+        title: '',
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.conversations.push(conv);
+    }
+    if (!conv.title) conv.title = body.text.slice(0, 60);
+    db.chatMessages.push({
+      id: uid('m'),
+      conversationId: conv.id,
+      role: 'user',
+      content: body.text,
+      status: 'complete',
+      citations: null,
+      createdAt: now,
+    });
+
+    const convId = conv.id;
+    const assistantId = uid('m');
+    const citations = db.files.slice(0, 2).map((f) => ({
+      fileId: f.id,
+      fileName: f.name,
+      snippet: 'Relevant passage from your source…',
+    }));
+    const answer =
+      `Based on your sources, **${body.text.replace(/\?$/, '')}** connects to the key ideas in your materials.\n\n` +
+      '- The cell membrane regulates transport\n' +
+      '- Energy is produced in the **mitochondria**\n' +
+      '- Genetic information lives in the nucleus';
+    const words = answer.split(' ');
+
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const send = (o: unknown) =>
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(o)}\n\n`));
+        send({ type: 'start', messageId: assistantId, conversationId: convId });
+        await delay(120);
+        send({ type: 'citations', citations });
+        let acc = '';
+        for (const w of words) {
+          if (request.signal.aborted) break;
+          await delay(35);
+          acc += w + ' ';
+          send({ type: 'token', text: w + ' ' });
+        }
+        const aborted = request.signal.aborted;
+        db.chatMessages.push({
+          id: assistantId,
+          conversationId: convId,
+          role: 'assistant',
+          content: acc.trim(),
+          status: aborted ? 'aborted' : 'complete',
+          citations,
+          createdAt: new Date().toISOString(),
+        });
+        conv!.updatedAt = new Date().toISOString();
+        if (!aborted) send({ type: 'done', status: 'complete', tokenCount: words.length });
+        controller.close();
+      },
+    });
+    return new HttpResponse(stream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+    });
+  }),
+
   http.post('/api/workspaces/:id/generate', async ({ params, request }) => {
     await delay(900);
     const opts = (await request.json()) as GenerateOptions;
-    const wsName = db.workspaces.find((w) => w.id === params.id)?.name ?? 'Workspace';
-    if (opts.kind === 'summary') {
-      return HttpResponse.json({
-        kind: 'summary',
-        title: `${wsName} summary`,
-        body: '• The cell is the basic unit of life.\n• Mitochondria produce ATP.\n• Membranes control transport via diffusion and osmosis.',
-      });
-    }
+    const wsId = String(params.id);
+    const wsName = db.workspaces.find((w) => w.id === wsId)?.name ?? 'Workspace';
+    // Human-readable scope, for material titles / bodies.
+    const scopeFileNames = ('fileIds' in opts ? opts.fileIds : [])
+      .map((fid) => db.files.find((f) => f.id === fid)?.name)
+      .filter(Boolean) as string[];
+    const scopeLabel =
+      opts.chapters.length || scopeFileNames.length
+        ? [...opts.chapters, ...scopeFileNames].join(', ')
+        : 'the whole workspace';
+
     if (opts.kind === 'flashcards') {
-      const seed: Flashcard[] = Array.from({ length: opts.count }, (_, i) => ({
+      // Persist a flashcards markdown material; per-card FSRS lives in cardStats.
+      const id = uid('dk');
+      const name = `${wsName} flashcards`;
+      const cardContents = Array.from({ length: opts.count }, (_, i) => ({
         id: uid('c'),
-        deckId: 'generated',
         front: `Term ${i + 1}`,
         back: `Definition for term ${i + 1}.`,
-        known: false,
-        srs: newSrsState(),
       }));
-      return HttpResponse.json({ kind: 'flashcards', cards: seed });
+      const material: Material = {
+        id,
+        workspaceId: wsId,
+        workspaceName: wsName,
+        kind: 'flashcards',
+        title: name,
+        color: 'green',
+        content: flashcardsMarkdown(name, cardContents),
+        scopeChapters: opts.chapters,
+        scopeFileIds: opts.fileIds,
+        privacy: 'private',
+        createdAt: new Date().toISOString(),
+      };
+      db.materials.unshift(material);
+      for (const c of cardContents)
+        db.cardStats[c.id] = { materialId: id, srs: newSrsState(), known: false };
+      return HttpResponse.json({
+        kind: 'flashcards',
+        deck: db.deckFromMaterial(material),
+        cards: db.cardsFromMaterial(material),
+      });
     }
+
+    if (opts.kind === 'mindmap' || opts.kind === 'diagram') {
+      const material: Material = {
+        id: uid('mat'),
+        workspaceId: wsId,
+        workspaceName: wsName,
+        kind: opts.kind,
+        title: `${wsName} ${opts.kind}`,
+        content:
+          opts.kind === 'mindmap'
+            ? [
+                `# ${wsName} mindmap`,
+                '',
+                `Generated from ${scopeLabel}.`,
+                '',
+                '```mermaid',
+                'mindmap',
+                '  root((Topic))',
+                '    Key idea A',
+                '      Detail 1',
+                '      Detail 2',
+                '    Key idea B',
+                '      Detail 3',
+                '```',
+              ].join('\n')
+            : [
+                `# ${wsName} diagram`,
+                '',
+                `Generated from ${scopeLabel}.`,
+                '',
+                '```mermaid',
+                'flowchart LR',
+                '  A[Start] --> B[Process]',
+                '  B --> C{Decision}',
+                '  C -->|Yes| D[Outcome 1]',
+                '  C -->|No| E[Outcome 2]',
+                '```',
+              ].join('\n'),
+        scopeChapters: opts.chapters,
+        scopeFileIds: opts.fileIds,
+        privacy: 'private',
+        createdAt: new Date().toISOString(),
+      };
+      db.materials.unshift(material);
+      return HttpResponse.json({ kind: opts.kind, material });
+    }
+
     // quiz
     const qs: Question[] = Array.from({ length: opts.count }, (_, i) => {
       const type = opts.types[i % opts.types.length] ?? 'mcq';
@@ -340,10 +612,20 @@ export const handlers = [
       };
       switch (type) {
         case 'boolean':
-          return { ...base, type: 'boolean', correct: true } as Question;
+          return {
+            ...base,
+            type: 'boolean',
+            correct: true,
+            explanation: 'This statement is true based on your sources.',
+          } as Question;
         case 'fill':
         case 'short':
-          return { ...base, type, accepted: [{ value: 'answer' }] } as Question;
+          return {
+            ...base,
+            type,
+            accepted: [{ value: 'answer' }],
+            explanation: 'The accepted answer follows from the source material.',
+          } as Question;
         case 'ordering':
           return {
             ...base,
@@ -363,54 +645,71 @@ export const handlers = [
           return {
             ...base,
             type: 'multi',
-            options: [{ value: 'A' }, { value: 'B' }, { value: 'C' }, { value: 'D' }],
+            options: [
+              { value: 'A', explanation: 'Correct — supported by the material.' },
+              { value: 'B', explanation: 'Incorrect for this question.' },
+              { value: 'C', explanation: 'Correct — also supported.' },
+              { value: 'D', explanation: 'Incorrect for this question.' },
+            ],
             correct: [0, 2],
           } as Question;
         default:
           return {
             ...base,
             type: 'mcq',
-            options: [{ value: 'A' }, { value: 'B' }, { value: 'C' }, { value: 'D' }],
+            options: [
+              { value: 'A', explanation: 'Correct — this is the best answer.' },
+              { value: 'B', explanation: 'Incorrect — a common distractor.' },
+              { value: 'C', explanation: 'Incorrect for this question.' },
+              { value: 'D', explanation: 'Incorrect for this question.' },
+            ],
             correct: [0],
           } as Question;
       }
     });
-    const quiz: Quiz = {
+    const name = `${wsName} quiz`;
+    const quizMat: Material = {
       id: uid('qz'),
-      name: `${wsName} quiz`,
-      workspaceId: String(params.id),
+      workspaceId: wsId,
       workspaceName: wsName,
-      chapters: opts.chapters,
-      questions: qs,
-      createdAt: new Date().toISOString(),
+      kind: 'quiz',
+      title: name,
+      content: quizMarkdown(name, { questions: qs, timeLimitMin: opts.timeLimitMin }),
+      scopeChapters: opts.chapters,
+      scopeFileIds: opts.fileIds,
       privacy: 'private',
-      timeLimitMin: opts.timeLimitMin,
+      createdAt: new Date().toISOString(),
     };
-    db.quizzes.unshift(quiz);
-    return HttpResponse.json({ kind: 'quiz', quiz });
+    db.materials.unshift(quizMat);
+    return HttpResponse.json({ kind: 'quiz', quiz: db.quizFromMaterial(quizMat) });
   }),
 
   /* ---------------- quizzes & attempts ---------------- */
   http.get('/api/quizzes', async () => {
     await latency();
-    return HttpResponse.json(db.quizzes);
+    return HttpResponse.json(db.quizMaterials().map(db.quizFromMaterial));
   }),
   http.post('/api/quizzes', async ({ request }) => {
     const body = (await request.json()) as Partial<Quiz>;
     const ws = db.workspaces.find((w) => w.id === body.workspaceId) ?? db.workspaces[0];
-    const quiz: Quiz = {
+    const name = body.name ?? 'Untitled quiz';
+    const material: Material = {
       id: uid('qz'),
-      name: body.name ?? 'Untitled quiz',
       workspaceId: body.workspaceId ?? ws?.id ?? '',
       workspaceName: ws?.name ?? '',
-      chapters: body.chapters ?? [],
-      questions: body.questions ?? [],
-      createdAt: new Date().toISOString(),
+      kind: 'quiz',
+      title: name,
+      content: quizMarkdown(name, {
+        questions: body.questions ?? [],
+        timeLimitMin: body.timeLimitMin,
+      }),
+      scopeChapters: body.chapters ?? [],
+      scopeFileIds: [],
       privacy: body.privacy ?? 'private',
-      timeLimitMin: body.timeLimitMin,
+      createdAt: new Date().toISOString(),
     };
-    db.quizzes.unshift(quiz);
-    return HttpResponse.json(quiz, { status: 201 });
+    db.materials.unshift(material);
+    return HttpResponse.json(db.quizFromMaterial(material), { status: 201 });
   }),
   /** Ad-hoc quiz built from the recently-missed question pool. */
   http.get('/api/mistakes', async () => {
@@ -441,18 +740,27 @@ export const handlers = [
         privacy: 'private',
       } satisfies Quiz);
     }
-    const q = db.quizzes.find((x) => x.id === params.id);
-    return q ? HttpResponse.json(q) : new HttpResponse(null, { status: 404 });
+    const mt = db.materials.find((x) => x.id === params.id && x.kind === 'quiz');
+    return mt ? HttpResponse.json(db.quizFromMaterial(mt)) : new HttpResponse(null, { status: 404 });
   }),
   http.patch('/api/quizzes/:id', async ({ params, request }) => {
-    const q = db.quizzes.find((x) => x.id === params.id);
-    if (!q) return new HttpResponse(null, { status: 404 });
-    Object.assign(q, await request.json());
-    return HttpResponse.json(q);
+    const mt = db.materials.find((x) => x.id === params.id && x.kind === 'quiz');
+    if (!mt) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as Partial<Quiz>;
+    const cur = db.quizFromMaterial(mt);
+    const name = body.name ?? cur.name;
+    const chapters = body.chapters ?? cur.chapters;
+    const questions = body.questions ?? cur.questions;
+    const timeLimitMin = body.timeLimitMin ?? cur.timeLimitMin;
+    if (body.privacy !== undefined) mt.privacy = body.privacy;
+    mt.title = name;
+    mt.scopeChapters = chapters;
+    mt.content = quizMarkdown(name, { questions, timeLimitMin });
+    return HttpResponse.json(db.quizFromMaterial(mt));
   }),
   http.delete('/api/quizzes/:id', async ({ params }) => {
-    const i = db.quizzes.findIndex((x) => x.id === params.id);
-    if (i >= 0) db.quizzes.splice(i, 1);
+    const i = db.materials.findIndex((x) => x.id === params.id && x.kind === 'quiz');
+    if (i >= 0) db.materials.splice(i, 1);
     return new HttpResponse(null, { status: 204 });
   }),
   http.get('/api/attempts', async () => {
@@ -479,7 +787,8 @@ export const handlers = [
       answers?: Record<string, unknown>;
       questions?: Question[];
     };
-    const quiz = db.quizzes.find((x) => x.id === params.id);
+    const quizMt = db.materials.find((x) => x.id === params.id && x.kind === 'quiz');
+    const quiz = quizMt ? db.quizFromMaterial(quizMt) : undefined;
     // Fold any missed questions into the review-mistakes pool (deduped by id).
     if (body.wrong?.length) {
       for (const q of body.wrong) {
@@ -515,64 +824,79 @@ export const handlers = [
   /* ---------------- flashcards ---------------- */
   http.get('/api/decks', async () => {
     await latency();
-    return HttpResponse.json(db.decks.map(withDueCount));
+    return HttpResponse.json(db.deckMaterials().map(db.deckFromMaterial));
   }),
   http.post('/api/decks', async ({ request }) => {
     const body = (await request.json()) as Partial<Deck>;
     const ws = db.workspaces.find((w) => w.id === body.workspaceId);
-    const deck: Deck = {
+    const name = body.name ?? 'Untitled deck';
+    const material: Material = {
       id: uid('dk'),
-      name: body.name ?? 'Untitled deck',
       workspaceId: body.workspaceId ?? '',
       workspaceName: ws?.name ?? body.workspaceName ?? '',
+      kind: 'flashcards',
+      title: name,
       color: body.color ?? 'green',
-      cardCount: 0,
-      knownPct: 0,
-      dueCount: 0,
+      content: flashcardsMarkdown(name, []),
+      scopeChapters: [],
+      scopeFileIds: [],
+      privacy: 'private',
+      createdAt: new Date().toISOString(),
     };
-    db.decks.unshift(deck);
-    return HttpResponse.json(deck, { status: 201 });
+    db.materials.unshift(material);
+    return HttpResponse.json(db.deckFromMaterial(material), { status: 201 });
   }),
   http.get('/api/decks/:id', async ({ params }) => {
     await latency();
-    const d = db.decks.find((x) => x.id === params.id);
-    return d ? HttpResponse.json(withDueCount(d)) : new HttpResponse(null, { status: 404 });
+    const mt = db.materials.find((x) => x.id === params.id && x.kind === 'flashcards');
+    return mt ? HttpResponse.json(db.deckFromMaterial(mt)) : new HttpResponse(null, { status: 404 });
   }),
   http.get('/api/decks/:id/cards', async ({ params }) => {
     await latency();
-    return HttpResponse.json(db.cards.filter((c) => c.deckId === params.id));
+    const mt = db.materials.find((x) => x.id === params.id && x.kind === 'flashcards');
+    return mt ? HttpResponse.json(db.cardsFromMaterial(mt)) : new HttpResponse(null, { status: 404 });
   }),
   http.post('/api/decks/:id/cards', async ({ params, request }) => {
+    const mt = db.materials.find((x) => x.id === params.id && x.kind === 'flashcards');
+    if (!mt) return new HttpResponse(null, { status: 404 });
     const body = (await request.json()) as { front: string; back: string };
-    const srs = newSrsState();
-    const card: Flashcard = {
-      id: uid('c'),
-      deckId: String(params.id),
-      front: body.front ?? '',
-      back: body.back ?? '',
-      known: isKnown(srs),
-      srs,
-    };
-    db.cards.push(card);
-    const deck = db.decks.find((d) => d.id === params.id);
-    if (deck) deck.cardCount += 1;
-    return HttpResponse.json(card, { status: 201 });
+    const id = uid('c');
+    const cards = parseFlashcardsBlock(mt.content).cards;
+    cards.push({ id, front: body.front ?? '', back: body.back ?? '' });
+    mt.content = flashcardsMarkdown(mt.title, cards);
+    db.cardStats[id] = { materialId: mt.id, srs: newSrsState(), known: false };
+    return HttpResponse.json(db.cardsFromMaterial(mt).find((c) => c.id === id)!, { status: 201 });
   }),
   http.patch('/api/cards/:id', async ({ params, request }) => {
-    const c = db.cards.find((x) => x.id === params.id);
-    if (!c) return new HttpResponse(null, { status: 404 });
-    Object.assign(c, await request.json());
-    // Keep the derived known flag consistent with SRS state.
-    c.known = isKnown(c.srs);
-    return HttpResponse.json(c);
+    const stat = db.cardStats[String(params.id)];
+    if (!stat) return new HttpResponse(null, { status: 404 });
+    const mt = db.materials.find((x) => x.id === stat.materialId && x.kind === 'flashcards');
+    if (!mt) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as Partial<Pick<Flashcard, 'front' | 'back' | 'known' | 'srs'>>;
+    if (body.front !== undefined || body.back !== undefined) {
+      const cards = parseFlashcardsBlock(mt.content).cards;
+      const card = cards.find((c) => c.id === params.id);
+      if (card) {
+        if (body.front !== undefined) card.front = body.front;
+        if (body.back !== undefined) card.back = body.back;
+        mt.content = flashcardsMarkdown(mt.title, cards);
+      }
+    }
+    if (body.srs !== undefined) stat.srs = body.srs;
+    if (body.known !== undefined) stat.known = body.known;
+    else if (body.srs !== undefined) stat.known = isKnown(body.srs);
+    const cards = db.cardsFromMaterial(mt);
+    const out = cards.find((c) => c.id === params.id);
+    return out ? HttpResponse.json(out) : new HttpResponse(null, { status: 404 });
   }),
   http.delete('/api/cards/:id', async ({ params }) => {
-    const i = db.cards.findIndex((x) => x.id === params.id);
-    if (i >= 0) {
-      const [removed] = db.cards.splice(i, 1);
-      const deck = db.decks.find((d) => d.id === removed.deckId);
-      if (deck) deck.cardCount = Math.max(0, deck.cardCount - 1);
-    }
+    const stat = db.cardStats[String(params.id)];
+    if (!stat) return new HttpResponse(null, { status: 404 });
+    const mt = db.materials.find((x) => x.id === stat.materialId && x.kind === 'flashcards');
+    if (!mt) return new HttpResponse(null, { status: 404 });
+    const kept = parseFlashcardsBlock(mt.content).cards.filter((c) => c.id !== params.id);
+    mt.content = flashcardsMarkdown(mt.title, kept);
+    delete db.cardStats[String(params.id)];
     return new HttpResponse(null, { status: 204 });
   }),
 

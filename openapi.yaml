@@ -1,4 +1,4 @@
-components:
+﻿components:
   schemas:
     AccessTokenResp:
       additionalProperties: false
@@ -216,6 +216,48 @@ components:
         - order
         - fileIds
       type: object
+    Citation:
+      additionalProperties: false
+      properties:
+        fileId:
+          type: string
+        fileName:
+          type: string
+        snippet:
+          type: string
+      required:
+        - fileId
+        - fileName
+        - snippet
+      type: object
+    Conversation:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/Conversation.json
+          format: uri
+          readOnly: true
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        workspaceId:
+          type: string
+      required:
+        - id
+        - workspaceId
+        - title
+        - createdAt
+        - updatedAt
+      type: object
     CreateAttemptReq:
       additionalProperties: false
       properties:
@@ -277,6 +319,20 @@ components:
         back:
           type: string
         front:
+          type: string
+      type: object
+    CreateConversationReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/CreateConversationReq.json
+          format: uri
+          readOnly: true
+          type: string
+        title:
+          description: Optional thread title
+          maxLength: 200
           type: string
       type: object
     CreateDeckReq:
@@ -378,9 +434,9 @@ components:
           $ref: "#/components/schemas/Privacy"
           description: Visibility
         tags:
-          description: Free-text tags
+          description: Tags; reuse existing by id or create new by value
           items:
-            $ref: "#/components/schemas/StrVal"
+            $ref: "#/components/schemas/TagInput"
           nullable: true
           type: array
       required:
@@ -626,6 +682,172 @@ components:
         - name
         - color
       type: object
+    Material:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/Material.json
+          format: uri
+          readOnly: true
+          type: string
+        content:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        kind:
+          description: "mindmap | diagram | quiz | flashcards"
+          enum:
+            - mindmap
+            - diagram
+            - quiz
+            - flashcards
+          type: string
+        color:
+          $ref: "#/components/schemas/UserColor"
+        privacy:
+          $ref: "#/components/schemas/Privacy"
+        scopeChapters:
+          items:
+            type: string
+          type: array
+        scopeFileIds:
+          items:
+            type: string
+          type: array
+        title:
+          type: string
+        workspaceId:
+          type: string
+        workspaceName:
+          type: string
+      required:
+        - id
+        - workspaceId
+        - workspaceName
+        - kind
+        - title
+        - content
+        - scopeChapters
+        - scopeFileIds
+        - privacy
+        - createdAt
+      type: object
+    MaterialRef:
+      additionalProperties: false
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        title:
+          type: string
+        type:
+          description: "mindmap | diagram | quiz | deck (flashcards surfaced as deck)"
+          enum:
+            - mindmap
+            - diagram
+            - quiz
+            - deck
+          type: string
+      required:
+        - id
+        - type
+        - title
+        - createdAt
+      type: object
+    GenerateOptions:
+      additionalProperties: true
+      description: Polymorphic generate request (kind discriminates fields).
+      properties:
+        kind:
+          enum:
+            - flashcards
+            - quiz
+            - mindmap
+            - diagram
+          type: string
+        chapters:
+          items:
+            type: string
+          type: array
+        fileIds:
+          items:
+            type: string
+          type: array
+        count:
+          type: integer
+        style:
+          type: string
+        types:
+          items:
+            type: string
+          type: array
+        levels:
+          items:
+            type: string
+          type: array
+        timeLimitMin:
+          type: integer
+        detail:
+          type: string
+        diagramType:
+          type: string
+      required:
+        - kind
+      type: object
+    GenerateResult:
+      additionalProperties: true
+      description: Polymorphic generate response (kind discriminates payload).
+      properties:
+        kind:
+          type: string
+        quiz:
+          $ref: "#/components/schemas/Quiz"
+        deck:
+          $ref: "#/components/schemas/Deck"
+        cards:
+          items:
+            $ref: "#/components/schemas/Flashcard"
+          type: array
+        material:
+          $ref: "#/components/schemas/Material"
+      required:
+        - kind
+      type: object
+    Message:
+      additionalProperties: false
+      properties:
+        citations:
+          items:
+            $ref: "#/components/schemas/Citation"
+          nullable: true
+          type: array
+        content:
+          type: string
+        conversationId:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+      required:
+        - id
+        - conversationId
+        - role
+        - content
+        - status
+        - createdAt
+      type: object
     Notification:
       additionalProperties: false
       properties:
@@ -743,7 +965,7 @@ components:
           $ref: "#/components/schemas/Privacy"
         tags:
           items:
-            $ref: "#/components/schemas/StrVal"
+            $ref: "#/components/schemas/Tag"
           type: array
       required:
         - author
@@ -912,16 +1134,6 @@ components:
         - lapses
         - state
       type: object
-    StrVal:
-      additionalProperties: false
-      properties:
-        value:
-          maxLength: 50
-          minLength: 1
-          type: string
-      required:
-        - value
-      type: object
     SubscriptionStatus:
       enum:
         - none
@@ -930,6 +1142,31 @@ components:
         - canceled
         - trialing
       type: string
+    Tag:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        value:
+          maxLength: 50
+          minLength: 1
+          type: string
+      required:
+        - id
+        - value
+      type: object
+    TagInput:
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        value:
+          maxLength: 50
+          minLength: 1
+          type: string
+      required:
+        - value
+      type: object
     Task:
       additionalProperties: false
       properties:
@@ -1029,6 +1266,20 @@ components:
         title:
           type: string
       type: object
+    UpdateFileReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/UpdateFileReq.json
+          format: uri
+          readOnly: true
+          type: string
+        chapterId:
+          type: string
+        name:
+          type: string
+      type: object
     UpdateQuizReq:
       additionalProperties: false
       properties:
@@ -1088,7 +1339,7 @@ components:
           $ref: "#/components/schemas/Privacy"
         tags:
           items:
-            $ref: "#/components/schemas/StrVal"
+            $ref: "#/components/schemas/TagInput"
           type: array
       type: object
     User:
@@ -1166,7 +1417,7 @@ components:
           $ref: "#/components/schemas/Privacy"
         tags:
           items:
-            $ref: "#/components/schemas/StrVal"
+            $ref: "#/components/schemas/Tag"
           type: array
       required:
         - id
@@ -1427,6 +1678,59 @@ paths:
       summary: Update a chapter
       tags:
         - Content
+  /api/conversations/{id}:
+    delete:
+      operationId: deleteConversation
+      parameters:
+        - description: Conversation id
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Conversation id
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a conversation
+      tags:
+        - Chat
+  /api/conversations/{id}/messages:
+    get:
+      operationId: listMessages
+      parameters:
+        - description: Conversation id
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Conversation id
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Message"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Load a conversation's message history
+      tags:
+        - Chat
   /api/decks:
     get:
       operationId: listDecks
@@ -1720,6 +2024,26 @@ paths:
       tags:
         - Content
   /api/files/{id}:
+    delete:
+      operationId: deleteFile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a file
+      tags:
+        - Content
     get:
       operationId: getFile
       parameters:
@@ -1742,6 +2066,36 @@ paths:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
       summary: Get a file
+      tags:
+        - Content
+    patch:
+      operationId: updateFile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFileReq"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/File"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a file
       tags:
         - Content
   /api/integrations:
@@ -1847,6 +2201,51 @@ paths:
       summary: List labels
       tags:
         - Schedule
+  /api/materials/{id}:
+    delete:
+      operationId: deleteMaterial
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a material
+      tags:
+        - Materials
+    get:
+      operationId: getMaterial
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get a material
+      tags:
+        - Materials
   /api/me:
     get:
       operationId: getMe
@@ -2102,6 +2501,37 @@ paths:
       summary: Global search
       tags:
         - Account
+  /api/tags:
+    get:
+      operationId: listTags
+      parameters:
+        - description: "Tag kind: workspace | quiz | card"
+          explode: false
+          in: query
+          name: kind
+          schema:
+            default: workspace
+            description: "Tag kind: workspace | quiz | card"
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Tag"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List the user's tag catalog for a kind
+      tags:
+        - Tags
   /api/tasks:
     get:
       operationId: listTasks
@@ -2483,6 +2913,68 @@ paths:
       summary: Reorder chapters
       tags:
         - Content
+  /api/workspaces/{id}/conversations:
+    get:
+      operationId: listConversations
+      parameters:
+        - description: Workspace id
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Workspace id
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Conversation"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List a workspace's chat conversations
+      tags:
+        - Chat
+    post:
+      operationId: createConversation
+      parameters:
+        - description: Workspace id
+          in: path
+          name: id
+          required: true
+          schema:
+            description: Workspace id
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateConversationReq"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Start a new chat conversation
+      tags:
+        - Chat
   /api/workspaces/{id}/files:
     get:
       operationId: listWorkspaceFiles
@@ -2511,6 +3003,65 @@ paths:
       summary: List workspace files
       tags:
         - Content
+  /api/workspaces/{id}/materials:
+    get:
+      operationId: listMaterials
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/MaterialRef"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List study materials
+      tags:
+        - Materials
+  /api/workspaces/{id}/generate:
+    post:
+      operationId: generateMaterial
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateOptions"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateResult"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Generate study material from workspace scope
+      tags:
+        - Materials
   /api/workspaces/{id}/stats:
     get:
       operationId: getWorkspaceStats

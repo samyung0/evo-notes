@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/evonotes/server/internal/mdblock"
 )
 
 /* ------------------------------------------------------------------ patches */
@@ -16,7 +18,7 @@ type WorkspacePatch struct {
 	Name    *string    `json:"name"`
 	Color   *UserColor `json:"color"`
 	Privacy *Privacy   `json:"privacy"`
-	Tags    *[]string  `json:"tags"`
+	Tags    *[]TagRef  `json:"tags"`
 }
 type ChapterPatch struct {
 	Name  *string `json:"name"`
@@ -55,8 +57,13 @@ func (s *Store) Search(ctx context.Context, userID, q string) ([]SearchResult, e
 	out := []SearchResult{}
 	like := "%" + strings.ToLower(q) + "%"
 
-	rows, err := s.pool.Query(ctx, `SELECT id, name, tags FROM workspaces
-		WHERE user_id=$2 AND (lower(name) LIKE $1 OR EXISTS (SELECT 1 FROM unnest(tags) t WHERE lower(t) LIKE $1))`, like, userID)
+	rows, err := s.pool.Query(ctx, `SELECT w.id, w.name,
+			COALESCE((SELECT array_agg(t.name) FROM entity_tags et JOIN tags t ON t.id=et.tag_id
+				WHERE et.kind='workspace' AND et.entity_id=w.id), '{}')
+		FROM workspaces w
+		WHERE w.user_id=$2 AND (lower(w.name) LIKE $1
+			OR EXISTS (SELECT 1 FROM entity_tags et JOIN tags t ON t.id=et.tag_id
+				WHERE et.kind='workspace' AND et.entity_id=w.id AND lower(t.name) LIKE $1))`, like, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +161,10 @@ func (s *Store) MarkNotificationsRead(ctx context.Context, userID string) error 
 
 /* --------------------------------------------------------------- workspaces */
 
-const wsCols = `w.id, w.name, w.color, w.privacy, w.tags,
+const wsCols = `w.id, w.name, w.color, w.privacy,
+	COALESCE((SELECT jsonb_agg(jsonb_build_object('id', t.id, 'value', t.name) ORDER BY t.name)
+		FROM entity_tags et JOIN tags t ON t.id=et.tag_id
+		WHERE et.kind='workspace' AND et.entity_id=w.id), '[]'::jsonb),
 	(SELECT count(*) FROM chapters c WHERE c.workspace_id=w.id),
 	(SELECT count(*) FROM files f WHERE f.workspace_id=w.id),
 	w.created_at, w.last_accessed_at`
@@ -171,7 +181,7 @@ func (s *Store) ListWorkspaces(ctx context.Context, userID, q, sortKey, color, t
 	if q != "" {
 		args = append(args, "%"+strings.ToLower(q)+"%")
 		n := len(args)
-		sb += fmt.Sprintf(" AND (lower(w.name) LIKE $%d OR EXISTS (SELECT 1 FROM unnest(w.tags) t WHERE lower(t) LIKE $%d))", n, n)
+		sb += fmt.Sprintf(" AND (lower(w.name) LIKE $%d OR EXISTS (SELECT 1 FROM entity_tags et JOIN tags t ON t.id=et.tag_id WHERE et.kind='workspace' AND et.entity_id=w.id AND lower(t.name) LIKE $%d))", n, n)
 	}
 	if color != "" {
 		args = append(args, color)
@@ -179,7 +189,7 @@ func (s *Store) ListWorkspaces(ctx context.Context, userID, q, sortKey, color, t
 	}
 	if tag != "" {
 		args = append(args, tag)
-		sb += fmt.Sprintf(" AND $%d = ANY(w.tags)", len(args))
+		sb += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM entity_tags et JOIN tags t ON t.id=et.tag_id WHERE et.kind='workspace' AND et.entity_id=w.id AND t.name=$%d)", len(args))
 	}
 	switch sortKey {
 	case "created":
@@ -236,29 +246,144 @@ func (s *Store) WorkspaceStats(ctx context.Context, userID, id string) (Workspac
 	return st, err
 }
 
-func (s *Store) CreateWorkspace(ctx context.Context, userID, name string, color UserColor, privacy Privacy, tags []string) (Workspace, error) {
+func (s *Store) CreateWorkspace(ctx context.Context, userID, name string, color UserColor, privacy Privacy, tags []TagRef) (Workspace, error) {
 	id := uid("ws")
-	_, err := s.pool.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy, tags) VALUES ($1,$2,$3,$4,$5,$6)`,
-		id, userID, name, color, privacy, tags)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Workspace{}, err
 	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy) VALUES ($1,$2,$3,$4,$5)`,
+		id, userID, name, color, privacy); err != nil {
+		return Workspace{}, err
+	}
+	if err := syncEntityTags(ctx, tx, userID, "workspace", id, tags); err != nil {
+		return Workspace{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Workspace{}, err
+	}
 	return s.GetWorkspace(ctx, userID, id, false)
+}
+
+// syncEntityTags reconciles the tag set for one entity (workspace/quiz/card) to
+// exactly `refs`, inside a transaction. It resolves each ref to a catalog tag
+// (reusing the referenced/matched row so its metadata survives), then adds the
+// missing links and drops links no longer present. Catalog rows are never
+// deleted here — they outlive the entities that reference them.
+func syncEntityTags(ctx context.Context, tx pgx.Tx, userID, kind, entityID string, refs []TagRef) error {
+	ids := make([]string, 0, len(refs))
+	seen := map[string]bool{}
+	for _, r := range refs {
+		value := strings.TrimSpace(r.Value)
+		if value == "" {
+			continue
+		}
+		tagID, err := resolveTag(ctx, tx, userID, kind, r.ID, value)
+		if err != nil {
+			return err
+		}
+		if !seen[tagID] {
+			seen[tagID] = true
+			ids = append(ids, tagID)
+		}
+	}
+	// Drop links this entity no longer has (empty ids clears them all).
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM entity_tags WHERE kind=$1 AND entity_id=$2 AND NOT (tag_id = ANY($3))`,
+		kind, entityID, ids); err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO entity_tags (kind, entity_id, tag_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+			kind, entityID, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// resolveTag maps one incoming tag ref to a catalog tag id. A valid id owned by
+// this user+kind is reused as-is (preserving metadata); otherwise the tag is
+// found-or-created by (user, kind, lower(name)).
+func resolveTag(ctx context.Context, tx pgx.Tx, userID, kind string, id *string, value string) (string, error) {
+	if id != nil && *id != "" {
+		var existing string
+		err := tx.QueryRow(ctx,
+			`SELECT id FROM tags WHERE id=$1 AND user_id=$2 AND kind=$3`,
+			*id, userID, kind).Scan(&existing)
+		if err == nil {
+			return existing, nil
+		}
+		if !isNoRows(err) {
+			return "", err
+		}
+		// Unknown / not-owned id: fall back to resolving by value.
+	}
+	var tagID string
+	err := tx.QueryRow(ctx, `
+		WITH ins AS (
+			INSERT INTO tags (id, user_id, kind, name) VALUES ($1,$2,$3,$4)
+			ON CONFLICT (user_id, kind, lower(name)) DO NOTHING
+			RETURNING id
+		)
+		SELECT id FROM ins
+		UNION ALL
+		SELECT id FROM tags WHERE user_id=$2 AND kind=$3 AND lower(name)=lower($4)
+		LIMIT 1`,
+		uid("tag"), userID, kind, value).Scan(&tagID)
+	return tagID, err
+}
+
+// ListTags returns the user's tag catalog for one kind — the source for the
+// client-side "reuse existing tag" autocomplete.
+func (s *Store) ListTags(ctx context.Context, userID, kind string) ([]Tag, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, name FROM tags WHERE user_id=$1 AND kind=$2 ORDER BY name`, userID, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Tag{}
+	for rows.Next() {
+		var t Tag
+		if err := rows.Scan(&t.ID, &t.Value); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) UpdateWorkspace(ctx context.Context, userID, id string, p WorkspacePatch) (Workspace, error) {
 	if err := s.AssertWorkspaceOwner(ctx, userID, id); err != nil {
 		return Workspace{}, err
 	}
-	ct, err := s.pool.Exec(ctx, `UPDATE workspaces SET
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Workspace{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	ct, err := tx.Exec(ctx, `UPDATE workspaces SET
 		name=COALESCE($2,name), color=COALESCE($3,color),
-		privacy=COALESCE($4,privacy), tags=COALESCE($5,tags) WHERE id=$1`,
-		id, p.Name, p.Color, p.Privacy, p.Tags)
+		privacy=COALESCE($4,privacy) WHERE id=$1`,
+		id, p.Name, p.Color, p.Privacy)
 	if err != nil {
 		return Workspace{}, err
 	}
 	if ct.RowsAffected() == 0 {
 		return Workspace{}, ErrNotFound
+	}
+	if p.Tags != nil {
+		if err := syncEntityTags(ctx, tx, userID, "workspace", id, *p.Tags); err != nil {
+			return Workspace{}, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Workspace{}, err
 	}
 	return s.GetWorkspace(ctx, userID, id, false)
 }
@@ -391,30 +516,160 @@ func (s *Store) AddSource(ctx context.Context, wsID, name, kind string, chapterI
 	return s.GetFile(ctx, id)
 }
 
+// FilePatch carries the mutable fields for a file rename / re-file.
+type FilePatch struct {
+	Name      *string
+	ChapterID **string // double pointer: nil = leave, &nil = clear, &&v = set
+}
+
+func (s *Store) UpdateFile(ctx context.Context, id string, p FilePatch) (File, error) {
+	if p.Name != nil {
+		if _, err := s.pool.Exec(ctx, `UPDATE files SET name=$2 WHERE id=$1`, id, *p.Name); err != nil {
+			return File{}, err
+		}
+	}
+	if p.ChapterID != nil {
+		if _, err := s.pool.Exec(ctx, `UPDATE files SET chapter_id=$2 WHERE id=$1`, id, *p.ChapterID); err != nil {
+			return File{}, err
+		}
+	}
+	return s.GetFile(ctx, id)
+}
+
+func (s *Store) DeleteFile(ctx context.Context, id string) error {
+	ct, err := s.pool.Exec(ctx, `DELETE FROM files WHERE id=$1`, id)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+/* ------------------------------------------------------------- materials */
+
+const materialCols = `id, workspace_id, workspace_name, kind, title, content, scope_chapters, scope_file_ids, privacy, color, created_at`
+
+func scanMaterial(row pgx.Row) (Material, error) {
+	var mt Material
+	err := row.Scan(&mt.ID, &mt.WorkspaceID, &mt.WorkspaceName, &mt.Kind, &mt.Title, &mt.Content, &mt.ScopeChapters, &mt.ScopeFileIDs, &mt.Privacy, &mt.Color, &mt.CreatedAt)
+	if mt.ScopeChapters == nil {
+		mt.ScopeChapters = []string{}
+	}
+	if mt.ScopeFileIDs == nil {
+		mt.ScopeFileIDs = []string{}
+	}
+	return mt, err
+}
+
+func (s *Store) CreateMaterial(ctx context.Context, mt Material) (Material, error) {
+	if mt.ID == "" {
+		mt.ID = uid("mat")
+	}
+	if mt.ScopeChapters == nil {
+		mt.ScopeChapters = []string{}
+	}
+	if mt.ScopeFileIDs == nil {
+		mt.ScopeFileIDs = []string{}
+	}
+	if mt.Privacy == "" {
+		mt.Privacy = "private"
+	}
+	if mt.Color == "" {
+		mt.Color = "green"
+	}
+	_, err := s.pool.Exec(ctx, `INSERT INTO materials (id, workspace_id, workspace_name, kind, title, content, scope_chapters, scope_file_ids, privacy, color)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		mt.ID, mt.WorkspaceID, mt.WorkspaceName, mt.Kind, mt.Title, mt.Content, mt.ScopeChapters, mt.ScopeFileIDs, mt.Privacy, mt.Color)
+	if err != nil {
+		return Material{}, err
+	}
+	return s.GetMaterial(ctx, mt.ID)
+}
+
+func (s *Store) GetMaterial(ctx context.Context, id string) (Material, error) {
+	mt, err := scanMaterial(s.pool.QueryRow(ctx, `SELECT `+materialCols+` FROM materials WHERE id=$1`, id))
+	if isNoRows(err) {
+		return mt, ErrNotFound
+	}
+	return mt, err
+}
+
+func (s *Store) DeleteMaterial(ctx context.Context, id string) error {
+	ct, err := s.pool.Exec(ctx, `DELETE FROM materials WHERE id=$1`, id)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ListMaterialRefs returns the unified, workspace-scoped list of study
+// materials, newest first. Every artifact (mindmap, diagram, quiz, flashcards)
+// is now a single markdown row in `materials`; the flashcards kind is surfaced
+// to the client as the legacy ref type "deck".
+func (s *Store) ListMaterialRefs(ctx context.Context, wsID string) ([]MaterialRef, error) {
+	out := []MaterialRef{}
+	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, created_at FROM materials WHERE workspace_id=$1 ORDER BY created_at DESC`, wsID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var r MaterialRef
+		if err := rows.Scan(&r.ID, &r.Type, &r.Title, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		if r.Type == "flashcards" {
+			r.Type = "deck"
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 /* --------------------------------------------------------- quizzes/attempts */
 
-const quizCols = `id, name, workspace_id, workspace_name, chapters, questions, created_at, privacy, time_limit_min`
-
-func scanQuiz(row pgx.Row) (Quiz, error) {
-	var q Quiz
-	var wsID *string
-	err := row.Scan(&q.ID, &q.Name, &wsID, &q.WorkspaceName, &q.Chapters, &q.Questions, &q.CreatedAt, &q.Privacy, &q.TimeLimitMin)
-	if wsID != nil {
-		q.WorkspaceID = *wsID
+// quizFromMaterial derives the typed Quiz view from a markdown material: the
+// questions and time limit are parsed out of the ```quiz fence; everything else
+// maps straight off the material row.
+func quizFromMaterial(mt Material) (Quiz, error) {
+	questions, timeLimit, err := mdblock.ParseQuiz(mt.Content)
+	if err != nil {
+		return Quiz{}, err
 	}
-	return q, err
+	if len(questions) == 0 {
+		questions = json.RawMessage("[]")
+	}
+	chapters := mt.ScopeChapters
+	if chapters == nil {
+		chapters = []string{}
+	}
+	return Quiz{
+		ID: mt.ID, Name: mt.Title, WorkspaceID: mt.WorkspaceID, WorkspaceName: mt.WorkspaceName,
+		Chapters: chapters, Questions: questions, CreatedAt: mt.CreatedAt,
+		Privacy: mt.Privacy, TimeLimitMin: timeLimit,
+	}, nil
 }
 
 func (s *Store) ListQuizzes(ctx context.Context, userID string) ([]Quiz, error) {
-	rows, err := s.pool.Query(ctx, `SELECT q.id, q.name, q.workspace_id, q.workspace_name, q.chapters, q.questions, q.created_at, q.privacy, q.time_limit_min
-		FROM quizzes q JOIN workspaces w ON w.id=q.workspace_id WHERE w.user_id=$1 ORDER BY q.created_at DESC`, userID)
+	rows, err := s.pool.Query(ctx, `SELECT m.`+strings.ReplaceAll(materialCols, ", ", ", m.")+`
+		FROM materials m JOIN workspaces w ON w.id=m.workspace_id
+		WHERE w.user_id=$1 AND m.kind='quiz' ORDER BY m.created_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []Quiz{}
 	for rows.Next() {
-		q, err := scanQuiz(rows)
+		mt, err := scanMaterial(rows)
+		if err != nil {
+			return nil, err
+		}
+		q, err := quizFromMaterial(mt)
 		if err != nil {
 			return nil, err
 		}
@@ -424,60 +679,83 @@ func (s *Store) ListQuizzes(ctx context.Context, userID string) ([]Quiz, error) 
 }
 
 func (s *Store) GetQuiz(ctx context.Context, id string) (Quiz, error) {
-	q, err := scanQuiz(s.pool.QueryRow(ctx, `SELECT `+quizCols+` FROM quizzes WHERE id=$1`, id))
-	if isNoRows(err) {
-		return q, ErrNotFound
+	mt, err := s.GetMaterial(ctx, id)
+	if err != nil {
+		return Quiz{}, err
 	}
-	return q, err
+	if mt.Kind != "quiz" {
+		return Quiz{}, ErrNotFound
+	}
+	return quizFromMaterial(mt)
 }
 
 func (s *Store) CreateQuiz(ctx context.Context, q Quiz) (Quiz, error) {
-	if q.ID == "" {
-		q.ID = uid("qz")
-	}
-	if len(q.Questions) == 0 {
-		q.Questions = json.RawMessage("[]")
-	}
-	if q.Chapters == nil {
-		q.Chapters = []string{}
-	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO quizzes (id, name, workspace_id, workspace_name, chapters, questions, privacy, time_limit_min)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		q.ID, q.Name, nullStr(q.WorkspaceID), q.WorkspaceName, q.Chapters, []byte(q.Questions), q.Privacy, q.TimeLimitMin)
+	content, err := mdblock.QuizContent(q.Name, q.Questions, q.TimeLimitMin)
 	if err != nil {
 		return Quiz{}, err
 	}
-	return s.GetQuiz(ctx, q.ID)
+	mt, err := s.CreateMaterial(ctx, Material{
+		ID: q.ID, WorkspaceID: q.WorkspaceID, WorkspaceName: q.WorkspaceName, Kind: "quiz",
+		Title: q.Name, Content: content, ScopeChapters: q.Chapters, Privacy: q.Privacy,
+	})
+	if err != nil {
+		return Quiz{}, err
+	}
+	return quizFromMaterial(mt)
 }
 
 func (s *Store) UpdateQuiz(ctx context.Context, id string, p QuizPatch) (Quiz, error) {
-	var questions []byte
-	if p.Questions != nil {
-		questions = []byte(*p.Questions)
-	}
-	ct, err := s.pool.Exec(ctx, `UPDATE quizzes SET
-		name=COALESCE($2,name), chapters=COALESCE($3,chapters),
-		questions=COALESCE($4,questions), privacy=COALESCE($5,privacy),
-		time_limit_min=COALESCE($6,time_limit_min) WHERE id=$1`,
-		id, p.Name, p.Chapters, questions, p.Privacy, p.TimeLimitMin)
+	mt, err := s.GetMaterial(ctx, id)
 	if err != nil {
 		return Quiz{}, err
 	}
-	if ct.RowsAffected() == 0 {
+	if mt.Kind != "quiz" {
 		return Quiz{}, ErrNotFound
+	}
+	cur, err := quizFromMaterial(mt)
+	if err != nil {
+		return Quiz{}, err
+	}
+	name, chapters, questions, timeLimit, privacy := mt.Title, mt.ScopeChapters, cur.Questions, cur.TimeLimitMin, mt.Privacy
+	if p.Name != nil {
+		name = *p.Name
+	}
+	if p.Chapters != nil {
+		chapters = *p.Chapters
+	}
+	if p.Questions != nil {
+		questions = *p.Questions
+	}
+	if p.TimeLimitMin != nil {
+		timeLimit = p.TimeLimitMin
+	}
+	if p.Privacy != nil {
+		privacy = *p.Privacy
+	}
+	content, err := mdblock.QuizContent(name, questions, timeLimit)
+	if err != nil {
+		return Quiz{}, err
+	}
+	if chapters == nil {
+		chapters = []string{}
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE materials SET title=$2, content=$3, scope_chapters=$4, privacy=$5 WHERE id=$1`,
+		id, name, content, chapters, privacy); err != nil {
+		return Quiz{}, err
 	}
 	return s.GetQuiz(ctx, id)
 }
 
 func (s *Store) DeleteQuiz(ctx context.Context, id string) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM quizzes WHERE id=$1`, id)
-	return err
+	if err := s.DeleteMaterial(ctx, id); err != nil && err != ErrNotFound {
+		return err
+	}
+	return nil
 }
 
 func (s *Store) ListAttempts(ctx context.Context, userID string) ([]Attempt, error) {
-	rows, err := s.pool.Query(ctx, `SELECT a.id, a.quiz_id, a.quiz_name, a.workspace_name, a.chapters, a.correct, a.total, a.pct, a.taken_at
-		FROM attempts a JOIN quizzes q ON q.id=a.quiz_id JOIN workspaces w ON w.id=q.workspace_id
-		WHERE w.user_id=$1 ORDER BY a.taken_at DESC`, userID)
+	rows, err := s.pool.Query(ctx, `SELECT id, quiz_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at
+		FROM attempts WHERE user_id=$1 ORDER BY taken_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -493,8 +771,8 @@ func (s *Store) ListAttempts(ctx context.Context, userID string) ([]Attempt, err
 	return out, rows.Err()
 }
 
-func (s *Store) CreateAttempt(ctx context.Context, quizID string, correct, total int, answers, questions json.RawMessage) (Attempt, error) {
-	q, err := s.GetQuiz(ctx, quizID)
+func (s *Store) CreateAttempt(ctx context.Context, userID, materialID string, correct, total int, answers, questions json.RawMessage) (Attempt, error) {
+	q, err := s.GetQuiz(ctx, materialID)
 	if err != nil && err != ErrNotFound {
 		return Attempt{}, err
 	}
@@ -503,7 +781,7 @@ func (s *Store) CreateAttempt(ctx context.Context, quizID string, correct, total
 		pct = int(float64(correct) / float64(total) * 100.0)
 	}
 	a := Attempt{
-		ID: uid("at"), QuizID: quizID, QuizName: q.Name, WorkspaceName: q.WorkspaceName,
+		ID: uid("at"), QuizID: materialID, QuizName: q.Name, WorkspaceName: q.WorkspaceName,
 		Chapters: q.Chapters, Correct: correct, Total: total, Pct: pct, TakenAt: time.Now().UTC(),
 	}
 	if a.Chapters == nil {
@@ -515,19 +793,17 @@ func (s *Store) CreateAttempt(ctx context.Context, quizID string, correct, total
 	if len(questions) == 0 {
 		questions = json.RawMessage("[]")
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO attempts (id, quiz_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at, answers, questions)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, a.ID, a.QuizID, a.QuizName, a.WorkspaceName, a.Chapters, a.Correct, a.Total, a.Pct, a.TakenAt, []byte(answers), []byte(questions))
+	_, err = s.pool.Exec(ctx, `INSERT INTO attempts (id, quiz_id, user_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at, answers, questions)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, a.ID, a.QuizID, userID, a.QuizName, a.WorkspaceName, a.Chapters, a.Correct, a.Total, a.Pct, a.TakenAt, []byte(answers), []byte(questions))
 	return a, err
 }
 
-// GetAttempt returns a single attempt with its per-question breakdown, scoped
-// to the owner via the quiz -> workspace join (virtual "review_mistakes"
-// attempts have no quiz row and are therefore not retrievable here).
+// GetAttempt returns a single attempt with its per-question breakdown, scoped to
+// the owner via the attempts.user_id column recorded at submit time.
 func (s *Store) GetAttempt(ctx context.Context, id, userID string) (AttemptDetail, error) {
 	var d AttemptDetail
-	err := s.pool.QueryRow(ctx, `SELECT a.id, a.quiz_id, a.quiz_name, a.workspace_name, a.chapters, a.correct, a.total, a.pct, a.taken_at, a.answers, a.questions
-		FROM attempts a JOIN quizzes q ON q.id=a.quiz_id JOIN workspaces w ON w.id=q.workspace_id
-		WHERE a.id=$1 AND w.user_id=$2`, id, userID).
+	err := s.pool.QueryRow(ctx, `SELECT id, quiz_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at, answers, questions
+		FROM attempts WHERE id=$1 AND user_id=$2`, id, userID).
 		Scan(&d.ID, &d.QuizID, &d.QuizName, &d.WorkspaceName, &d.Chapters, &d.Correct, &d.Total, &d.Pct, &d.TakenAt, &d.Answers, &d.Questions)
 	if isNoRows(err) {
 		return d, ErrNotFound
@@ -540,20 +816,31 @@ func (s *Store) GetAttempt(ctx context.Context, id, userID string) (AttemptDetai
 
 /* -------------------------------------------------------------- flashcards */
 
-// dueExpr counts a deck's cards whose next FSRS review is due now or earlier.
-const dueExpr = `(SELECT count(*) FROM cards c WHERE c.deck_id=d.id AND (c.srs->>'due')::timestamptz <= now())`
+// deckStatsExpr derives a deck's card_count / known_pct / due_count from the
+// per-card scheduling rows in card_stats (m is the aliased materials row).
+const deckStatsExpr = `
+	(SELECT count(*) FROM card_stats cs WHERE cs.material_id=m.id),
+	COALESCE((SELECT round(100.0*count(*) FILTER (WHERE cs.known)/NULLIF(count(*),0))::int FROM card_stats cs WHERE cs.material_id=m.id), 0),
+	(SELECT count(*) FROM card_stats cs WHERE cs.material_id=m.id AND (cs.srs->>'due')::timestamptz <= now())`
+
+func scanDeck(row pgx.Row) (Deck, error) {
+	var d Deck
+	err := row.Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.CardCount, &d.KnownPct, &d.DueCount)
+	return d, err
+}
 
 func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
-	rows, err := s.pool.Query(ctx, `SELECT d.id, d.name, COALESCE(d.workspace_id,''), d.workspace_name, d.color, d.card_count, d.known_pct, `+dueExpr+`
-		FROM decks d JOIN workspaces w ON w.id=d.workspace_id WHERE w.user_id=$1 ORDER BY d.name`, userID)
+	rows, err := s.pool.Query(ctx, `SELECT m.id, m.title, COALESCE(m.workspace_id,''), m.workspace_name, m.color,`+deckStatsExpr+`
+		FROM materials m JOIN workspaces w ON w.id=m.workspace_id
+		WHERE w.user_id=$1 AND m.kind='flashcards' ORDER BY m.title`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []Deck{}
 	for rows.Next() {
-		var d Deck
-		if err := rows.Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.CardCount, &d.KnownPct, &d.DueCount); err != nil {
+		d, err := scanDeck(rows)
+		if err != nil {
 			return nil, err
 		}
 		out = append(out, d)
@@ -562,9 +849,8 @@ func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
 }
 
 func (s *Store) GetDeck(ctx context.Context, id string) (Deck, error) {
-	var d Deck
-	err := s.pool.QueryRow(ctx, `SELECT d.id, d.name, COALESCE(d.workspace_id,''), d.workspace_name, d.color, d.card_count, d.known_pct, `+dueExpr+` FROM decks d WHERE d.id=$1`, id).
-		Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.CardCount, &d.KnownPct, &d.DueCount)
+	d, err := scanDeck(s.pool.QueryRow(ctx, `SELECT m.id, m.title, COALESCE(m.workspace_id,''), m.workspace_name, m.color,`+deckStatsExpr+`
+		FROM materials m WHERE m.id=$1 AND m.kind='flashcards'`, id))
 	if isNoRows(err) {
 		return d, ErrNotFound
 	}
@@ -572,7 +858,7 @@ func (s *Store) GetDeck(ctx context.Context, id string) (Deck, error) {
 }
 
 // CreateDeck attaches to the given workspace (falling back to the user's most
-// recent one) so the deck shows up in ListDecks' owner-scoped join.
+// recent one) and persists an empty flashcards markdown document.
 func (s *Store) CreateDeck(ctx context.Context, userID, name string, color UserColor, wsID string) (Deck, error) {
 	var wsName string
 	if wsID == "" {
@@ -588,91 +874,206 @@ func (s *Store) CreateDeck(ctx context.Context, userID, name string, color UserC
 	if color == "" {
 		color = "green"
 	}
-	id := uid("dk")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO decks (id, name, workspace_id, workspace_name, color, card_count, known_pct) VALUES ($1,$2,$3,$4,$5,0,0)`,
-		id, name, wsID, wsName, color); err != nil {
+	content, err := mdblock.FlashcardsContent(name, nil)
+	if err != nil {
 		return Deck{}, err
 	}
-	return s.GetDeck(ctx, id)
+	mt, err := s.CreateMaterial(ctx, Material{
+		WorkspaceID: wsID, WorkspaceName: wsName, Kind: "flashcards",
+		Title: name, Content: content, Color: color,
+	})
+	if err != nil {
+		return Deck{}, err
+	}
+	return s.GetDeck(ctx, mt.ID)
 }
 
-func (s *Store) ListCards(ctx context.Context, deckID string) ([]Flashcard, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, deck_id, front, back, known, srs FROM cards WHERE deck_id=$1 ORDER BY id`, deckID)
+// cardStat is a per-card scheduling row joined onto the authored front/back.
+type cardStat struct {
+	srs   SrsState
+	known bool
+}
+
+func (s *Store) cardStats(ctx context.Context, materialID string) (map[string]cardStat, error) {
+	rows, err := s.pool.Query(ctx, `SELECT card_id, srs, known FROM card_stats WHERE material_id=$1`, materialID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	out := []Flashcard{}
+	m := map[string]cardStat{}
 	for rows.Next() {
-		var c Flashcard
-		if err := rows.Scan(&c.ID, &c.DeckID, &c.Front, &c.Back, &c.Known, &c.Srs); err != nil {
+		var id string
+		var st cardStat
+		if err := rows.Scan(&id, &st.srs, &st.known); err != nil {
 			return nil, err
 		}
-		out = append(out, c)
+		m[id] = st
 	}
-	return out, rows.Err()
+	return m, rows.Err()
+}
+
+func (s *Store) ListCards(ctx context.Context, deckID string) ([]Flashcard, error) {
+	mt, err := s.GetMaterial(ctx, deckID)
+	if err != nil {
+		return nil, err
+	}
+	cards, err := mdblock.ParseFlashcards(mt.Content)
+	if err != nil {
+		return nil, err
+	}
+	stats, err := s.cardStats(ctx, deckID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Flashcard, 0, len(cards))
+	for _, c := range cards {
+		st, ok := stats[c.ID]
+		if !ok {
+			st = cardStat{srs: newSrsState()}
+		}
+		out = append(out, Flashcard{ID: c.ID, DeckID: deckID, Front: c.Front, Back: c.Back, Known: st.known, Srs: st.srs})
+	}
+	return out, nil
 }
 
 func (s *Store) GetCard(ctx context.Context, id string) (Flashcard, error) {
-	var c Flashcard
-	err := s.pool.QueryRow(ctx, `SELECT id, deck_id, front, back, known, srs FROM cards WHERE id=$1`, id).
-		Scan(&c.ID, &c.DeckID, &c.Front, &c.Back, &c.Known, &c.Srs)
+	var materialID string
+	var st cardStat
+	err := s.pool.QueryRow(ctx, `SELECT material_id, srs, known FROM card_stats WHERE card_id=$1`, id).Scan(&materialID, &st.srs, &st.known)
 	if isNoRows(err) {
-		return c, ErrNotFound
+		return Flashcard{}, ErrNotFound
 	}
-	return c, err
+	if err != nil {
+		return Flashcard{}, err
+	}
+	mt, err := s.GetMaterial(ctx, materialID)
+	if err != nil {
+		return Flashcard{}, err
+	}
+	cards, err := mdblock.ParseFlashcards(mt.Content)
+	if err != nil {
+		return Flashcard{}, err
+	}
+	for _, c := range cards {
+		if c.ID == id {
+			return Flashcard{ID: c.ID, DeckID: materialID, Front: c.Front, Back: c.Back, Known: st.known, Srs: st.srs}, nil
+		}
+	}
+	return Flashcard{}, ErrNotFound
 }
 
 func (s *Store) CreateCard(ctx context.Context, deckID, front, back string) (Flashcard, error) {
-	id := uid("c")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO cards (id, deck_id, front, back, known, srs) VALUES ($1,$2,$3,$4,false,$5)`,
-		id, deckID, front, back, newSrsBytes()); err != nil {
+	mt, err := s.GetMaterial(ctx, deckID)
+	if err != nil {
 		return Flashcard{}, err
 	}
-	s.refreshDeckCounts(ctx, deckID)
+	cards, err := mdblock.ParseFlashcards(mt.Content)
+	if err != nil {
+		return Flashcard{}, err
+	}
+	id := uid("c")
+	cards = append(cards, mdblock.CardContent{ID: id, Front: front, Back: back})
+	content, err := mdblock.FlashcardsContent(mt.Title, cards)
+	if err != nil {
+		return Flashcard{}, err
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE materials SET content=$2 WHERE id=$1`, deckID, content); err != nil {
+		return Flashcard{}, err
+	}
+	if _, err := s.pool.Exec(ctx, `INSERT INTO card_stats (card_id, material_id, srs, known) VALUES ($1,$2,$3,false)`,
+		id, deckID, newSrsBytes()); err != nil {
+		return Flashcard{}, err
+	}
 	return s.GetCard(ctx, id)
 }
 
 func (s *Store) UpdateCard(ctx context.Context, id string, p CardPatch) (Flashcard, error) {
-	var srs []byte
-	if p.Srs != nil {
-		srs = []byte(*p.Srs)
-	}
-	ct, err := s.pool.Exec(ctx, `UPDATE cards SET front=COALESCE($2,front), back=COALESCE($3,back), known=COALESCE($4,known), srs=COALESCE($5,srs) WHERE id=$1`,
-		id, p.Front, p.Back, p.Known, srs)
-	if err != nil {
+	var materialID string
+	if err := s.pool.QueryRow(ctx, `SELECT material_id FROM card_stats WHERE card_id=$1`, id).Scan(&materialID); err != nil {
+		if isNoRows(err) {
+			return Flashcard{}, ErrNotFound
+		}
 		return Flashcard{}, err
 	}
-	if ct.RowsAffected() == 0 {
-		return Flashcard{}, ErrNotFound
+	if p.Front != nil || p.Back != nil {
+		mt, err := s.GetMaterial(ctx, materialID)
+		if err != nil {
+			return Flashcard{}, err
+		}
+		cards, err := mdblock.ParseFlashcards(mt.Content)
+		if err != nil {
+			return Flashcard{}, err
+		}
+		for i := range cards {
+			if cards[i].ID != id {
+				continue
+			}
+			if p.Front != nil {
+				cards[i].Front = *p.Front
+			}
+			if p.Back != nil {
+				cards[i].Back = *p.Back
+			}
+		}
+		content, err := mdblock.FlashcardsContent(mt.Title, cards)
+		if err != nil {
+			return Flashcard{}, err
+		}
+		if _, err := s.pool.Exec(ctx, `UPDATE materials SET content=$2 WHERE id=$1`, materialID, content); err != nil {
+			return Flashcard{}, err
+		}
 	}
-	c, err := s.GetCard(ctx, id)
-	if err == nil {
-		s.refreshDeckCounts(ctx, c.DeckID)
+	if p.Known != nil || p.Srs != nil {
+		var srs []byte
+		if p.Srs != nil {
+			srs = []byte(*p.Srs)
+		}
+		if _, err := s.pool.Exec(ctx, `UPDATE card_stats SET known=COALESCE($2,known), srs=COALESCE($3,srs) WHERE card_id=$1`,
+			id, p.Known, srs); err != nil {
+			return Flashcard{}, err
+		}
 	}
-	return c, err
+	return s.GetCard(ctx, id)
 }
 
 func (s *Store) DeleteCard(ctx context.Context, id string) error {
-	var deckID string
-	err := s.pool.QueryRow(ctx, `DELETE FROM cards WHERE id=$1 RETURNING deck_id`, id).Scan(&deckID)
-	if isNoRows(err) {
-		return ErrNotFound
+	var materialID string
+	if err := s.pool.QueryRow(ctx, `SELECT material_id FROM card_stats WHERE card_id=$1`, id).Scan(&materialID); err != nil {
+		if isNoRows(err) {
+			return ErrNotFound
+		}
+		return err
 	}
+	mt, err := s.GetMaterial(ctx, materialID)
 	if err != nil {
 		return err
 	}
-	s.refreshDeckCounts(ctx, deckID)
-	return nil
+	cards, err := mdblock.ParseFlashcards(mt.Content)
+	if err != nil {
+		return err
+	}
+	kept := cards[:0]
+	for _, c := range cards {
+		if c.ID != id {
+			kept = append(kept, c)
+		}
+	}
+	content, err := mdblock.FlashcardsContent(mt.Title, kept)
+	if err != nil {
+		return err
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE materials SET content=$2 WHERE id=$1`, materialID, content); err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `DELETE FROM card_stats WHERE card_id=$1`, id)
+	return err
 }
 
-// refreshDeckCounts recomputes the deck's cached card_count / known_pct after a
-// card is added or removed.
-func (s *Store) refreshDeckCounts(ctx context.Context, deckID string) {
-	_, _ = s.pool.Exec(ctx, `UPDATE decks d SET
-		card_count = (SELECT count(*) FROM cards c WHERE c.deck_id=d.id),
-		known_pct = COALESCE((SELECT round(100.0*count(*) FILTER (WHERE c.known)/NULLIF(count(*),0))::int FROM cards c WHERE c.deck_id=d.id), 0)
-		WHERE d.id=$1`, deckID)
+// newSrsState returns a fresh FSRS "new" state as a typed struct (due now).
+func newSrsState() SrsState {
+	var st SrsState
+	_ = json.Unmarshal(newSrsBytes(), &st)
+	return st
 }
 
 // newSrsBytes returns a fresh FSRS "new" state (due now) matching SrsState in
@@ -748,8 +1149,8 @@ func (s *Store) MistakesQuiz(ctx context.Context, userID string) (Quiz, error) {
 
 /* ---------------------------------------------------------------- schedule */
 
-func (s *Store) ListLabels(ctx context.Context) ([]Label, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, color FROM labels ORDER BY name`)
+func (s *Store) ListLabels(ctx context.Context, userID string) ([]Label, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, name, color FROM labels WHERE user_id=$1 ORDER BY name`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -925,9 +1326,11 @@ func (s *Store) ListPublicWorkspaces(ctx context.Context) ([]PublicWorkspace, er
 	out := []PublicWorkspace{}
 	for rows.Next() {
 		var w PublicWorkspace
-		if err := rows.Scan(&w.ID, &w.Name, &w.Color, &w.Privacy, &w.Tags, &w.ChapterCount, &w.FileCount, &w.CreatedAt, &w.LastAccessedAt, &w.Author, &w.Clones); err != nil {
+		var tagNames []string
+		if err := rows.Scan(&w.ID, &w.Name, &w.Color, &w.Privacy, &tagNames, &w.ChapterCount, &w.FileCount, &w.CreatedAt, &w.LastAccessedAt, &w.Author, &w.Clones); err != nil {
 			return nil, err
 		}
+		w.Tags = tagsFromNames(tagNames)
 		out = append(out, w)
 	}
 	return out, rows.Err()

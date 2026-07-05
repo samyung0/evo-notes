@@ -1,5 +1,5 @@
 import { CreateWorkspaceReq, UpdateWorkspaceReq } from '@/api/gen/model';
-import type { Label, Task } from '@/api/types';
+import type { CalendarEvent, Label, Task } from '@/api/types';
 import type { EventDraft } from '@/features/schedule/EventFormModal';
 import { createWorkspaceDefaultValues } from '@/stores/defaultValues';
 import { create } from 'zustand';
@@ -31,6 +31,7 @@ interface DialogState {
   taskEdit: Task | null;
   labelEdit: Label | null;
   eventForm: EventDraft | null;
+  eventDetail: CalendarEvent | null;
   addSource: { workspaceId: string } | null;
   confirm: ConfirmConfig | null;
 
@@ -40,6 +41,7 @@ interface DialogState {
   openTaskEdit: (task: Task) => void;
   openLabelEdit: (label: Label) => void;
   openEventForm: (draft?: EventDraft) => void;
+  openEventDetail: (event: CalendarEvent) => void;
   openAddSource: (workspaceId: string) => void;
   openConfirm: (config: ConfirmConfig) => void;
 
@@ -49,6 +51,7 @@ interface DialogState {
   closeTaskEdit: () => void;
   closeLabelEdit: () => void;
   closeEventForm: () => void;
+  closeEventDetail: () => void;
   closeAddSource: () => void;
   closeConfirm: () => void;
 
@@ -65,6 +68,7 @@ export const useDialogs = create<DialogState>((set) => ({
   taskEdit: null,
   labelEdit: null,
   eventForm: null,
+  eventDetail: null,
   addSource: null,
   confirm: null,
 
@@ -77,6 +81,7 @@ export const useDialogs = create<DialogState>((set) => ({
   openTaskEdit: (task) => set({ taskEdit: task }),
   openLabelEdit: (label) => set({ labelEdit: label }),
   openEventForm: (draft) => set({ eventForm: draft ?? {} }),
+  openEventDetail: (event) => set({ eventDetail: event }),
   openAddSource: (workspaceId) => set({ addSource: { workspaceId } }),
   openConfirm: (config) => set({ confirm: config }),
 
@@ -86,6 +91,7 @@ export const useDialogs = create<DialogState>((set) => ({
   closeTaskEdit: () => set({ taskEdit: null }),
   closeLabelEdit: () => set({ labelEdit: null }),
   closeEventForm: () => set({ eventForm: null }),
+  closeEventDetail: () => set({ eventDetail: null }),
   closeAddSource: () => set({ addSource: null }),
   closeConfirm: () => set({ confirm: null }),
 

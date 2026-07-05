@@ -14,8 +14,11 @@ import re
 from contextlib import asynccontextmanager
 from typing import Any, List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+from lightrag import QueryParam
 
 from ..config import cfg
 from ..store import db
@@ -54,9 +57,17 @@ class ChatReq(BaseModel):
     model: Optional[str] = None  # deepseek-v4-pro | deepseek-v4-flash
 
 
+class ChatStreamReq(BaseModel):
+    query: str
+    workspaceId: str
+    model: Optional[str] = None
+    # Prior turns as OpenAI-style role/content pairs, sent to the LLM only.
+    history: Optional[List[dict]] = None
+
+
 class GenerateReq(BaseModel):
     workspaceId: str
-    kind: str = "quiz"  # summary | flashcards | quiz
+    kind: str = "quiz"  # flashcards | quiz | mindmap | diagram (summary: legacy)
     length: Optional[str] = None
     format: Optional[str] = None
     count: Optional[int] = None
@@ -65,6 +76,9 @@ class GenerateReq(BaseModel):
     levels: Optional[List[str]] = None  # cognitive levels: recall|application|analysis
     difficulty: Optional[List[str]] = None  # legacy alias, still accepted
     chapters: Optional[List[str]] = None
+    fileIds: Optional[List[str]] = None  # file-scoped retrieval filtering (doc ids)
+    detail: Optional[str] = None  # mindmap: brief|standard|detailed
+    diagramType: Optional[str] = None  # diagram: auto|flowchart|sequence|class|state|er
     timeLimitMin: Optional[int] = None
 
 
@@ -125,15 +139,56 @@ def _extract_json(text: str) -> Any:
         return None
 
 
-async def _answer(workspace: str, query: str, model: Optional[str]) -> str:
+async def _answer(
+    workspace: str,
+    query: str,
+    model: Optional[str],
+    ids: Optional[List[str]] = None,
+) -> str:
     assert _cache is not None
     rag = await _cache.get(workspace)
     token = query_model_override.set(model if model in cfg.query_models else None)
     try:
+        # Scope by document ids when requested. Ingest tags each document with
+        # doc_id=file_id (see ingest/worker.py), so QueryParam(ids=...) filters
+        # retrieval to the selected files/chapters. If this build of LightRAG
+        # does not honor `ids`, fall back to the unscoped RAGAnything path (the
+        # natural-language scope hint baked into `query` still steers it).
+        if ids:
+            try:
+                param = QueryParam(mode="mix", ids=list(ids))
+                return await rag.lightrag.aquery(query, param=param)
+            except Exception:  # noqa: BLE001 — degrade to unscoped retrieval
+                log.warning("scoped query (ids) failed; falling back to unscoped", exc_info=True)
         # vlm_enhanced disabled: answer from the text/graph index, no image re-encode.
         return await rag.aquery(query, mode="mix", vlm_enhanced=False)
     finally:
         query_model_override.reset(token)
+
+
+def _scope_hint(chapters: Optional[List[str]], file_ids: Optional[List[str]]) -> str:
+    """A natural-language instruction that narrows the answer to the requested
+    scope. Complements (and backs up) QueryParam id filtering."""
+    parts: list[str] = []
+    if chapters:
+        parts.append("chapters titled: " + ", ".join(chapters))
+    if file_ids:
+        parts.append(f"the {len(file_ids)} selected source file(s)")
+    if not parts:
+        return ""
+    return (
+        "Use ONLY the following scope of the workspace — "
+        + "; ".join(parts)
+        + ". Ignore material outside this scope.\n\n"
+    )
+
+
+def _strip_fence(text: str) -> str:
+    """Remove a surrounding ``` / ```mermaid fence from an LLM reply, if any."""
+    if not text:
+        return ""
+    m = re.search(r"```(?:mermaid)?\s*(.+?)\s*```", text, re.DOTALL)
+    return (m.group(1) if m else text).strip()
 
 
 @app.get("/healthz")
@@ -150,15 +205,113 @@ async def chat(req: ChatReq):
     return {"id": db.uid("m"), "role": "assistant", "text": text, "citations": []}
 
 
+def _citations_from_result(result: dict) -> list[dict]:
+    """Best-effort map of LightRAG references onto our Citation shape.
+
+    LightRAG returns retrieval references as ``{reference_id, file_path, ...}``;
+    the frontend wants ``{fileId, fileName, snippet}``. Missing fields degrade
+    gracefully to empty strings.
+    """
+    refs = (result.get("data") or {}).get("references") or []
+    out: list[dict] = []
+    seen: set[str] = set()
+    for ref in refs:
+        if not isinstance(ref, dict):
+            continue
+        file_path = str(ref.get("file_path") or ref.get("reference_id") or "").strip()
+        if not file_path or file_path in seen or file_path == "unknown_source":
+            continue
+        seen.add(file_path)
+        out.append(
+            {
+                "fileId": str(ref.get("reference_id") or file_path),
+                "fileName": file_path,
+                "snippet": str(ref.get("content") or "")[:280],
+            }
+        )
+    return out
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+async def _answer_stream(req: "ChatStreamReq", request: Request):
+    """Yield SSE events (citations -> token* -> done) for a grounded answer.
+
+    Uses ``LightRAG.aquery_llm(stream=True)`` directly (rather than
+    ``RAGAnything.aquery``, whose wrapper assumes a ``str`` return) so we can
+    iterate the token iterator. Stops early if the client disconnects.
+    """
+    assert _cache is not None
+    rag = await _cache.get(req.workspaceId)
+    token = query_model_override.set(
+        req.model if req.model in cfg.query_models else None
+    )
+    try:
+        param = QueryParam(
+            mode="mix",
+            stream=True,
+            conversation_history=req.history or [],
+        )
+        result = await rag.lightrag.aquery_llm(req.query, param=param)
+
+        citations = _citations_from_result(result)
+        if citations:
+            yield _sse({"type": "citations", "citations": citations})
+
+        llm = result.get("llm_response", {}) or {}
+        if llm.get("is_streaming"):
+            async for chunk in llm.get("response_iterator"):
+                if not chunk:
+                    continue
+                if await request.is_disconnected():
+                    break
+                yield _sse({"type": "token", "text": chunk})
+        else:
+            content = llm.get("content") or "No relevant context found for the query."
+            yield _sse({"type": "token", "text": content})
+
+        yield _sse({"type": "done"})
+    except Exception as e:  # noqa: BLE001 — surface any failure to the gateway
+        log.exception("chat stream failed")
+        yield _sse({"type": "error", "message": str(e)})
+    finally:
+        query_model_override.reset(token)
+
+
+@app.post("/chat/stream")
+async def chat_stream(req: ChatStreamReq, request: Request):
+    return StreamingResponse(
+        _answer_stream(req, request),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+_DIAGRAM_HEADER = {
+    "flowchart": "flowchart TD",
+    "sequence": "sequenceDiagram",
+    "class": "classDiagram",
+    "state": "stateDiagram-v2",
+    "er": "erDiagram",
+}
+
+
 @app.post("/generate")
 async def generate(req: GenerateReq):
     chapters = req.chapters or []
-    if req.kind == "summary":
+    file_ids = req.fileIds or []
+    hint = _scope_hint(chapters, file_ids)
+
+    if req.kind == "summary":  # legacy; UI no longer offers this
         body = await _answer(
             req.workspaceId,
-            "Write a concise study summary of the most important ideas in this workspace. "
+            hint
+            + "Write a concise study summary of the most important ideas in this scope. "
             "Use short bullet points.",
             cfg.query_model_alt,
+            ids=file_ids,
         )
         return {"kind": "summary", "title": "Workspace summary", "body": body}
 
@@ -166,9 +319,11 @@ async def generate(req: GenerateReq):
         n = req.count or 10
         raw = await _answer(
             req.workspaceId,
-            f"Create {n} study flashcards from this workspace. Return ONLY a JSON array "
+            hint
+            + f"Create {n} study flashcards from this scope. Return ONLY a JSON array "
             'of objects {"front": "...", "back": "..."}.',
             cfg.query_model_alt,
+            ids=file_ids,
         )
         data = _extract_json(raw) or []
         cards = [
@@ -185,13 +340,48 @@ async def generate(req: GenerateReq):
         ]
         return {"kind": "flashcards", "cards": cards}
 
+    if req.kind == "mindmap":
+        detail = req.detail or "standard"
+        raw = await _answer(
+            req.workspaceId,
+            hint
+            + "Create a Mermaid `mindmap` that organizes the key concepts of this scope and "
+            f"their relationships ({detail} level of detail). Return ONLY the Mermaid code "
+            "starting with the line `mindmap` — no code fences, no prose.",
+            cfg.query_model_alt,
+            ids=file_ids,
+        )
+        code = _strip_fence(raw) or "mindmap\n  root((Topic))"
+        content = f"# Mindmap\n\n```mermaid\n{code}\n```"
+        return {"kind": "mindmap", "title": "Mindmap", "content": content}
+
+    if req.kind == "diagram":
+        dtype = (req.diagramType or "auto").lower()
+        header = _DIAGRAM_HEADER.get(dtype)
+        want = (
+            f"a Mermaid `{header}` diagram" if header else "the most appropriate Mermaid diagram"
+        )
+        raw = await _answer(
+            req.workspaceId,
+            hint
+            + f"Create {want} that best illustrates the key ideas, processes, or relationships "
+            "in this scope. Return ONLY the Mermaid code (a valid diagram) — no code fences, "
+            "no prose.",
+            cfg.query_model_alt,
+            ids=file_ids,
+        )
+        code = _strip_fence(raw) or "flowchart LR\n  A --> B"
+        content = f"# Diagram\n\n```mermaid\n{code}\n```"
+        return {"kind": "diagram", "title": "Diagram", "content": content}
+
     # quiz
     n = req.count or 5
     types = req.types or ["mcq"]
     levels = _cognitive_levels(req)
     raw = await _answer(
         req.workspaceId,
-        f"Create a {n}-question quiz from this workspace using question types {types}. "
+        hint
+        + f"Create a {n}-question quiz from this scope using question types {types}. "
         'Tag each question with a cognitive "level" chosen from: '
         f"{_LEVEL_GUIDE}. Aim for a mix across these levels: {levels}, and make each "
         "question genuinely match the cognitive demand of its level. "
@@ -199,7 +389,10 @@ async def generate(req: GenerateReq):
         '"type" (one of mcq, multi, boolean, fill, short, ordering, matching), '
         '"level" (recall|application|analysis), "prompt", and the fields appropriate to its '
         "type (mcq/multi: options[] + correct[] indices; boolean: correct bool; "
-        "fill/short: accepted[]; ordering: items[] in order; matching: pairs[] of {left,right}).",
+        "fill/short: accepted[]; ordering: items[] in order; matching: pairs[] of {left,right}). "
+        'For mcq and multi, each option MUST be an object {"value": "...", "explanation": "..."} '
+        "where the explanation says why that option is correct or incorrect. For boolean, fill, "
+        'short, ordering, and matching, add a single "explanation" field for the question.',
         cfg.query_model,
     )
     data = _extract_json(raw) or []
@@ -212,6 +405,15 @@ async def generate(req: GenerateReq):
         if "level" not in item and "difficulty" in item:
             item["level"] = _LEVEL_ALIASES.get(item.pop("difficulty"), "application")
         item.setdefault("level", "application")
+        # Normalize mcq/multi options to {value, explanation} objects so the UI
+        # can render per-option explanations regardless of what the model emitted.
+        if item.get("type") in ("mcq", "multi") and isinstance(item.get("options"), list):
+            item["options"] = [
+                opt
+                if isinstance(opt, dict)
+                else {"value": str(opt), "explanation": ""}
+                for opt in item["options"]
+            ]
         questions.append(item)
     return {
         "kind": "quiz",

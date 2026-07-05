@@ -20,6 +20,7 @@ import {
   canvasQuery,
   cardsQuery,
   chaptersQuery,
+  conversationsQuery,
   decksQuery,
   deckQuery,
   eventsQuery,
@@ -117,6 +118,7 @@ const appRoutes = [
       qc.prefetchQuery(workspaceQuery(id));
       qc.prefetchQuery(chaptersQuery(id));
       qc.prefetchQuery(filesQuery(id));
+      qc.prefetchQuery(conversationsQuery(id));
     }
   ),
   page(
@@ -142,14 +144,18 @@ const appRoutes = [
     () => import('@/routes/AttemptResult'),
     ({ context: { queryClient: qc }, params }) => qc.prefetchQuery(attemptQuery(params.attemptId))
   ),
-  page(
-    '/schedule',
-    () => import('@/routes/Schedule'),
-    ({ context: { queryClient: qc } }) => {
+  createRoute({
+    getParentRoute: () => authShellRoute,
+    path: '/schedule',
+    component: lazyRouteComponent(() => import('@/routes/Schedule')),
+    validateSearch: (search: Record<string, unknown>): { event?: string } => ({
+      event: typeof search.event === 'string' ? search.event : undefined,
+    }),
+    loader: ({ context: { queryClient: qc } }) => {
       qc.prefetchQuery(eventsQuery());
       qc.prefetchQuery(labelsQuery());
-    }
-  ),
+    },
+  }),
   page(
     '/flashcards',
     () => import('@/routes/Flashcards'),

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Input, Modal, Text } from '@/components/ui';
+import { Button, Input, SimpleDialog, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { userColorPair } from '@/lib/userColor';
 import type { Label } from '@/api/types';
@@ -13,8 +13,13 @@ export interface EventFormValues {
 }
 
 export interface EventDraft {
+  // present when editing an existing event; absent when creating.
+  id?: string;
+  title?: string;
   start?: string;
   end?: string;
+  location?: string;
+  labelIds?: string[];
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -42,15 +47,16 @@ export function EventFormModal({
   draft?: EventDraft;
   onSubmit: (v: EventFormValues) => void;
 }) {
+  const isEdit = !!draft?.id;
   const start = draft?.start ? new Date(draft.start) : defaultStart();
   const end = draft?.end ? new Date(draft.end) : new Date(start.getTime() + 60 * 60 * 1000);
 
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(draft?.title ?? '');
   const [date, setDate] = useState(toDateValue(start));
   const [startTime, setStartTime] = useState(toTimeValue(start));
   const [endTime, setEndTime] = useState(toTimeValue(end));
-  const [location, setLocation] = useState('');
-  const [labelIds, setLabelIds] = useState<string[]>([]);
+  const [location, setLocation] = useState(draft?.location ?? '');
+  const [labelIds, setLabelIds] = useState<string[]>(draft?.labelIds ?? []);
 
   const toggleLabel = (id: string) =>
     setLabelIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -58,10 +64,10 @@ export function EventFormModal({
   const valid = title.trim() && date && startTime && endTime && endTime > startTime;
 
   return (
-    <Modal
+    <SimpleDialog
       open={open}
       onClose={onClose}
-      title="New event"
+      title={isEdit ? 'Edit event' : 'New event'}
       width={460}
       footer={
         <>
@@ -81,7 +87,7 @@ export function EventFormModal({
               onClose();
             }}
           >
-            Create
+            {isEdit ? 'Save' : 'Create'}
           </Button>
         </>
       }
@@ -163,6 +169,6 @@ export function EventFormModal({
           </div>
         )}
       </div>
-    </Modal>
+    </SimpleDialog>
   );
 }

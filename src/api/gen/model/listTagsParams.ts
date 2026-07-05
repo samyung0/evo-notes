@@ -5,10 +5,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface StrVal {
+export type ListTagsParams = {
   /**
-   * @minLength 1
-   * @maxLength 50
+   * Tag kind: workspace | quiz | card
    */
-  value: string;
-}
+  kind?: string;
+};

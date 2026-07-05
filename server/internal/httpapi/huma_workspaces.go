@@ -67,7 +67,7 @@ func (a *api) createWorkspace(ctx context.Context, in *createWorkspaceInput) (*w
 	if color == "" {
 		color = "graphite"
 	}
-	res, err := a.s.CreateWorkspace(ctx, userID(ctx), in.Body.Name, color, in.Body.Privacy, apimodel.UnwrapStrings(in.Body.Tags))
+	res, err := a.s.CreateWorkspace(ctx, userID(ctx), in.Body.Name, color, in.Body.Privacy, apimodel.ToTagRefs(in.Body.Tags))
 	if err != nil {
 		return nil, hErr(err)
 	}
@@ -77,7 +77,7 @@ func (a *api) createWorkspace(ctx context.Context, in *createWorkspaceInput) (*w
 func (a *api) updateWorkspace(ctx context.Context, in *updateWorkspaceInput) (*workspaceOutput, error) {
 	p := store.WorkspacePatch{Name: in.Body.Name, Color: in.Body.Color, Privacy: in.Body.Privacy}
 	if in.Body.Tags != nil {
-		t := apimodel.UnwrapStrings(*in.Body.Tags)
+		t := apimodel.ToTagRefs(*in.Body.Tags)
 		p.Tags = &t
 	}
 	res, err := a.s.UpdateWorkspace(ctx, userID(ctx), in.ID, p)

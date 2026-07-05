@@ -5,13 +5,17 @@ INSERT INTO users (id, name, email, class_label, streak) VALUES
   ('u_1', 'Kate Malone', 'kate@evonotes.app', 'Grade 11 · Science', 0)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO workspaces (id, name, color, privacy, tags, created_at, last_accessed_at) VALUES
-  ('ws_bio',  'Biology 101',        'green',  'private', '{Cells,Genetics}',       now()-interval '40 day', now()-interval '3 hour'),
-  ('ws_calc', 'Calculus II',        'purple', 'private', '{Integrals,Series}',     now()-interval '30 day', now()-interval '1 day'),
-  ('ws_hist', 'World History',      'amber',  'link',    '{Modern,Essays}',        now()-interval '22 day', now()-interval '2 day'),
-  ('ws_chem', 'Organic Chemistry',  'blue',   'private', '{Reactions}',            now()-interval '12 day', now()-interval '5 day'),
-  ('ws_eng',  'English Literature', 'coral',  'public',  '{Poetry,Shakespeare}',   now()-interval '8 day',  now()-interval '20 hour')
+INSERT INTO workspaces (id, name, color, privacy, created_at, last_accessed_at) VALUES
+  ('ws_bio',  'Biology 101',        'green',  'private', now()-interval '40 day', now()-interval '3 hour'),
+  ('ws_calc', 'Calculus II',        'purple', 'private', now()-interval '30 day', now()-interval '1 day'),
+  ('ws_hist', 'World History',      'amber',  'link',    now()-interval '22 day', now()-interval '2 day'),
+  ('ws_chem', 'Organic Chemistry',  'blue',   'private', now()-interval '12 day', now()-interval '5 day'),
+  ('ws_eng',  'English Literature', 'coral',  'public',  now()-interval '8 day',  now()-interval '20 hour')
 ON CONFLICT (id) DO NOTHING;
+
+-- Workspace tags are seeded in 0007 (catalog + entity_tags). They intentionally
+-- live there, not here, because 0007 drops the legacy tags.entity_id column this
+-- block used to target — keeping the insert here would break re-runs.
 
 INSERT INTO chapters (id, workspace_id, name, position) VALUES
   ('ch_1',  'ws_bio',  'Cell structure',           0),
@@ -45,22 +49,22 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO quizzes (id, name, workspace_id, workspace_name, chapters, questions, created_at, privacy) VALUES
   ('qz_1', 'Cell biology basics', 'ws_bio', 'Biology 101', '{"Cell structure","Membranes & transport"}',
     '[
-      {"id":"q1","type":"mcq","level":"recall","prompt":"Which organelle is the powerhouse of the cell?","options":[{"value":"Nucleus"},{"value":"Mitochondria"},{"value":"Ribosome"},{"value":"Golgi apparatus"}],"correct":[1],"explanation":"Mitochondria produce ATP through cellular respiration."},
-      {"id":"q2","type":"boolean","level":"recall","prompt":"The cell membrane is a phospholipid bilayer.","correct":true},
-      {"id":"q3","type":"multi","level":"application","prompt":"Select all that are membrane-bound organelles.","options":[{"value":"Ribosome"},{"value":"Nucleus"},{"value":"Mitochondria"},{"value":"Cytosol"}],"correct":[1,2]},
+      {"id":"q1","type":"mcq","level":"recall","prompt":"Which organelle is the powerhouse of the cell?","options":[{"value":"Nucleus","explanation":"The nucleus stores DNA; it does not generate the cell''s ATP."},{"value":"Mitochondria","explanation":"Correct — mitochondria produce ATP through cellular respiration."},{"value":"Ribosome","explanation":"Ribosomes synthesize proteins, not energy."},{"value":"Golgi apparatus","explanation":"The Golgi packages and ships proteins; it is not an energy source."}],"correct":[1],"explanation":"Mitochondria produce ATP through cellular respiration."},
+      {"id":"q2","type":"boolean","level":"recall","prompt":"The cell membrane is a phospholipid bilayer.","correct":true,"explanation":"The membrane is two layers of phospholipids with hydrophilic heads out and hydrophobic tails in."},
+      {"id":"q3","type":"multi","level":"application","prompt":"Select all that are membrane-bound organelles.","options":[{"value":"Ribosome","explanation":"Ribosomes are ribonucleoprotein particles, not membrane-bound."},{"value":"Nucleus","explanation":"Correct — enclosed by a double-membrane nuclear envelope."},{"value":"Mitochondria","explanation":"Correct — bounded by an outer and inner membrane."},{"value":"Cytosol","explanation":"The cytosol is the fluid itself, not a membrane-bound compartment."}],"correct":[1,2]},
       {"id":"q4","type":"fill","level":"application","prompt":"The diffusion of water across a membrane is called ____.","accepted":[{"value":"osmosis"}]},
       {"id":"q5","type":"ordering","level":"analysis","prompt":"Order the path of protein secretion.","items":[{"value":"Ribosome"},{"value":"Rough ER"},{"value":"Golgi apparatus"},{"value":"Vesicle"},{"value":"Cell membrane"}]},
       {"id":"q6","type":"matching","level":"application","prompt":"Match the organelle to its function.","pairs":[{"left":"Nucleus","right":"Stores DNA"},{"left":"Mitochondria","right":"Makes ATP"},{"left":"Ribosome","right":"Builds proteins"}]}
     ]'::jsonb, now()-interval '4 day', 'private'),
   ('qz_2', 'Genetics check-in', 'ws_bio', 'Biology 101', '{"Genetics"}',
     '[
-      {"id":"q7","type":"mcq","level":"application","prompt":"A cross between Aa × Aa gives what genotype ratio?","options":[{"value":"1:2:1"},{"value":"3:1"},{"value":"1:1"},{"value":"9:3:3:1"}],"correct":[0]},
+      {"id":"q7","type":"mcq","level":"application","prompt":"A cross between Aa × Aa gives what genotype ratio?","options":[{"value":"1:2:1","explanation":"Correct — the genotype ratio is 1 AA : 2 Aa : 1 aa."},{"value":"3:1","explanation":"That is the phenotype ratio, not the genotype ratio."},{"value":"1:1","explanation":"A 1:1 ratio comes from a test cross (Aa × aa)."},{"value":"9:3:3:1","explanation":"That is a dihybrid (two-gene) ratio, not a monohybrid one."}],"correct":[0]},
       {"id":"q8","type":"short","level":"analysis","prompt":"Define a dominant allele in one sentence.","accepted":[{"value":"an allele expressed in the phenotype even when only one copy is present"}]}
     ]'::jsonb, now()-interval '2 day', 'private'),
   ('qz_3', 'Integration techniques', 'ws_calc', 'Calculus II', '{"Techniques of integration"}',
     '[
-      {"id":"q9","type":"mcq","level":"application","prompt":"∫ x·eˣ dx is best solved by…","options":[{"value":"Substitution"},{"value":"Integration by parts"},{"value":"Partial fractions"},{"value":"Trig substitution"}],"correct":[1]},
-      {"id":"q10","type":"boolean","level":"recall","prompt":"∫ 1/x dx = ln|x| + C","correct":true}
+      {"id":"q9","type":"mcq","level":"application","prompt":"∫ x·eˣ dx is best solved by…","options":[{"value":"Substitution","explanation":"No single inner function''s derivative appears, so u-substitution stalls."},{"value":"Integration by parts","explanation":"Correct — a polynomial times an exponential is the classic parts case."},{"value":"Partial fractions","explanation":"Partial fractions apply to rational functions, not this product."},{"value":"Trig substitution","explanation":"Trig substitution targets radical forms like √(a²−x²)."}],"correct":[1]},
+      {"id":"q10","type":"boolean","level":"recall","prompt":"∫ 1/x dx = ln|x| + C","correct":true,"explanation":"The antiderivative of 1/x is ln|x|; the absolute value covers negative x."}
     ]'::jsonb, now()-interval '6 day', 'public')
 ON CONFLICT (id) DO NOTHING;
 
@@ -85,12 +89,12 @@ INSERT INTO cards (id, deck_id, front, back, known) VALUES
   ('c_6', 'dk_2', '∫ 1/x dx',        'ln|x| + C',                              false)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO labels (id, name, color) VALUES
-  ('lb_bio',   'Biology',     'green'),
-  ('lb_calc',  'Calculus',    'purple'),
-  ('lb_hist',  'History',     'amber'),
-  ('lb_exam',  'Exam',        'coral'),
-  ('lb_study', 'Study group', 'blue')
+INSERT INTO labels (id, user_id, name, color) VALUES
+  ('lb_bio',   'u_1', 'Biology',     'green'),
+  ('lb_calc',  'u_1', 'Calculus',    'purple'),
+  ('lb_hist',  'u_1', 'History',     'amber'),
+  ('lb_exam',  'u_1', 'Exam',        'coral'),
+  ('lb_study', 'u_1', 'Study group', 'blue')
 ON CONFLICT (id) DO NOTHING;
 
 -- Events anchored to "today" so the calendar always has same-day content.

@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
@@ -93,6 +92,7 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 	r.Post("/api/workspaces/{id}/sources/import", a.importSources)
 	r.Get("/api/workspaces/{id}/ingest-events", a.ingestEvents)
 	r.Post("/api/workspaces/{id}/chat", a.chat)
+	r.Post("/api/workspaces/{id}/chat/stream", a.chatStream)
 	r.Post("/api/workspaces/{id}/generate", a.generate)
 	r.Get("/api/files/{id}/raw", a.getFileRaw)
 
@@ -330,6 +330,9 @@ type generateOpts struct {
 	Levels       []string `json:"levels"`     // cognitive levels: recall|application|analysis
 	Difficulty   []string `json:"difficulty"` // legacy alias, still accepted
 	Chapters     []string `json:"chapters"`
+	FileIds      []string `json:"fileIds"`     // file-scoped retrieval filtering
+	Detail       string   `json:"detail"`      // mindmap: brief|standard|detailed
+	DiagramType  string   `json:"diagramType"` // diagram: auto|flowchart|sequence|class|state|er
 	TimeLimitMin *int     `json:"timeLimitMin"`
 }
 
@@ -368,13 +371,14 @@ func (a *api) generate(w http.ResponseWriter, r *http.Request) {
 		wsName = ws.Name
 	}
 
+	userID := uid(r)
 	if a.pipe != nil {
-		if payload, ok := a.generateViaPipe(r.Context(), wsID, wsName, &opts); ok {
+		if payload, ok := a.generateViaPipe(r.Context(), userID, wsID, wsName, &opts); ok {
 			writeJSON(w, 200, payload)
 			return
 		}
 	}
-	payload, err := a.generateLocal(r.Context(), wsID, wsName, opts)
+	payload, err := a.generateLocal(r.Context(), userID, wsID, wsName, opts)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -382,13 +386,55 @@ func (a *api) generate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, payload)
 }
 
-// generateViaPipe asks the retrieval service to produce grounded output. For a
-// quiz it persists the returned questions so they appear under /quizzes.
-func (a *api) generateViaPipe(ctx context.Context, wsID, wsName string, opts *generateOpts) (any, bool) {
+// resolveScopeFileIDs turns the requested scope into a concrete set of file ids
+// for true retrieval filtering. Chapters arrive as names (brittle across rename,
+// but that's what the UI sends), so we map them to their file ids via the
+// chapter records and union with any explicitly selected file ids. An empty
+// result means "whole workspace" (no filtering).
+func (a *api) resolveScopeFileIDs(ctx context.Context, wsID string, opts *generateOpts) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(opts.FileIds))
+	add := func(id string) {
+		if id == "" {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	for _, id := range opts.FileIds {
+		add(id)
+	}
+	if len(opts.Chapters) > 0 {
+		want := map[string]struct{}{}
+		for _, name := range opts.Chapters {
+			want[name] = struct{}{}
+		}
+		if chapters, err := a.s.ListChapters(ctx, wsID); err == nil {
+			for _, ch := range chapters {
+				if _, ok := want[ch.Name]; !ok {
+					continue
+				}
+				for _, fid := range ch.FileIDs {
+					add(fid)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// generateViaPipe asks the retrieval service to produce grounded output, then
+// persists it (quiz -> quizzes, flashcards -> deck+cards, mindmap/diagram ->
+// materials) so every artifact shows up in the workspace materials list.
+func (a *api) generateViaPipe(ctx context.Context, userID, wsID, wsName string, opts *generateOpts) (any, bool) {
 	body := map[string]any{
 		"workspaceId": wsID, "kind": opts.Kind, "length": opts.Length, "format": opts.Format,
 		"count": opts.Count, "style": opts.Style, "types": opts.Types, "levels": opts.cognitiveLevels(),
-		"chapters": opts.Chapters, "timeLimitMin": opts.TimeLimitMin,
+		"chapters": opts.Chapters, "fileIds": a.resolveScopeFileIDs(ctx, wsID, opts),
+		"detail": opts.Detail, "diagramType": opts.DiagramType, "timeLimitMin": opts.TimeLimitMin,
 	}
 	raw, err := a.pipe.PostRaw(ctx, "/generate", body)
 	if err != nil {
@@ -400,7 +446,8 @@ func (a *api) generateViaPipe(ctx context.Context, wsID, wsName string, opts *ge
 	if json.Unmarshal(raw, &head) != nil {
 		return nil, false
 	}
-	if head.Kind == "quiz" {
+	switch head.Kind {
+	case "quiz":
 		var qp struct {
 			Name         string          `json:"name"`
 			Chapters     []string        `json:"chapters"`
@@ -424,6 +471,34 @@ func (a *api) generateViaPipe(ctx context.Context, wsID, wsName string, opts *ge
 			return nil, false
 		}
 		return map[string]any{"kind": "quiz", "quiz": quiz}, true
+	case "flashcards":
+		var fp struct {
+			Cards []struct {
+				Front string `json:"front"`
+				Back  string `json:"back"`
+			} `json:"cards"`
+		}
+		_ = json.Unmarshal(raw, &fp)
+		fronts := make([][2]string, 0, len(fp.Cards))
+		for _, c := range fp.Cards {
+			fronts = append(fronts, [2]string{c.Front, c.Back})
+		}
+		res, err := a.persistDeck(ctx, userID, wsID, wsName, fronts)
+		if err != nil {
+			return nil, false
+		}
+		return res, true
+	case "mindmap", "diagram":
+		var mp struct {
+			Title   string `json:"title"`
+			Content string `json:"content"`
+		}
+		_ = json.Unmarshal(raw, &mp)
+		res, err := a.persistMaterial(ctx, wsID, wsName, head.Kind, mp.Title, mp.Content, opts)
+		if err != nil {
+			return nil, false
+		}
+		return res, true
 	}
 	var m map[string]any
 	if json.Unmarshal(raw, &m) != nil {
@@ -433,28 +508,20 @@ func (a *api) generateViaPipe(ctx context.Context, wsID, wsName string, opts *ge
 }
 
 // generateLocal is the offline fallback (and the mock-parity generator).
-func (a *api) generateLocal(ctx context.Context, wsID, wsName string, opts generateOpts) (any, error) {
+func (a *api) generateLocal(ctx context.Context, userID, wsID, wsName string, opts generateOpts) (any, error) {
 	switch opts.Kind {
-	case "summary":
-		return map[string]any{
-			"kind":  "summary",
-			"title": wsName + " summary",
-			"body":  "• The cell is the basic unit of life.\n• Mitochondria produce ATP.\n• Membranes control transport via diffusion and osmosis.",
-		}, nil
 	case "flashcards":
 		n := opts.Count
 		if n <= 0 {
 			n = 10
 		}
-		cards := make([]map[string]any, 0, n)
+		cards := make([][2]string, 0, n)
 		for i := 0; i < n; i++ {
-			cards = append(cards, map[string]any{
-				"id": randID("c"), "deckId": "generated",
-				"front": fmt.Sprintf("Term %d", i+1), "back": fmt.Sprintf("Definition for term %d.", i+1),
-				"known": false, "srs": newSrsMap(),
-			})
+			cards = append(cards, [2]string{fmt.Sprintf("Term %d", i+1), fmt.Sprintf("Definition for term %d.", i+1)})
 		}
-		return map[string]any{"kind": "flashcards", "cards": cards}, nil
+		return a.persistDeck(ctx, userID, wsID, wsName, cards)
+	case "mindmap", "diagram":
+		return a.persistMaterial(ctx, wsID, wsName, opts.Kind, "", localMaterialContent(wsName, opts), &opts)
 	default:
 		quiz, err := a.s.CreateQuiz(ctx, store.Quiz{
 			Name: wsName + " quiz", WorkspaceID: wsID, WorkspaceName: wsName,
@@ -467,13 +534,49 @@ func (a *api) generateLocal(ctx context.Context, wsID, wsName string, opts gener
 	}
 }
 
-// newSrsMap returns a fresh FSRS "new" state (due now) matching SrsState in
-// src/api/types.ts, for generated flashcard previews.
-func newSrsMap() map[string]any {
-	return map[string]any{
-		"due": time.Now().UTC().Format(time.RFC3339Nano), "stability": 0, "difficulty": 0,
-		"elapsed_days": 0, "scheduled_days": 0, "reps": 0, "lapses": 0, "state": 0, "learning_steps": 0,
+// persistDeck creates a real deck + cards so generated flashcards appear in the
+// library and the workspace materials list.
+func (a *api) persistDeck(ctx context.Context, userID, wsID, wsName string, cards [][2]string) (any, error) {
+	deck, err := a.s.CreateDeck(ctx, userID, wsName+" flashcards", "green", wsID)
+	if err != nil {
+		return nil, err
 	}
+	out := make([]store.Flashcard, 0, len(cards))
+	for _, c := range cards {
+		card, err := a.s.CreateCard(ctx, deck.ID, c[0], c[1])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, card)
+	}
+	deck, _ = a.s.GetDeck(ctx, deck.ID)
+	return map[string]any{"kind": "flashcards", "deck": deck, "cards": out}, nil
+}
+
+// persistMaterial stores a generated mindmap/diagram markdown document.
+func (a *api) persistMaterial(ctx context.Context, wsID, wsName, kind, title, content string, opts *generateOpts) (any, error) {
+	if title == "" {
+		title = wsName + " " + kind
+	}
+	if content == "" {
+		content = localMaterialContent(wsName, *opts)
+	}
+	mt, err := a.s.CreateMaterial(ctx, store.Material{
+		WorkspaceID: wsID, WorkspaceName: wsName, Kind: kind, Title: title, Content: content,
+		ScopeChapters: opts.Chapters, ScopeFileIDs: opts.FileIds, Privacy: "private",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"kind": kind, "material": mt}, nil
+}
+
+// localMaterialContent is the offline mermaid document for mindmaps/diagrams.
+func localMaterialContent(wsName string, opts generateOpts) string {
+	if opts.Kind == "mindmap" {
+		return "# " + wsName + " mindmap\n\n```mermaid\nmindmap\n  root((Topic))\n    Key idea A\n      Detail 1\n      Detail 2\n    Key idea B\n      Detail 3\n```"
+	}
+	return "# " + wsName + " diagram\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Process]\n  B --> C{Decision}\n  C -->|Yes| D[Outcome 1]\n  C -->|No| E[Outcome 2]\n```"
 }
 
 // buildQuestions mirrors the generator in src/mocks/handlers.ts so generated
@@ -498,18 +601,30 @@ func buildQuestions(opts generateOpts) json.RawMessage {
 		switch t {
 		case "boolean":
 			q["correct"] = true
+			q["explanation"] = "This statement is true based on your sources."
 		case "fill", "short":
 			q["accepted"] = wrapValues("answer")
+			q["explanation"] = "The accepted answer follows from the source material."
 		case "ordering":
 			q["items"] = wrapValues("First", "Second", "Third")
 		case "matching":
 			q["pairs"] = []map[string]string{{"left": "A", "right": "1"}, {"left": "B", "right": "2"}}
 		case "multi":
-			q["options"] = wrapValues("A", "B", "C", "D")
+			q["options"] = wrapOptions(
+				[2]string{"A", "Correct — supported by the material."},
+				[2]string{"B", "Incorrect for this question."},
+				[2]string{"C", "Correct — also supported."},
+				[2]string{"D", "Incorrect for this question."},
+			)
 			q["correct"] = []int{0, 2}
 		default:
 			q["type"] = "mcq"
-			q["options"] = wrapValues("A", "B", "C", "D")
+			q["options"] = wrapOptions(
+				[2]string{"A", "Correct — this is the best answer."},
+				[2]string{"B", "Incorrect — a common distractor."},
+				[2]string{"C", "Incorrect for this question."},
+				[2]string{"D", "Incorrect for this question."},
+			)
 			q["correct"] = []int{0}
 		}
 		arr = append(arr, q)
@@ -523,6 +638,16 @@ func wrapValues(ss ...string) []map[string]string {
 	out := make([]map[string]string, len(ss))
 	for i, s := range ss {
 		out[i] = map[string]string{"value": s}
+	}
+	return out
+}
+
+// wrapOptions shapes [value, explanation] pairs as [{value, explanation}] so
+// mcq/multi options carry per-option explanations (why each is right/wrong).
+func wrapOptions(pairs ...[2]string) []map[string]string {
+	out := make([]map[string]string, len(pairs))
+	for i, p := range pairs {
+		out[i] = map[string]string{"value": p[0], "explanation": p[1]}
 	}
 	return out
 }

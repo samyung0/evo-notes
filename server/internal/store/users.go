@@ -76,7 +76,7 @@ func (s *Store) CreateDefaultWorkspace(ctx context.Context, userID string) error
 	if n > 0 {
 		return nil
 	}
-	_, err := s.CreateWorkspace(ctx, userID, "My workspace", "green", "private", []string{})
+	_, err := s.CreateWorkspace(ctx, userID, "My workspace", "green", "private", []TagRef{})
 	return err
 }
 

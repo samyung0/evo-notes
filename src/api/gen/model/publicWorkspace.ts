@@ -5,7 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Privacy } from './privacy.ts';
-import type { StrVal } from './strVal.ts';
+import type { Tag } from './tag.ts';
 import type { UserColor } from './userColor.ts';
 
 export interface PublicWorkspace {
@@ -19,5 +19,5 @@ export interface PublicWorkspace {
   lastAccessedAt: string;
   name: string;
   privacy: Privacy;
-  tags: StrVal[];
+  tags: Tag[];
 }

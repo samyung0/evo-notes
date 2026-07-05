@@ -10,10 +10,17 @@ import {
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { LEVELS, LEVEL_LABEL } from '@/lib/levels';
-import type { Chapter, CognitiveLevel, GenerateOptions, QuestionType } from '@/api/types';
+import type {
+  Chapter,
+  CognitiveLevel,
+  DiagramType,
+  GenerateOptions,
+  QuestionType,
+  SourceFile,
+} from '@/api/types';
 import { m } from '@/i18n';
 
-export type GenerateMode = 'summary' | 'flashcards' | 'quiz';
+export type GenerateMode = 'flashcards' | 'quiz' | 'mindmap' | 'diagram';
 
 const Q_TYPES: QuestionType[] = ['mcq', 'multi', 'boolean', 'fill', 'short', 'matching', 'ordering'];
 const Q_TYPE_LABEL: Record<QuestionType, string> = {
@@ -24,6 +31,23 @@ const Q_TYPE_LABEL: Record<QuestionType, string> = {
   short: 'Short answer',
   matching: 'Matching',
   ordering: 'Ordering',
+};
+
+const DIAGRAM_TYPES: DiagramType[] = ['auto', 'flowchart', 'sequence', 'class', 'state', 'er'];
+const DIAGRAM_LABEL: Record<DiagramType, string> = {
+  auto: 'Auto',
+  flowchart: 'Flowchart',
+  sequence: 'Sequence',
+  class: 'Class',
+  state: 'State',
+  er: 'Entity-relation',
+};
+
+const MODE_LABEL: Record<GenerateMode, string> = {
+  flashcards: 'flashcards',
+  quiz: 'quiz',
+  mindmap: 'mindmap',
+  diagram: 'diagram',
 };
 
 function Chip({
@@ -99,12 +123,16 @@ function CountRow({ value, onChange }: { value: number; onChange: (n: number) =>
  * Config dialog for a single generate mode. State is local and short-lived —
  * the parent mounts this with `key={mode}` so each open starts fresh. On a
  * successful generate the parent closes the dialog and shows the result.
+ *
+ * Scope is dual: chapters (by name) and/or individual files (by id). Empty
+ * scope means the whole workspace.
  */
 export function GenerateFormDialog({
   open,
   setOpen,
   mode,
   chapters,
+  files,
   pending,
   onGenerate,
 }: {
@@ -112,24 +140,28 @@ export function GenerateFormDialog({
   setOpen: (open: boolean) => void;
   mode: GenerateMode;
   chapters: Chapter[];
+  files: SourceFile[];
   pending: boolean;
   onGenerate: (opts: GenerateOptions) => Promise<unknown>;
 }) {
-  const [scope, setScope] = useState<string[]>([]);
-  const [length, setLength] = useState<'brief' | 'standard' | 'detailed'>('standard');
-  const [format, setFormat] = useState<'bullets' | 'outline' | 'prose'>('bullets');
+  const [chapterScope, setChapterScope] = useState<string[]>([]);
+  const [fileScope, setFileScope] = useState<string[]>([]);
   const [count, setCount] = useState(10);
   const [style, setStyle] = useState<'term-def' | 'qa' | 'cloze'>('term-def');
   const [types, setTypes] = useState<QuestionType[]>(['mcq', 'boolean']);
   const [levels, setLevels] = useState<CognitiveLevel[]>(['recall', 'application']);
+  const [detail, setDetail] = useState<'brief' | 'standard' | 'detailed'>('standard');
+  const [diagramType, setDiagramType] = useState<DiagramType>('auto');
+
+  const readyFiles = files.filter((f) => f.status !== 'processing' && f.status !== 'failed');
 
   async function run() {
-    const chapterNames = scope.length ? scope : chapters.map((c) => c.name);
+    const scope = { chapters: chapterScope, fileIds: fileScope };
     let opts: GenerateOptions;
-    if (mode === 'summary') opts = { kind: 'summary', length, format, chapters: chapterNames };
-    else if (mode === 'flashcards')
-      opts = { kind: 'flashcards', count, style, chapters: chapterNames };
-    else opts = { kind: 'quiz', count, types, levels, chapters: chapterNames };
+    if (mode === 'flashcards') opts = { kind: 'flashcards', count, style, ...scope };
+    else if (mode === 'quiz') opts = { kind: 'quiz', count, types, levels, ...scope };
+    else if (mode === 'mindmap') opts = { kind: 'mindmap', detail, ...scope };
+    else opts = { kind: 'diagram', diagramType, ...scope };
     await onGenerate(opts);
   }
 
@@ -137,10 +169,10 @@ export function GenerateFormDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="top-1/2 -translate-y-1/2">
         <DialogTitle className="capitalize">
-          {m.generate_title()} · {mode}
+          {m.generate_title()} · {MODE_LABEL[mode]}
         </DialogTitle>
 
-        <div className="flex flex-col gap-5">
+        <div className="flex max-h-[70vh] flex-col gap-5 overflow-auto">
           <div className="flex flex-col gap-1.5">
             <Text variant="label" tone="muted">
               Chapter scope
@@ -149,9 +181,9 @@ export function GenerateFormDialog({
               {chapters.map((c) => (
                 <Chip
                   key={c.id}
-                  active={scope.includes(c.name)}
+                  active={chapterScope.includes(c.name)}
                   onClick={() =>
-                    setScope((s) =>
+                    setChapterScope((s) =>
                       s.includes(c.name) ? s.filter((x) => x !== c.name) : [...s, c.name]
                     )
                   }
@@ -161,28 +193,43 @@ export function GenerateFormDialog({
               ))}
               {!chapters.length && (
                 <Text variant="meta" tone="muted">
-                  Whole workspace
+                  No chapters
                 </Text>
               )}
             </div>
           </div>
 
-          {mode === 'summary' && (
-            <>
-              <OptionRow
-                label="Length"
-                options={['brief', 'standard', 'detailed']}
-                value={length}
-                onChange={(v) => setLength(v as typeof length)}
-              />
-              <OptionRow
-                label="Format"
-                options={['bullets', 'outline', 'prose']}
-                value={format}
-                onChange={(v) => setFormat(v as typeof format)}
-              />
-            </>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <Text variant="label" tone="muted">
+              File scope
+            </Text>
+            <div className="flex flex-wrap gap-1.5">
+              {readyFiles.map((f) => (
+                <Chip
+                  key={f.id}
+                  active={fileScope.includes(f.id)}
+                  onClick={() =>
+                    setFileScope((s) =>
+                      s.includes(f.id) ? s.filter((x) => x !== f.id) : [...s, f.id]
+                    )
+                  }
+                >
+                  {f.name}
+                </Chip>
+              ))}
+              {!readyFiles.length && (
+                <Text variant="meta" tone="muted">
+                  No files
+                </Text>
+              )}
+            </div>
+            {!chapterScope.length && !fileScope.length && (
+              <Text variant="meta" tone="muted">
+                Nothing selected — the whole workspace will be used.
+              </Text>
+            )}
+          </div>
+
           {mode === 'flashcards' && (
             <>
               <CountRow value={count} onChange={setCount} />
@@ -237,6 +284,28 @@ export function GenerateFormDialog({
               </div>
             </>
           )}
+          {mode === 'mindmap' && (
+            <OptionRow
+              label="Detail"
+              options={['brief', 'standard', 'detailed']}
+              value={detail}
+              onChange={(v) => setDetail(v as typeof detail)}
+            />
+          )}
+          {mode === 'diagram' && (
+            <div className="flex flex-col gap-1.5">
+              <Text variant="label" tone="muted">
+                Diagram type
+              </Text>
+              <div className="flex flex-wrap gap-1.5">
+                {DIAGRAM_TYPES.map((t) => (
+                  <Chip key={t} active={diagramType === t} onClick={() => setDiagramType(t)}>
+                    {DIAGRAM_LABEL[t]}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="mt-6">
@@ -248,7 +317,7 @@ export function GenerateFormDialog({
             onClick={run}
             disabled={pending || (mode === 'quiz' && !types.length)}
           >
-            {pending ? <Spinner /> : `Generate ${mode}`}
+            {pending ? <Spinner /> : `Generate ${MODE_LABEL[mode]}`}
           </Button>
         </DialogFooter>
       </DialogContent>
