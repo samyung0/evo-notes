@@ -1,6 +1,7 @@
 import { Icon, Skeleton, type IconName, ProgressBar, Text } from '@/components/ui';
 import { useFile, useMaterial } from '@/api/hooks';
 import { FileViewer } from '@/features/files/FileViewer';
+import { NoteEditor } from '@/features/notes/NoteEditor';
 import { MaterialView } from './MaterialView';
 import { QuizPreview } from './QuizPreview';
 import { DeckPreview } from './DeckPreview';
@@ -8,16 +9,54 @@ import type { OpenItem } from './openItem';
 
 /** The center pane. Dispatches on the currently-open item — a source file or a
  * study material — and renders a consistent header plus the item body. Quiz and
- * flashcards materials get action-rich previews; mindmaps/diagrams render inline. */
+ * flashcards materials get action-rich previews; mindmaps/diagrams render inline.
+ * User-authored notes take over the whole pane with the editable Plate editor. */
 export function CenterContent({ item }: { item: OpenItem | null }) {
   if (!item) {
     return <EmptyCenter />;
+  }
+  if (item.kind === 'material') {
+    return <MaterialCenter materialId={item.id} />;
   }
   return (
     <>
       <Header item={item} />
       <div className="flex-1 overflow-auto p-6">
         <Body item={item} />
+      </div>
+    </>
+  );
+}
+
+/** Notes render full-bleed (own title + toolbar + scroll); other materials keep
+ * the shared header + padded body. */
+function MaterialCenter({ materialId }: { materialId: string }) {
+  const { data: material, isLoading } = useMaterial(materialId);
+  if (isLoading || !material) {
+    return (
+      <>
+        <div className="flex items-center gap-3 border-b border-divider px-5 py-4">
+          <Icon name="workspaces" className="size-5.5" />
+          <h3 className="t-subtitle translate-y-px truncate">--</h3>
+        </div>
+        <div className="flex-1 overflow-auto p-6">
+          <Skeleton className="h-full min-h-[40vh] w-full" />
+        </div>
+      </>
+    );
+  }
+  if (material.kind === 'note') {
+    return (
+      <div className="h-full min-h-0">
+        <NoteEditor materialId={materialId} />
+      </div>
+    );
+  }
+  return (
+    <>
+      <Header item={{ kind: 'material', id: materialId }} />
+      <div className="flex-1 overflow-auto p-6">
+        <MaterialBody materialId={materialId} />
       </div>
     </>
   );
@@ -71,8 +110,8 @@ function useHeader(item: OpenItem): { icon: IconName; title?: string } {
 }
 
 function Body({ item }: { item: OpenItem }) {
-  if (item.kind === 'material') return <MaterialBody materialId={item.id} />;
-  return <FileBody fileId={item.id} />;
+  if (item.kind === 'file') return <FileBody fileId={item.id} />;
+  return <MaterialBody materialId={item.id} />;
 }
 
 function MaterialBody({ materialId }: { materialId: string }) {

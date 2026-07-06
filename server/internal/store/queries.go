@@ -607,6 +607,69 @@ func (s *Store) DeleteMaterial(ctx context.Context, id string) error {
 	return nil
 }
 
+// MaterialPatch is a partial update for a material. Only non-nil fields are
+// written. Used for user-authored notes (title/content/scope edits).
+type MaterialPatch struct {
+	Title         *string
+	Content       *string
+	ScopeChapters *[]string
+	ScopeFileIDs  *[]string
+}
+
+func (s *Store) UpdateMaterial(ctx context.Context, id string, p MaterialPatch) (Material, error) {
+	sets := []string{}
+	args := []any{}
+	i := 1
+	add := func(col string, val any) {
+		sets = append(sets, fmt.Sprintf("%s=$%d", col, i))
+		args = append(args, val)
+		i++
+	}
+	if p.Title != nil {
+		add("title", *p.Title)
+	}
+	if p.Content != nil {
+		add("content", *p.Content)
+	}
+	if p.ScopeChapters != nil {
+		sc := *p.ScopeChapters
+		if sc == nil {
+			sc = []string{}
+		}
+		add("scope_chapters", sc)
+	}
+	if p.ScopeFileIDs != nil {
+		sf := *p.ScopeFileIDs
+		if sf == nil {
+			sf = []string{}
+		}
+		add("scope_file_ids", sf)
+	}
+	if len(sets) == 0 {
+		return s.GetMaterial(ctx, id)
+	}
+	args = append(args, id)
+	ct, err := s.pool.Exec(ctx, `UPDATE materials SET `+strings.Join(sets, ", ")+fmt.Sprintf(" WHERE id=$%d", i), args...)
+	if err != nil {
+		return Material{}, err
+	}
+	if ct.RowsAffected() == 0 {
+		return Material{}, ErrNotFound
+	}
+	return s.GetMaterial(ctx, id)
+}
+
+// MaterialWorkspaceID returns the owning workspace id of a material (for
+// ownership checks on get/update/delete).
+func (s *Store) MaterialWorkspaceID(ctx context.Context, id string) (string, error) {
+	var wsID string
+	err := s.pool.QueryRow(ctx, `SELECT workspace_id FROM materials WHERE id=$1`, id).Scan(&wsID)
+	if isNoRows(err) {
+		return "", ErrNotFound
+	}
+	return wsID, err
+}
+
 // ListMaterialRefs returns the unified, workspace-scoped list of study
 // materials, newest first. Every artifact (mindmap, diagram, quiz, flashcards)
 // is now a single markdown row in `materials`; the flashcards kind is surfaced

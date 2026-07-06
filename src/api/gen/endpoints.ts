@@ -20,6 +20,7 @@ import type {
   CreateConversationReq,
   CreateDeckReq,
   CreateEventReq,
+  CreateMaterialReq,
   CreateQuizReq,
   CreateWorkspaceReq,
   Deck,
@@ -27,8 +28,6 @@ import type {
   Event,
   File,
   Flashcard,
-  GenerateOptions,
-  GenerateResult,
   IntegrationsStatus,
   Label,
   ListTagsParams,
@@ -52,6 +51,7 @@ import type {
   UpdateChapterReq,
   UpdateEventReq,
   UpdateFileReq,
+  UpdateMaterialReq,
   UpdateQuizReq,
   UpdateTaskReq,
   UpdateWorkspaceReq,
@@ -1463,6 +1463,50 @@ export const getMaterial = async (
   return { data, status: res.status, headers: res.headers } as getMaterialResponse;
 };
 
+export type updateMaterialResponse200 = {
+  data: Material;
+  status: 200;
+};
+
+export type updateMaterialResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type updateMaterialResponseSuccess = updateMaterialResponse200 & {
+  headers: Headers;
+};
+export type updateMaterialResponseError = updateMaterialResponseDefault & {
+  headers: Headers;
+};
+
+export type updateMaterialResponse = updateMaterialResponseSuccess | updateMaterialResponseError;
+
+export const getUpdateMaterialUrl = (id: string) => {
+  return `/api/materials/${id}`;
+};
+
+/**
+ * @summary Update a material
+ */
+export const updateMaterial = async (
+  id: string,
+  updateMaterialReq: NonReadonly<UpdateMaterialReq>,
+  options?: RequestInit
+): Promise<updateMaterialResponse> => {
+  const res = await fetch(getUpdateMaterialUrl(id), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateMaterialReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateMaterialResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as updateMaterialResponse;
+};
+
 export type getMeResponse200 = {
   data: User;
   status: 200;
@@ -2740,50 +2784,48 @@ export const listMaterials = async (
   return { data, status: res.status, headers: res.headers } as listMaterialsResponse;
 };
 
-export type generateMaterialResponse200 = {
-  data: GenerateResult;
-  status: 200;
+export type createMaterialResponse201 = {
+  data: Material;
+  status: 201;
 };
 
-export type generateMaterialResponseDefault = {
+export type createMaterialResponseDefault = {
   data: ErrorModel;
-  status: Exclude<HTTPStatusCodes, 200>;
+  status: Exclude<HTTPStatusCodes, 201>;
 };
 
-export type generateMaterialResponseSuccess = generateMaterialResponse200 & {
+export type createMaterialResponseSuccess = createMaterialResponse201 & {
   headers: Headers;
 };
-export type generateMaterialResponseError = generateMaterialResponseDefault & {
+export type createMaterialResponseError = createMaterialResponseDefault & {
   headers: Headers;
 };
 
-export type generateMaterialResponse =
-  | generateMaterialResponseSuccess
-  | generateMaterialResponseError;
+export type createMaterialResponse = createMaterialResponseSuccess | createMaterialResponseError;
 
-export const getGenerateMaterialUrl = (id: string) => {
-  return `/api/workspaces/${id}/generate`;
+export const getCreateMaterialUrl = (id: string) => {
+  return `/api/workspaces/${id}/materials`;
 };
 
 /**
- * @summary Generate study material from workspace scope
+ * @summary Create a note material
  */
-export const generateMaterial = async (
+export const createMaterial = async (
   id: string,
-  generateOptions: GenerateOptions,
+  createMaterialReq: NonReadonly<CreateMaterialReq>,
   options?: RequestInit
-): Promise<generateMaterialResponse> => {
-  const res = await fetch(getGenerateMaterialUrl(id), {
+): Promise<createMaterialResponse> => {
+  const res = await fetch(getCreateMaterialUrl(id), {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(generateOptions),
+    body: JSON.stringify(createMaterialReq),
   });
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: generateMaterialResponse['data'] = body ? JSON.parse(body) : {};
-  return { data, status: res.status, headers: res.headers } as generateMaterialResponse;
+  const data: createMaterialResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as createMaterialResponse;
 };
 
 export type getWorkspaceStatsResponse200 = {

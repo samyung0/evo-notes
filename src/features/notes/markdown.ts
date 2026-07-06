@@ -1,0 +1,48 @@
+/* ============================================================
+   Shared MarkdownPlugin configuration for the note editor. Enables GFM, math,
+   MDX (columns/callouts) and emoji shortcodes, and adds custom rules so the
+   embeddable study blocks (quiz / flashcards / mermaid) round-trip through the
+   existing fenced-code format used by the Go backend and the read-only renderer.
+   ============================================================ */
+import { MarkdownPlugin, remarkMdx } from '@platejs/markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import remarkEmoji from 'remark-emoji';
+import { isCustomBlockLang } from './blocks/shared';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyNode = any;
+
+function serializeCustomBlock(lang: string) {
+  return (node: AnyNode) => ({ type: 'code', lang, value: String(node.code ?? '') });
+}
+
+export const noteMarkdownPlugin = MarkdownPlugin.configure({
+  options: {
+    remarkPlugins: [remarkGfm, remarkMath, remarkMdx, remarkEmoji] as AnyNode,
+    rules: {
+      // Intercept fenced code: quiz/flashcards/mermaid become custom void nodes;
+      // everything else falls back to the default code_block/code_line shape.
+      code: {
+        deserialize: (node: AnyNode) => {
+          const lang = node.lang ?? undefined;
+          if (isCustomBlockLang(lang)) {
+            return { type: lang, code: String(node.value ?? ''), children: [{ text: '' }] };
+          }
+          const lines = String(node.value ?? '').split('\n');
+          return {
+            type: 'code_block',
+            lang,
+            children: lines.map((line: string) => ({
+              type: 'code_line',
+              children: [{ text: line }],
+            })),
+          };
+        },
+      },
+      quiz: { serialize: serializeCustomBlock('quiz') },
+      flashcards: { serialize: serializeCustomBlock('flashcards') },
+      mermaid: { serialize: serializeCustomBlock('mermaid') },
+    } as AnyNode,
+  },
+});

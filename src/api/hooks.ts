@@ -440,6 +440,44 @@ export function useDeleteMaterial(wsId: string) {
   });
 }
 
+/** Create a user-authored note (markdown) material and reveal it in-pane. */
+export interface CreateNoteInput {
+  title?: string;
+  content?: string;
+  scopeChapters?: string[];
+  scopeFileIds?: string[];
+}
+export function useCreateNote(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateNoteInput = {}) =>
+      api.post<Material>(`/workspaces/${wsId}/materials`, { kind: 'note', ...input }),
+    onSuccess: (mt) => {
+      qc.invalidateQueries({ queryKey: qk.materials(wsId) });
+      qc.setQueryData(qk.material(mt.id), mt);
+    },
+  });
+}
+
+/** Patch a material's title/content/scope (used by the note editor autosave). */
+export interface UpdateMaterialInput {
+  title?: string;
+  content?: string;
+  scopeChapters?: string[];
+  scopeFileIds?: string[];
+}
+export function useUpdateMaterial(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateMaterialInput }) =>
+      api.patch<Material>(`/materials/${id}`, patch),
+    onSuccess: (mt) => {
+      qc.setQueryData(qk.material(mt.id), mt);
+      qc.invalidateQueries({ queryKey: qk.materials(wsId) });
+    },
+  });
+}
+
 /* ---------------- quizzes ---------------- */
 export const quizzesQuery = () =>
   queryOptions({
@@ -479,12 +517,26 @@ export const mistakesQuery = () =>
   });
 export const useMistakes = () => useQuery(mistakesQuery());
 
+/** Invalidate every workspace's materials list (quiz/deck edits change titles
+ * shown in the left panel but don't carry a workspace id). */
+function invalidateAllMaterials(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({
+    predicate: (q) =>
+      Array.isArray(q.queryKey) &&
+      q.queryKey[0] === 'workspace' &&
+      q.queryKey[2] === 'materials',
+  });
+}
+
 export function useCreateQuiz() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Omit<CreateQuizReq, 'questions'> & { questions?: Question[] }) =>
       api.post<Quiz>('/quizzes', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.quizzes }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.quizzes });
+      invalidateAllMaterials(qc);
+    },
   });
 }
 export function useUpdateQuiz() {
@@ -498,6 +550,7 @@ export function useUpdateQuiz() {
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: qk.quizzes });
       qc.invalidateQueries({ queryKey: qk.quiz(v.id) });
+      invalidateAllMaterials(qc);
     },
   });
 }
@@ -505,7 +558,10 @@ export function useDeleteQuiz() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.del<void>(`/quizzes/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.quizzes }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.quizzes });
+      invalidateAllMaterials(qc);
+    },
   });
 }
 export function useSubmitAttempt() {
@@ -542,7 +598,10 @@ export function useCreateDeck() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateDeckReq) => api.post<Deck>('/decks', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.decks }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.decks });
+      invalidateAllMaterials(qc);
+    },
   });
 }
 export function useCreateCard(deckId: string) {

@@ -16,6 +16,7 @@ import { userColorPair } from '@/lib/userColor';
 import {
   useAddChapter,
   useChapters,
+  useCreateNote,
   useDeleteChapter,
   useDeleteMaterial,
   useFiles,
@@ -40,6 +41,7 @@ const MATERIAL_ICON: Record<MaterialRefType, IconName> = {
   diagram: 'grid',
   quiz: 'quiz',
   deck: 'flashcards',
+  note: 'notes',
 };
 
 function MaterialListItem({
@@ -92,6 +94,7 @@ export default function WorkspaceOpen() {
   const reorder = useReorderChapters(workspaceId);
   const delChapter = useDeleteChapter(workspaceId);
   const delMaterial = useDeleteMaterial(workspaceId);
+  const createNote = useCreateNote(workspaceId);
   const openAddSource = useDialogs((s) => s.openAddSource);
 
   const [openItem, setOpenItem] = useState<OpenItem | null>(null);
@@ -247,7 +250,23 @@ export default function WorkspaceOpen() {
 
                 {/* Study materials — flat, not chapter-scoped. */}
                 <div className="mt-3">
-                  <div className="t-label px-1.5 py-1.5 text-fg-muted">Study materials</div>
+                  <div className="flex items-center justify-between px-1.5 py-1.5">
+                    <span className="t-label text-fg-muted">Study materials</span>
+                    <button
+                      onClick={() =>
+                        createNote.mutate(
+                          {},
+                          {
+                            onSuccess: (mt) => setOpenItem({ kind: 'material', id: mt.id }),
+                          }
+                        )
+                      }
+                      disabled={createNote.isPending}
+                      className="inline-flex items-center gap-1 rounded-row px-1.5 py-0.5 text-xs font-medium text-fg-secondary hover:bg-surface-hover-bg hover:text-fg disabled:opacity-50"
+                    >
+                      <Icon name="plus" size={13} /> Write note
+                    </button>
+                  </div>
                   {materials?.length ? (
                     materials.map((mt) => (
                       <MaterialListItem
@@ -256,7 +275,7 @@ export default function WorkspaceOpen() {
                         active={openItem?.kind === 'material' && openItem.id === mt.id}
                         onOpen={() => setOpenItem({ kind: 'material', id: mt.id })}
                         onDelete={
-                          mt.type === 'mindmap' || mt.type === 'diagram'
+                          mt.type === 'mindmap' || mt.type === 'diagram' || mt.type === 'note'
                             ? () => {
                                 delMaterial.mutate(mt.id);
                                 if (openItem?.kind === 'material' && openItem.id === mt.id)
@@ -268,7 +287,7 @@ export default function WorkspaceOpen() {
                     ))
                   ) : (
                     <div className="px-1.5 py-2 text-xs text-fg-muted">
-                      Generate flashcards, quizzes, mindmaps, or diagrams to see them here.
+                      Generate flashcards, quizzes, mindmaps, or diagrams — or write your own note.
                     </div>
                   )}
                 </div>

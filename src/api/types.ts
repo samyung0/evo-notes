@@ -210,7 +210,7 @@ export type GenerateOptions =
    Persisted, workspace-scoped (not chapter-scoped) study artifacts rendered
    in-pane. Mindmaps and diagrams are markdown documents (mermaid fences);
    quizzes and decks are referenced by the unified materials index. */
-export type MaterialKind = 'mindmap' | 'diagram' | 'quiz' | 'flashcards';
+export type MaterialKind = 'mindmap' | 'diagram' | 'quiz' | 'flashcards' | 'note';
 
 export interface Material {
   id: string;
@@ -231,7 +231,7 @@ export interface Material {
 
 /** A row in the left-panel materials list. Aggregates markdown materials plus
  * the workspace's quizzes and decks into one flat (non chapter-scoped) list. */
-export type MaterialRefType = 'mindmap' | 'diagram' | 'quiz' | 'deck';
+export type MaterialRefType = 'mindmap' | 'diagram' | 'quiz' | 'deck' | 'note';
 export interface MaterialRef {
   id: string;
   type: MaterialRefType;

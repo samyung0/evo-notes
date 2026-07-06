@@ -875,6 +875,27 @@ export const materials: Material[] = [
     privacy: 'private',
     createdAt: days(1),
   },
+  {
+    id: 'mat_note_1',
+    workspaceId: 'ws_bio',
+    workspaceName: 'Biology 101',
+    kind: 'note',
+    title: 'Lecture notes — the cell',
+    content: [
+      '# Lecture notes — the cell',
+      '',
+      'The **cell** is the basic unit of life. Key points from today:',
+      '',
+      '- Prokaryotes lack a membrane-bound nucleus',
+      '- Eukaryotes have organelles',
+      '',
+      '> Remember: mitochondria is the powerhouse of the cell.',
+    ].join('\n'),
+    scopeChapters: [],
+    scopeFileIds: [],
+    privacy: 'private',
+    createdAt: days(0),
+  },
 ];
 
 /* ---------------- chat: conversations + messages ---------------- */

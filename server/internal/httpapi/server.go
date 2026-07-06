@@ -93,7 +93,10 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 	r.Get("/api/workspaces/{id}/ingest-events", a.ingestEvents)
 	r.Post("/api/workspaces/{id}/chat", a.chat)
 	r.Post("/api/workspaces/{id}/chat/stream", a.chatStream)
+	r.Post("/api/workspaces/{id}/complete/stream", a.completeStream)
+	r.Post("/api/workspaces/{id}/ai/command", a.aiCommand)
 	r.Post("/api/workspaces/{id}/generate", a.generate)
+	r.Post("/api/transcribe", a.transcribe)
 	r.Get("/api/files/{id}/raw", a.getFileRaw)
 
 	return r

@@ -4,12 +4,10 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
-import type { MaterialRefType } from './materialRefType.ts';
 
 export interface MaterialRef {
   createdAt: string;
   id: string;
   title: string;
-  /** mindmap | diagram | quiz | deck (flashcards surfaced as deck) */
-  type: MaterialRefType;
+  type: string;
 }

@@ -113,6 +113,15 @@ class Config:
     )
     vision_model: str = _env("EVO_MODEL_IMAGE_CAPTION", "gemini-3.1-flash-lite-preview")
 
+    # ---- speech-to-text (Whisper-compatible, OpenAI API) ------------------
+    # Used by /transcribe for voice notes. Defaults to OpenAI Whisper; point
+    # WHISPER_BASE_URL at any OpenAI-compatible STT endpoint to swap providers.
+    stt = ProviderCfg(
+        api_key=_env("WHISPER_API_KEY", _env("OPENAI_API_KEY")),
+        base_url=_env("WHISPER_BASE_URL", "https://api.openai.com/v1"),
+    )
+    stt_model: str = _env("EVO_MODEL_STT", "whisper-1")
+
     @property
     def query_models(self) -> set[str]:
         """Models the retrieval service is allowed to dispatch to."""

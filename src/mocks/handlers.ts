@@ -315,10 +315,52 @@ export const handlers = [
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     return HttpResponse.json(refs);
   }),
+  http.post('/api/workspaces/:id/materials', async ({ params, request }) => {
+    await latency();
+    const wsId = String(params.id);
+    const ws = db.workspaces.find((w) => w.id === wsId);
+    const body = (await request.json().catch(() => ({}))) as {
+      kind?: Material['kind'];
+      title?: string;
+      content?: string;
+      scopeChapters?: string[];
+      scopeFileIds?: string[];
+    };
+    const mt: Material = {
+      id: uid('mat'),
+      workspaceId: wsId,
+      workspaceName: ws?.name ?? '',
+      kind: body.kind ?? 'note',
+      title: body.title || 'Untitled note',
+      content: body.content ?? '',
+      scopeChapters: body.scopeChapters ?? [],
+      scopeFileIds: body.scopeFileIds ?? [],
+      privacy: 'private',
+      createdAt: new Date().toISOString(),
+    };
+    db.materials.unshift(mt);
+    return HttpResponse.json(mt, { status: 201 });
+  }),
   http.get('/api/materials/:id', async ({ params }) => {
     await latency();
     const mt = db.materials.find((x) => x.id === params.id);
     return mt ? HttpResponse.json(mt) : new HttpResponse(null, { status: 404 });
+  }),
+  http.patch('/api/materials/:id', async ({ params, request }) => {
+    await latency();
+    const mt = db.materials.find((x) => x.id === params.id);
+    if (!mt) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json().catch(() => ({}))) as {
+      title?: string;
+      content?: string;
+      scopeChapters?: string[];
+      scopeFileIds?: string[];
+    };
+    if (body.title != null) mt.title = body.title;
+    if (body.content != null) mt.content = body.content;
+    if (body.scopeChapters != null) mt.scopeChapters = body.scopeChapters;
+    if (body.scopeFileIds != null) mt.scopeFileIds = body.scopeFileIds;
+    return HttpResponse.json(mt);
   }),
   http.delete('/api/materials/:id', async ({ params }) => {
     const i = db.materials.findIndex((x) => x.id === params.id);
@@ -507,6 +549,40 @@ export const handlers = [
     return new HttpResponse(stream, {
       headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
     });
+  }),
+
+  http.post('/api/workspaces/:id/complete/stream', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as {
+      mode?: 'command' | 'continue';
+      prompt?: string;
+    };
+    const text =
+      body.mode === 'continue'
+        ? ' and this continues the thought with a few more grounded sentences drawn from your notes.'
+        : `Here is an AI response${body.prompt ? ` to "${body.prompt}"` : ''}: the key ideas are summarized clearly and concisely for study.`;
+    const words = text.split(' ');
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const send = (o: unknown) =>
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(o)}\n\n`));
+        for (const w of words) {
+          if (request.signal.aborted) break;
+          await delay(40);
+          send({ type: 'token', text: w + ' ' });
+        }
+        if (!request.signal.aborted) send({ type: 'done' });
+        controller.close();
+      },
+    });
+    return new HttpResponse(stream, {
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+    });
+  }),
+
+  http.post('/api/transcribe', async () => {
+    await delay(600);
+    return HttpResponse.json({ text: 'This is a mock voice transcription.' });
   }),
 
   http.post('/api/workspaces/:id/generate', async ({ params, request }) => {

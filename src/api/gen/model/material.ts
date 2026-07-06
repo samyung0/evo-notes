@@ -4,19 +4,17 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
-import type { MaterialKind } from './materialKind.ts';
 import type { Privacy } from './privacy.ts';
 import type { UserColor } from './userColor.ts';
 
 export interface Material {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
+  color?: UserColor;
   content: string;
   createdAt: string;
   id: string;
-  /** mindmap | diagram | quiz | flashcards */
-  kind: MaterialKind;
-  color?: UserColor;
+  kind: string;
   privacy: Privacy;
   scopeChapters: string[];
   scopeFileIds: string[];

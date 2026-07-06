@@ -572,15 +572,44 @@ export const GetMaterialParams = zod.object({
 
 export const GetMaterialResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
-  content: zod.string(),
-  createdAt: zod.iso.datetime({ offset: true }),
-  id: zod.string(),
-  kind: zod
-    .enum(['mindmap', 'diagram', 'quiz', 'flashcards'])
-    .describe('mindmap | diagram | quiz | flashcards'),
   color: zod
     .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
     .optional(),
+  content: zod.string(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  kind: zod.string(),
+  privacy: zod.enum(['private', 'public', 'link']),
+  scopeChapters: zod.array(zod.string()),
+  scopeFileIds: zod.array(zod.string()),
+  title: zod.string(),
+  workspaceId: zod.string(),
+  workspaceName: zod.string(),
+});
+
+/**
+ * @summary Update a material
+ */
+export const UpdateMaterialParams = zod.object({
+  id: zod.string(),
+});
+
+export const UpdateMaterialBody = zod.object({
+  content: zod.string().optional(),
+  scopeChapters: zod.array(zod.string()).optional(),
+  scopeFileIds: zod.array(zod.string()).optional(),
+  title: zod.string().optional(),
+});
+
+export const UpdateMaterialResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  color: zod
+    .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
+    .optional(),
+  content: zod.string(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  kind: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
   scopeChapters: zod.array(zod.string()),
   scopeFileIds: zod.array(zod.string()),
@@ -1190,110 +1219,41 @@ export const ListMaterialsResponseItem = zod.object({
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   title: zod.string(),
-  type: zod
-    .enum(['mindmap', 'diagram', 'quiz', 'deck'])
-    .describe('mindmap | diagram | quiz | deck (flashcards surfaced as deck)'),
+  type: zod.string(),
 });
 export const ListMaterialsResponse = zod.array(ListMaterialsResponseItem);
 
 /**
- * @summary Generate study material from workspace scope
+ * @summary Create a note material
  */
-export const GenerateMaterialParams = zod.object({
+export const CreateMaterialParams = zod.object({
   id: zod.string(),
 });
 
-export const GenerateMaterialBody = zod
-  .object({
-    kind: zod.enum(['flashcards', 'quiz', 'mindmap', 'diagram']),
-    chapters: zod.array(zod.string()).optional(),
-    fileIds: zod.array(zod.string()).optional(),
-    count: zod.number().optional(),
-    style: zod.string().optional(),
-    types: zod.array(zod.string()).optional(),
-    levels: zod.array(zod.string()).optional(),
-    timeLimitMin: zod.number().optional(),
-    detail: zod.string().optional(),
-    diagramType: zod.string().optional(),
-  })
-  .describe('Polymorphic generate request (kind discriminates fields).');
+export const CreateMaterialBody = zod.object({
+  content: zod.string().optional().describe('Markdown body'),
+  kind: zod.string().optional().describe('Material kind; defaults to note'),
+  scopeChapters: zod.array(zod.string()).nullish(),
+  scopeFileIds: zod.array(zod.string()).nullish(),
+  title: zod.string().optional(),
+});
 
-export const GenerateMaterialResponse = zod
-  .object({
-    kind: zod.string(),
-    quiz: zod
-      .object({
-        $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
-        chapters: zod.array(zod.string()),
-        createdAt: zod.iso.datetime({ offset: true }),
-        id: zod.string(),
-        name: zod.string(),
-        privacy: zod.enum(['private', 'public', 'link']),
-        questions: zod.array(zod.record(zod.string(), zod.unknown())),
-        timeLimitMin: zod.number().optional(),
-        workspaceId: zod.string(),
-        workspaceName: zod.string(),
-      })
-      .optional(),
-    deck: zod
-      .object({
-        $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
-        cardCount: zod.number(),
-        color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
-        dueCount: zod.number(),
-        id: zod.string(),
-        knownPct: zod.number(),
-        name: zod.string(),
-        workspaceId: zod.string(),
-        workspaceName: zod.string(),
-      })
-      .optional(),
-    cards: zod
-      .array(
-        zod.object({
-          $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
-          back: zod.string(),
-          deckId: zod.string(),
-          front: zod.string(),
-          id: zod.string(),
-          known: zod.boolean(),
-          srs: zod.object({
-            difficulty: zod.number(),
-            due: zod.string(),
-            elapsed_days: zod.number(),
-            lapses: zod.number(),
-            last_review: zod.string().optional(),
-            learning_steps: zod.number().optional(),
-            reps: zod.number(),
-            scheduled_days: zod.number(),
-            stability: zod.number(),
-            state: zod.number(),
-          }),
-        })
-      )
-      .optional(),
-    material: zod
-      .object({
-        $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
-        content: zod.string(),
-        createdAt: zod.iso.datetime({ offset: true }),
-        id: zod.string(),
-        kind: zod
-          .enum(['mindmap', 'diagram', 'quiz', 'flashcards'])
-          .describe('mindmap | diagram | quiz | flashcards'),
-        color: zod
-          .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
-          .optional(),
-        privacy: zod.enum(['private', 'public', 'link']),
-        scopeChapters: zod.array(zod.string()),
-        scopeFileIds: zod.array(zod.string()),
-        title: zod.string(),
-        workspaceId: zod.string(),
-        workspaceName: zod.string(),
-      })
-      .optional(),
-  })
-  .describe('Polymorphic generate response (kind discriminates payload).');
+export const CreateMaterialResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  color: zod
+    .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
+    .optional(),
+  content: zod.string(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  kind: zod.string(),
+  privacy: zod.enum(['private', 'public', 'link']),
+  scopeChapters: zod.array(zod.string()),
+  scopeFileIds: zod.array(zod.string()),
+  title: zod.string(),
+  workspaceId: zod.string(),
+  workspaceName: zod.string(),
+});
 
 /**
  * @summary Workspace stats

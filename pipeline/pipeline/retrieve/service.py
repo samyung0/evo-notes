@@ -14,7 +14,7 @@ import re
 from contextlib import asynccontextmanager
 from typing import Any, List, Optional
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -287,6 +287,122 @@ async def chat_stream(req: ChatStreamReq, request: Request):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# --------------------------------------------------------------- AI completion
+# Direct (non-RAG) LLM completion for the note editor: an AI command menu and
+# Copilot-style "continue writing". Streams plain tokens in the same SSE shape
+# as chat so the Go gateway relays them unchanged.
+
+
+class CompleteReq(BaseModel):
+    workspaceId: str
+    mode: str = "command"  # command | continue
+    prompt: Optional[str] = None
+    context: Optional[str] = None
+    model: Optional[str] = None
+
+
+def _llm_client():
+    from openai import AsyncOpenAI
+
+    return AsyncOpenAI(api_key=cfg.llm.api_key, base_url=cfg.llm.base_url)
+
+
+def _complete_messages(req: "CompleteReq") -> list[dict]:
+    context = (req.context or "").strip()
+    if req.mode == "continue":
+        system = (
+            "You are a writing assistant embedded in a note editor. Continue the "
+            "user's note naturally from where it stops. Write only the continuation "
+            "(no preamble, no repetition of the existing text). Match the existing tone."
+        )
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": context or "(empty note)"},
+        ]
+    system = (
+        "You are a writing assistant embedded in a note editor. Apply the user's "
+        "instruction and return ONLY the resulting text to insert (no preamble, no "
+        "code fences unless the instruction asks for code)."
+    )
+    user = f"Instruction: {(req.prompt or '').strip()}"
+    if context:
+        user += f"\n\nContent:\n{context}"
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+
+
+async def _complete_stream(req: "CompleteReq", request: Request):
+    model = req.model if req.model in cfg.query_models else cfg.query_model
+    try:
+        client = _llm_client()
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=_complete_messages(req),
+            stream=True,
+            temperature=0.7,
+        )
+        async for chunk in stream:
+            if await request.is_disconnected():
+                break
+            delta = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+            if delta:
+                yield _sse({"type": "token", "text": delta})
+        yield _sse({"type": "done"})
+    except Exception as e:  # noqa: BLE001 — surface any failure to the gateway
+        log.exception("complete stream failed")
+        yield _sse({"type": "error", "message": str(e)})
+
+
+@app.post("/complete/stream")
+async def complete_stream(req: CompleteReq, request: Request):
+    return StreamingResponse(
+        _complete_stream(req, request),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/ai/command")
+async def ai_command(req: CompleteReq):
+    """Non-streaming one-shot AI command (kept for parity with the gateway)."""
+    try:
+        client = _llm_client()
+        model = req.model if req.model in cfg.query_models else cfg.query_model
+        resp = await client.chat.completions.create(
+            model=model,
+            messages=_complete_messages(req),
+            temperature=0.7,
+        )
+        text = resp.choices[0].message.content if resp.choices else ""
+        return {"text": text or ""}
+    except Exception as e:  # noqa: BLE001
+        log.exception("ai command failed")
+        return {"text": "", "error": str(e)}
+
+
+# --------------------------------------------------------------- transcription
+
+
+@app.post("/transcribe")
+async def transcribe(file: UploadFile = File(...)):
+    """Transcribe an uploaded audio blob via a Whisper-compatible STT provider."""
+    from openai import AsyncOpenAI
+
+    try:
+        client = AsyncOpenAI(api_key=cfg.stt.api_key, base_url=cfg.stt.base_url)
+        data = await file.read()
+        resp = await client.audio.transcriptions.create(
+            model=cfg.stt_model,
+            file=(file.filename or "audio.webm", data),
+        )
+        return {"text": getattr(resp, "text", "") or ""}
+    except Exception as e:  # noqa: BLE001
+        log.exception("transcription failed")
+        return {"text": "", "error": str(e)}
 
 
 _DIAGRAM_HEADER = {

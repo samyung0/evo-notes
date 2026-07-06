@@ -1,4 +1,4 @@
-﻿components:
+components:
   schemas:
     AccessTokenResp:
       additionalProperties: false
@@ -383,6 +383,34 @@
         - start
         - end
       type: object
+    CreateMaterialReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/CreateMaterialReq.json
+          format: uri
+          readOnly: true
+          type: string
+        content:
+          description: Markdown body
+          type: string
+        kind:
+          description: Material kind; defaults to note
+          type: string
+        scopeChapters:
+          items:
+            type: string
+          nullable: true
+          type: array
+        scopeFileIds:
+          items:
+            type: string
+          nullable: true
+          type: array
+        title:
+          type: string
+      type: object
     CreateQuizReq:
       additionalProperties: false
       properties:
@@ -691,6 +719,8 @@
           format: uri
           readOnly: true
           type: string
+        color:
+          $ref: "#/components/schemas/UserColor"
         content:
           type: string
         createdAt:
@@ -699,15 +729,7 @@
         id:
           type: string
         kind:
-          description: "mindmap | diagram | quiz | flashcards"
-          enum:
-            - mindmap
-            - diagram
-            - quiz
-            - flashcards
           type: string
-        color:
-          $ref: "#/components/schemas/UserColor"
         privacy:
           $ref: "#/components/schemas/Privacy"
         scopeChapters:
@@ -747,77 +769,12 @@
         title:
           type: string
         type:
-          description: "mindmap | diagram | quiz | deck (flashcards surfaced as deck)"
-          enum:
-            - mindmap
-            - diagram
-            - quiz
-            - deck
           type: string
       required:
         - id
         - type
         - title
         - createdAt
-      type: object
-    GenerateOptions:
-      additionalProperties: true
-      description: Polymorphic generate request (kind discriminates fields).
-      properties:
-        kind:
-          enum:
-            - flashcards
-            - quiz
-            - mindmap
-            - diagram
-          type: string
-        chapters:
-          items:
-            type: string
-          type: array
-        fileIds:
-          items:
-            type: string
-          type: array
-        count:
-          type: integer
-        style:
-          type: string
-        types:
-          items:
-            type: string
-          type: array
-        levels:
-          items:
-            type: string
-          type: array
-        timeLimitMin:
-          type: integer
-        detail:
-          type: string
-        diagramType:
-          type: string
-      required:
-        - kind
-      type: object
-    GenerateResult:
-      additionalProperties: true
-      description: Polymorphic generate response (kind discriminates payload).
-      properties:
-        kind:
-          type: string
-        quiz:
-          $ref: "#/components/schemas/Quiz"
-        deck:
-          $ref: "#/components/schemas/Deck"
-        cards:
-          items:
-            $ref: "#/components/schemas/Flashcard"
-          type: array
-        material:
-          $ref: "#/components/schemas/Material"
-      required:
-        - kind
       type: object
     Message:
       additionalProperties: false
@@ -1278,6 +1235,28 @@
         chapterId:
           type: string
         name:
+          type: string
+      type: object
+    UpdateMaterialReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/UpdateMaterialReq.json
+          format: uri
+          readOnly: true
+          type: string
+        content:
+          type: string
+        scopeChapters:
+          items:
+            type: string
+          type: array
+        scopeFileIds:
+          items:
+            type: string
+          type: array
+        title:
           type: string
       type: object
     UpdateQuizReq:
@@ -2246,6 +2225,36 @@ paths:
       summary: Get a material
       tags:
         - Materials
+    patch:
+      operationId: updateMaterial
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMaterialReq"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a material
+      tags:
+        - Materials
   /api/me:
     get:
       operationId: getMe
@@ -3031,9 +3040,8 @@ paths:
       summary: List study materials
       tags:
         - Materials
-  /api/workspaces/{id}/generate:
     post:
-      operationId: generateMaterial
+      operationId: createMaterial
       parameters:
         - in: path
           name: id
@@ -3044,22 +3052,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GenerateOptions"
+              $ref: "#/components/schemas/CreateMaterialReq"
         required: true
       responses:
-        "200":
+        "201":
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenerateResult"
-          description: OK
+                $ref: "#/components/schemas/Material"
+          description: Created
         default:
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ErrorModel"
           description: Error
-      summary: Generate study material from workspace scope
+      summary: Create a note material
       tags:
         - Materials
   /api/workspaces/{id}/stats:
