@@ -53,18 +53,18 @@ export function Panel({
       asChild
       theme="light"
       radius="card-xl"
-      className={cn('h-full min-h-full overflow-hidden p-0 shadow-card', className)}
+      className={cn('h-full overflow-hidden p-0 shadow-card', className)}
     >
-      <div>
-        <section
+      <section>
+        <div
           className={cn(
             'flex max-h-full flex-col items-stretch gap-2 overflow-auto p-0',
             sectionClassName
           )}
         >
           {children}
-        </section>
-      </div>
+        </div>
+      </section>
     </Card>
   );
 }

@@ -8,6 +8,7 @@ Run: ``uvicorn pipeline.retrieve.service:app --host 0.0.0.0 --port 8001``
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -143,37 +144,44 @@ async def _answer(
     workspace: str,
     query: str,
     model: Optional[str],
-    ids: Optional[List[str]] = None,
 ) -> str:
     assert _cache is not None
     rag = await _cache.get(workspace)
     token = query_model_override.set(model if model in cfg.query_models else None)
     try:
-        # Scope by document ids when requested. Ingest tags each document with
-        # doc_id=file_id (see ingest/worker.py), so QueryParam(ids=...) filters
-        # retrieval to the selected files/chapters. If this build of LightRAG
-        # does not honor `ids`, fall back to the unscoped RAGAnything path (the
-        # natural-language scope hint baked into `query` still steers it).
-        if ids:
-            try:
-                param = QueryParam(mode="mix", ids=list(ids))
-                return await rag.lightrag.aquery(query, param=param)
-            except Exception:  # noqa: BLE001 — degrade to unscoped retrieval
-                log.warning("scoped query (ids) failed; falling back to unscoped", exc_info=True)
-        # vlm_enhanced disabled: answer from the text/graph index, no image re-encode.
-        return await rag.aquery(query, mode="mix", vlm_enhanced=False)
+        return await rag.aquery(query, param=QueryParam(mode="mix"))
     finally:
         query_model_override.reset(token)
 
 
-def _scope_hint(chapters: Optional[List[str]], file_ids: Optional[List[str]]) -> str:
-    """A natural-language instruction that narrows the answer to the requested
-    scope. Complements (and backs up) QueryParam id filtering."""
+def _file_names(file_ids: List[str]) -> List[str]:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            return db.file_names_for_ids(cur, file_ids)
+
+
+async def _scope_hint(chapters: Optional[List[str]], file_ids: Optional[List[str]]) -> str:
+    """A natural-language instruction narrowing the answer to the requested
+    scope.
+
+    LightRAG v1.5 dropped ``QueryParam(ids=...)`` document filtering, so the
+    prompt is the only scoping lever. Naming the actual source files (LightRAG
+    stores each document's basename as its citation ``file_path``) steers
+    retrieval-grounded generation far better than a bare file count.
+    """
     parts: list[str] = []
     if chapters:
         parts.append("chapters titled: " + ", ".join(chapters))
     if file_ids:
-        parts.append(f"the {len(file_ids)} selected source file(s)")
+        try:
+            names = await asyncio.to_thread(_file_names, list(file_ids))
+        except Exception:  # noqa: BLE001 — hint quality degrades, query proceeds
+            log.warning("file name lookup for scope hint failed", exc_info=True)
+            names = []
+        if names:
+            parts.append("the source files named: " + ", ".join(names))
+        else:
+            parts.append(f"the {len(file_ids)} selected source file(s)")
     if not parts:
         return ""
     return (
@@ -239,9 +247,8 @@ def _sse(payload: dict) -> str:
 async def _answer_stream(req: "ChatStreamReq", request: Request):
     """Yield SSE events (citations -> token* -> done) for a grounded answer.
 
-    Uses ``LightRAG.aquery_llm(stream=True)`` directly (rather than
-    ``RAGAnything.aquery``, whose wrapper assumes a ``str`` return) so we can
-    iterate the token iterator. Stops early if the client disconnects.
+    Uses ``LightRAG.aquery_llm(stream=True)`` so we can iterate the token
+    iterator. Stops early if the client disconnects.
     """
     assert _cache is not None
     rag = await _cache.get(req.workspaceId)
@@ -254,7 +261,7 @@ async def _answer_stream(req: "ChatStreamReq", request: Request):
             stream=True,
             conversation_history=req.history or [],
         )
-        result = await rag.lightrag.aquery_llm(req.query, param=param)
+        result = await rag.aquery_llm(req.query, param=param)
 
         citations = _citations_from_result(result)
         if citations:
@@ -418,7 +425,7 @@ _DIAGRAM_HEADER = {
 async def generate(req: GenerateReq):
     chapters = req.chapters or []
     file_ids = req.fileIds or []
-    hint = _scope_hint(chapters, file_ids)
+    hint = await _scope_hint(chapters, file_ids)
 
     if req.kind == "summary":  # legacy; UI no longer offers this
         body = await _answer(
@@ -427,7 +434,6 @@ async def generate(req: GenerateReq):
             + "Write a concise study summary of the most important ideas in this scope. "
             "Use short bullet points.",
             cfg.query_model_alt,
-            ids=file_ids,
         )
         return {"kind": "summary", "title": "Workspace summary", "body": body}
 
@@ -439,7 +445,6 @@ async def generate(req: GenerateReq):
             + f"Create {n} study flashcards from this scope. Return ONLY a JSON array "
             'of objects {"front": "...", "back": "..."}.',
             cfg.query_model_alt,
-            ids=file_ids,
         )
         data = _extract_json(raw) or []
         cards = [
@@ -465,7 +470,6 @@ async def generate(req: GenerateReq):
             f"their relationships ({detail} level of detail). Return ONLY the Mermaid code "
             "starting with the line `mindmap` — no code fences, no prose.",
             cfg.query_model_alt,
-            ids=file_ids,
         )
         code = _strip_fence(raw) or "mindmap\n  root((Topic))"
         content = f"# Mindmap\n\n```mermaid\n{code}\n```"
@@ -484,7 +488,6 @@ async def generate(req: GenerateReq):
             "in this scope. Return ONLY the Mermaid code (a valid diagram) — no code fences, "
             "no prose.",
             cfg.query_model_alt,
-            ids=file_ids,
         )
         code = _strip_fence(raw) or "flowchart LR\n  A --> B"
         content = f"# Diagram\n\n```mermaid\n{code}\n```"

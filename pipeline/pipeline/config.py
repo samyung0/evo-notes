@@ -45,6 +45,12 @@ def _seed_lightrag_pg_env() -> None:
     # isolation is set explicitly via LightRAG(workspace=...). Leave it unset so
     # a stray global workspace can't shadow the per-tenant value.
 
+    # LightRAG's parse pipeline resolves pending_parse sources under
+    # ``INPUT_DIR/<workspace>/``; the worker stages each blob there before
+    # enqueueing and cleans up afterwards.
+    working_dir = os.getenv("WORKING_DIR", "/data/rag_storage")
+    os.environ.setdefault("INPUT_DIR", os.path.join(working_dir, "inputs"))
+
 
 _seed_lightrag_pg_env()
 
@@ -74,14 +80,22 @@ class Config:
 
     # LightRAG still wants a working dir handle even with PG backends.
     working_dir: str = _env("WORKING_DIR", "/data/rag_storage")
+    # Staging dir for pending_parse sources (seeded into INPUT_DIR above).
+    input_dir: str = _env("INPUT_DIR", "")
 
     # ---- worker -----------------------------------------------------------
     poll_interval: float = float(_env("EVO_POLL_INTERVAL", "2.0"))
     lightrag_cache_size: int = int(_env("EVO_LIGHTRAG_CACHE_SIZE", "16"))
+    # LightRAG caches extraction LLM responses in Postgres (keyed per workspace)
+    # so re-ingesting identical content is cheap. Disable it to make ingest
+    # deterministic w.r.t. outbound LLM calls — required when recording
+    # record-replay test cassettes (see pipeline/tests/README.md).
+    ingest_llm_cache: bool = _env("EVO_INGEST_LLM_CACHE", "true").lower() != "false"
 
     # ---- Modal MineRU parse service --------------------------------------
     modal_parse_url: str = _env("MODAL_PARSE_URL", "")
     modal_parse_token: str = _env("MODAL_PARSE_TOKEN", "")
+    modal_parse_timeout: int = int(_env("MODAL_PARSE_TIMEOUT", "600"))
     parse_method: str = _env("EVO_PARSE_METHOD", "auto")  # auto | ocr | txt
 
     # ---- embeddings (OpenRouter, OpenAI-compatible) -----------------------

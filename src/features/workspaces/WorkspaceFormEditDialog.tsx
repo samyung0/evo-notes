@@ -92,7 +92,7 @@ export function WorkspaceFormEditDialog({
         className="top-1/2 -translate-y-1/2"
         showCloseButton={true}
       >
-        {/* todo: i18n */}
+        {/* TODO: i18n */}
         <DialogTitle>{'Edit Workspace'}</DialogTitle>
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-5">
@@ -206,9 +206,8 @@ export function WorkspaceFormEditDialog({
 }
 
 function PrivacySelect({ value, onChange }: { value: Privacy; onChange: (v: Privacy) => void }) {
-  const current = PRIVACY_OPTIONS.find((o) => o.value === value) ?? PRIVACY_OPTIONS[0]; // todo
+  const current = PRIVACY_OPTIONS.find((o) => o.value === value) ?? PRIVACY_OPTIONS[0]; // TODO:
   return (
-    // todo tanstack form
     <div className="w-45">
       <Select defaultValue={current.value} onValueChange={(v) => onChange(v as Privacy)}>
         <SelectTrigger>

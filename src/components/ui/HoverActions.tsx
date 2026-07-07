@@ -6,6 +6,7 @@ export interface HoverActionsProps {
   align?: 'start' | 'center' | 'end';
   /** Extra classes for the reveal wrapper. */
   className?: string;
+  iconContainerClassName?: string;
 }
 
 /**
@@ -13,7 +14,12 @@ export interface HoverActionsProps {
  * (or something inside receives focus). Lifted from the dashboard task row so
  * the reveal behaviour is shared.
  */
-export function HoverActions({ items, align = 'end', className }: HoverActionsProps) {
+export function HoverActions({
+  items,
+  align = 'end',
+  iconContainerClassName,
+  className,
+}: HoverActionsProps) {
   return (
     <div
       className={cn(
@@ -23,7 +29,7 @@ export function HoverActions({ items, align = 'end', className }: HoverActionsPr
         className
       )}
     >
-      <Menu items={items} align={align} />
+      <Menu items={items} align={align} iconContainerClassName={iconContainerClassName} />
     </div>
   );
 }

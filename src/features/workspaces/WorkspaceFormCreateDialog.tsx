@@ -93,7 +93,7 @@ export function WorkspaceFormCreateDialog({
         className="top-1/2 -translate-y-1/2"
         showCloseButton={true}
       >
-        {/* todo: i18n */}
+        {/* TODO: i18n */}
         <DialogTitle>{'Create Workspace'}</DialogTitle>
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-5">

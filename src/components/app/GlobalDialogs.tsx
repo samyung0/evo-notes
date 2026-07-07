@@ -119,7 +119,7 @@ export function GlobalDialogs() {
           }}
           onSubmit={async (v) => {
             if (!workspaceId) {
-              // todo: throw error
+              // TODO: throw error
               return;
             }
             return await updateWorkspace.mutateAsync({ id: workspaceId, ...v });
@@ -158,9 +158,7 @@ export function GlobalDialogs() {
           draft={eventForm}
           onClose={closeEventForm}
           onSubmit={(v) =>
-            eventForm.id
-              ? updateEvent.mutate({ id: eventForm.id, ...v })
-              : createEvent.mutate(v)
+            eventForm.id ? updateEvent.mutate({ id: eventForm.id, ...v }) : createEvent.mutate(v)
           }
         />
       )}

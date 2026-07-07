@@ -9,6 +9,7 @@ import {
   type IconName,
   SegmentedControl,
   SkeletonList,
+  Tabs,
   Text,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -55,25 +56,24 @@ function MaterialListItem({
   onOpen: () => void;
   onDelete?: () => void;
 }) {
+  // TODO: show generation process (like the file process bar), auto scroll to position after clicking on generation
+  // TODO: reuse filelistitem instead
   return (
     <div className="group relative flex items-center rounded-row pr-8 hover:bg-surface-hover-bg">
       <button
         onClick={onOpen}
         className={cn(
-          'flex w-full items-center gap-2 rounded-row px-1.5 py-2 text-left text-sm',
+          'flex w-full items-center gap-2 rounded-row px-1.5 py-1.5 text-left',
           active ? 'font-medium text-fg' : 'text-fg-secondary'
         )}
       >
         <Icon name={MATERIAL_ICON[matRef.type]} size={15} />
         <span className="flex-1 translate-y-px truncate">{matRef.title}</span>
-        <span className="t-label text-fg-muted capitalize">{matRef.type}</span>
       </button>
       {onDelete && (
         <HoverActions
           className="absolute top-1/2 right-1 -translate-y-1/2"
-          items={[
-            { label: m.action_delete(), icon: 'trash', danger: true, onClick: onDelete },
-          ]}
+          items={[{ label: m.action_delete(), icon: 'trash', danger: true, onClick: onDelete }]}
         />
       )}
     </div>
@@ -108,7 +108,7 @@ export default function WorkspaceOpen() {
     setOpenItem({ kind: 'file', id: first.id });
   }, [files, openItem]);
 
-  const pair = ws ? userColorPair(ws.color) : null;
+  const pair = userColorPair(ws?.color);
   const unfiled = files?.filter((f) => f.chapterId === null) ?? [];
 
   function filesFor(chapterId: string) {
@@ -127,129 +127,142 @@ export default function WorkspaceOpen() {
     if (openItem?.kind === 'file' && openItem.id === id) setOpenItem(null);
   }
 
+  // overflow-visible WITH important is so that shadow doesnt get clipped
   return (
-    <div className="h-full">
-      <ResizablePanelGroup orientation="horizontal" className="flex h-full min-h-0 gap-1.5">
-        <ResizablePanel
-          defaultSize="18%"
-          minSize="250px"
-          maxSize="550px"
-          className="flex w-full flex-col gap-2.5"
+    <ResizablePanelGroup
+      orientation="horizontal"
+      className="flex h-full min-h-0 gap-1.5 overflow-visible!"
+    >
+      <ResizablePanel
+        defaultSize="18%"
+        minSize="250px"
+        maxSize="550px"
+        className="flex w-full flex-col gap-2.5 overflow-visible!"
+      >
+        {/* Left column */}
+        <div
+          className="rounded-card-lg p-4"
+          style={{
+            background: pair.bg === 'transparent' ? 'var(--color-surface-dark)' : pair.bg,
+            color: pair.fg,
+          }}
         >
-          {/* Left column */}
-          <div
-            className="rounded-card-lg p-4"
-            style={pair ? { background: pair.bg, color: pair.fg } : undefined}
+          <Link
+            to="/workspaces"
+            preload="intent"
+            className="mb-3 inline-flex items-center gap-1 text-sm font-semibold opacity-80 hover:opacity-100"
           >
-            <Link
-              to="/workspaces"
-              preload="intent"
-              className="mb-3 inline-flex items-center gap-1 text-sm font-semibold opacity-80 hover:opacity-100"
-            >
-              <Icon name="chevronLeft" size={15} className="-translate-y-px" /> {m.workspace_back()}
-            </Link>
-            <h2 className="t-section line-clamp-4 wrap-break-word text-ellipsis text-inherit">
-              {ws?.name ?? '…'}
-            </h2>
-            <Button
-              variant="surface"
-              size="md"
-              onClick={() => openAddSource(workspaceId)}
-              className="mt-4 w-full py-2"
-            >
-              <Icon name="plus" size={16} /> {m.action_add_file()}
-            </Button>
-          </div>
+            <Icon name="chevronLeft" size={15} className="-translate-y-px" /> {m.workspace_back()}
+          </Link>
+          <h1 className="t-section line-clamp-4 wrap-break-word text-ellipsis text-inherit">
+            {ws?.name ?? '…'}
+          </h1>
+          <Button
+            variant="surface"
+            size="md"
+            onClick={() => openAddSource(workspaceId)}
+            className="mt-4 w-full py-2"
+          >
+            <Icon name="plus" size={16} /> {m.action_add_file()}
+          </Button>
+        </div>
 
-          <div className="flex min-h-0 flex-1 flex-col rounded-card-lg border border-line bg-rail p-1">
-            <div className="min-h-0 flex-1 overflow-auto px-1.5 pb-1.5">
-              <div className="t-label px-2 pt-3 pb-1 text-fg-muted">Content</div>
-              {!chapters && <SkeletonList count={5} rowHeight={36} className="px-1.5 py-2" />}
-              <div className="flex flex-col py-2">
-                {chapters?.map((ch, idx) => {
-                  const expanded = openChapters[ch.id] ?? true;
-                  return (
-                    <div key={ch.id}>
-                      <div className="group relative flex items-center rounded-row py-2 pr-8 hover:bg-surface-hover-bg">
-                        <button
-                          onClick={() => setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))}
-                          className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left"
-                        >
-                          <Icon
-                            name={expanded ? 'chevronDown' : 'chevronRight'}
-                            size={15}
-                            className="shrink-0 text-fg-muted"
-                          />
-                          <span className="translate-y-px truncate font-semibold">{ch.name}</span>
-                        </button>
-                        <HoverActions
-                          className="absolute top-1/2 right-1 -translate-y-1/2"
-                          items={[
-                            {
-                              label: m.action_rename(),
-                              icon: 'notes',
-                              onClick: () => {
-                                const n = prompt('Rename chapter', ch.name);
-                                if (n) updateChapter.mutate({ id: ch.id, name: n });
-                              },
-                            },
-                            {
-                              label: 'Move up',
-                              icon: 'chevronLeft',
-                              onClick: () => moveChapter(idx, -1),
-                              disabled: idx === 0,
-                            },
-                            {
-                              label: 'Move down',
-                              icon: 'chevronRight',
-                              onClick: () => moveChapter(idx, 1),
-                              disabled: idx === chapters.length - 1,
-                            },
-                            {
-                              label: m.action_delete(),
-                              icon: 'trash',
-                              danger: true,
-                              onClick: () => delChapter.mutate(ch.id),
-                            },
-                          ]}
-                        />
-                      </div>
-                      {expanded && (
-                        <div className="flex flex-col pl-4">
-                          {filesFor(ch.id).map((f) => (
-                            <FileListItem
-                              key={f.id}
-                              file={f}
-                              active={isFileActive(f.id)}
-                              onOpen={(id) => setOpenItem({ kind: 'file', id })}
-                              workspaceId={workspaceId}
-                              onDeleted={onFileDeleted}
+        <Panel className="min-h-0 flex-1 flex-col p-1" sectionClassName="h-full gap-0">
+          <div className="min-h-0 flex-1 overflow-auto px-1.5 pt-3 pb-1.5">
+            {!chapters && <SkeletonList count={5} rowHeight={36} className="px-1.5 py-2" />}
+            {chapters && (
+              <div className="flex flex-col gap-3 py-2">
+                <div>
+                  <div className="t-label px-2 pb-1 text-fg-muted">Content</div>
+                  {chapters.map((ch, idx) => {
+                    const expanded = openChapters[ch.id] ?? true;
+                    return (
+                      <div key={ch.id}>
+                        <div className="group relative flex items-center rounded-row py-2 pr-8 hover:bg-surface-hover-bg">
+                          <button
+                            onClick={() => setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))}
+                            className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left"
+                          >
+                            <Icon
+                              name={expanded ? 'chevronDown' : 'chevronRight'}
+                              size={15}
+                              className="shrink-0 text-fg-muted"
                             />
-                          ))}
+                            <span className="translate-y-px truncate font-semibold">{ch.name}</span>
+                          </button>
+                          <HoverActions
+                            className="absolute top-1/2 right-1 -translate-y-1/2"
+                            items={[
+                              {
+                                label: m.action_rename(),
+                                icon: 'notes',
+                                onClick: () => {
+                                  // TODO: use dialog
+                                  const n = prompt('Rename chapter', ch.name);
+                                  if (n) updateChapter.mutate({ id: ch.id, name: n });
+                                },
+                              },
+                              {
+                                label: 'Move up',
+                                icon: 'chevronLeft',
+                                onClick: () => moveChapter(idx, -1),
+                                disabled: idx === 0,
+                              },
+                              {
+                                label: 'Move down',
+                                icon: 'chevronRight',
+                                onClick: () => moveChapter(idx, 1),
+                                disabled: idx === chapters.length - 1,
+                              },
+                              {
+                                label: m.action_delete(),
+                                icon: 'trash',
+                                danger: true,
+                                onClick: () => delChapter.mutate(ch.id),
+                              },
+                            ]}
+                          />
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {expanded && (
+                          <div className="flex flex-col pl-4">
+                            {filesFor(ch.id).map((f) => (
+                              <FileListItem
+                                key={f.id}
+                                file={f}
+                                active={isFileActive(f.id)}
+                                onOpen={(id) => setOpenItem({ kind: 'file', id })}
+                                workspaceId={workspaceId}
+                                onDeleted={onFileDeleted}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
 
                 {unfiled.length > 0 && (
-                  <div className="mt-3">
-                    <div className="t-label px-1.5 py-1.5 text-fg-muted">Unfiled</div>
-                    {unfiled.map((f) => (
-                      <FileListItem
-                        key={f.id}
-                        file={f}
-                        active={isFileActive(f.id)}
-                        onOpen={(id) => setOpenItem({ kind: 'file', id })}
-                        workspaceId={workspaceId}
-                        onDeleted={onFileDeleted}
-                      />
-                    ))}
+                  <div>
+                    <div className="t-label px-1.5 py-1.5 text-fg-muted">Others</div>
+                    <div>
+                      {unfiled.map((f) => (
+                        <FileListItem
+                          key={f.id}
+                          file={f}
+                          active={isFileActive(f.id)}
+                          onOpen={(id) => setOpenItem({ kind: 'file', id })}
+                          workspaceId={workspaceId}
+                          onDeleted={onFileDeleted}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
 
                 {/* Study materials — flat, not chapter-scoped. */}
-                <div className="mt-3">
+                {/* TODO: allow chapter-scoped (this requires implementing moving files into other chapters, would like to implement this by drag and drop) */}
+                <div>
                   <div className="flex items-center justify-between px-1.5 py-1.5">
                     <span className="t-label text-fg-muted">Study materials</span>
                     <button
@@ -292,60 +305,64 @@ export default function WorkspaceOpen() {
                   )}
                 </div>
               </div>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const n = prompt('New chapter name');
+              if (n) addChapter.mutate(n);
+            }}
+            className="m-2 py-2"
+          >
+            <Icon name="plus" size={15} /> {m.action_add_chapter()}
+          </Button>
+        </Panel>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel defaultSize="52%" minSize="400px" className="overflow-visible!">
+        {/* Center: content viewer */}
+        <Panel className="w-full" sectionClassName="h-full">
+          <CenterContent item={openItem} />
+        </Panel>
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel
+        defaultSize="30%"
+        minSize="350px"
+        maxSize="900px"
+        className="overflow-visible!"
+      >
+        {/* Right column: top bar + AI */}
+        <div className="flex h-full w-full flex-col gap-2.5">
+          <TopInsetBar className="w-full" />
+          <Panel sectionClassName="gap-0 min-h-full overflow-hidden" className="flex-1">
+            <div className="flex items-center justify-between py-2.5">
+              <Tabs
+                tabs={[
+                  { value: 'chat', label: 'Chat' },
+                  { value: 'generate', label: 'Generate' },
+                ]}
+                value={mode}
+                onChange={setMode}
+                className="px-3"
+              />
             </div>
-            <Button
-              variant="outline"
-              onClick={() => {
-                const n = prompt('New chapter name');
-                if (n) addChapter.mutate(n);
-              }}
-              className="m-2 py-2"
-            >
-              <Icon name="plus" size={15} /> {m.action_add_chapter()}
-            </Button>
-          </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize="52%" minSize="400px">
-          {/* Center: content viewer */}
-          <Panel className="w-full" sectionClassName="h-full">
-            <CenterContent item={openItem} />
-          </Panel>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize="30%" minSize="350px" maxSize="900px">
-          {/* Right column: top bar + AI */}
-          <div className="flex h-full w-full flex-col gap-2.5">
-            <TopInsetBar className="w-full" />
-            <Panel className="min-h-0 flex-1">
-              <div className="flex items-center justify-between border-b border-divider px-3 py-2.5">
-                <SegmentedControl
-                  variant="ghost"
-                  size="sm"
-                  options={[
-                    { value: 'chat', label: 'Chat' },
-                    { value: 'generate', label: 'Generate' },
-                  ]}
-                  value={mode}
-                  onChange={setMode}
+            <div className="h-full flex-1 overflow-hidden">
+              {mode === 'chat' ? (
+                <ChatPanel workspaceId={workspaceId} color={ws?.color} />
+              ) : (
+                <GeneratePanel
+                  workspaceId={workspaceId}
+                  chapters={chapters ?? []}
+                  files={files ?? []}
+                  onOpenItem={setOpenItem}
                 />
-              </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {mode === 'chat' ? (
-                  <ChatPanel workspaceId={workspaceId} />
-                ) : (
-                  <GeneratePanel
-                    workspaceId={workspaceId}
-                    chapters={chapters ?? []}
-                    files={files ?? []}
-                    onOpenItem={setOpenItem}
-                  />
-                )}
-              </div>
-            </Panel>
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+              )}
+            </div>
+          </Panel>
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }

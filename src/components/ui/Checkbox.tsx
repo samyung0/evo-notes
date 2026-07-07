@@ -18,10 +18,14 @@ const checkboxVariants = cva(
       },
     },
     compoundVariants: [
-      { tone: 'dark', checked: true, class: 'bg-action border-action text-action-fg' },
-      { tone: 'blue', checked: true, class: 'bg-solid-info border-solid-info text-white' },
-      { tone: 'green', checked: true, class: 'bg-solid-success border-solid-success text-white' },
-      { tone: 'purple', checked: true, class: 'bg-accent border-accent text-accent-fg' },
+      { tone: 'dark', checked: true, class: 'border-action bg-action text-action-fg' },
+      { tone: 'blue', checked: true, class: 'border-solid-info bg-solid-info text-white' },
+      { tone: 'green', checked: true, class: 'border-solid-success bg-solid-success text-white' },
+      {
+        tone: 'purple',
+        checked: true,
+        class: 'text-action-accent-fg bg-action-accent border-accent',
+      },
     ],
     defaultVariants: {
       tone: 'dark',

@@ -27,10 +27,6 @@
   --color-surface-dark-hover-bg: var(--surface-card-dark-hover-bg);
   --color-surface-dark: var(--surface-card-dark-bg);
 
-  --color-rail: var(--surface-rail-bg);
-  --color-sidebar: var(--surface-sidebar-bg);
-  --color-surface-darker: var(--surface-darker-bg);
-
   /* Text → text-* */
   --color-surface-fg: var(--surface-card-fg);
   --color-surface-dark-fg: var(--surface-card-dark-fg);
@@ -50,9 +46,9 @@
   --color-action: var(--action-primary-bg);
   --color-action-fg: var(--action-primary-fg);
   --color-action-hover: var(--action-primary-hover);
-  --color-accent: var(--action-accent-bg);
-  --color-accent-fg: var(--action-accent-fg);
-  --color-accent-hover: var(--action-accent-hover);
+  --color-action-accent: var(--action-accent-bg);
+  --color-action-accent-fg: var(--action-accent-fg);
+  --color-action-accent-hover: var(--action-accent-hover);
 
   /* System colors */
   --color-tint-success: var(--tint-success-bg);
@@ -261,6 +257,7 @@
   }
   * {
     box-sizing: border-box;
+    scrollbar-width: thin;
     margin: 0;
   }
   ::selection {
@@ -269,8 +266,5 @@
   }
   button {
     cursor: pointer;
-  }
-  *::-webkit-scrollbar-track {
-    border-radius: 20px;
   }
 }

@@ -53,7 +53,7 @@ export default function Workspaces() {
         }
       />
 
-      <div className="flex items-center justify-between gap-3 px-6 pb-3">
+      <div className="flex items-center justify-between gap-3 px-6">
         <Toolbar>
           <Menu
             align="start"
@@ -112,7 +112,7 @@ export default function Workspaces() {
         </div>
       </div>
 
-      <div className="min-h-0 w-full flex-1 overflow-auto px-6 pb-6">
+      <div className="min-h-0 w-full flex-1 overflow-auto px-6 pt-3 pb-6">
         {isLoading ? (
           <SkeletonCardGrid count={9} />
         ) : (

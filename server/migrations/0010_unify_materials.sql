@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS card_stats (
   known       boolean NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS card_stats_material_idx ON card_stats(material_id);
-CREATE INDEX IF NOT EXISTS card_stats_due_idx ON card_stats (((srs->>'due')::timestamptz));
+-- Raw-text index: the timestamptz cast is not IMMUTABLE (see 0005).
+CREATE INDEX IF NOT EXISTS card_stats_due_idx ON card_stats ((srs->>'due'));
 
 -- ---- backfill legacy rows into materials --------------------------------
 

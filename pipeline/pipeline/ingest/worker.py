@@ -1,28 +1,61 @@
 """Ingestion worker.
 
-Claims ingest jobs from the Postgres queue, parses the upload on Modal (GPU
-MineRU), feeds the parsed content list into a per-workspace RAGAnything (which
-builds the LightRAG knowledge graph in Postgres + AGE), and publishes live
-progress to Redis. The Go gateway fans that progress to the browser over SSE.
+Claims ingest jobs from the Postgres queue and feeds each upload into the
+per-workspace LightRAG ingestion pipeline (v1.5, post RAG-Anything merge):
+
+- Plain text / markdown is inserted directly as RAW text (``ainsert``).
+- Everything else is staged under ``INPUT_DIR/<workspace>/`` and enqueued as
+  ``pending_parse`` with the custom ``modal`` engine, which parses on Modal
+  (GPU MineRU) and reuses LightRAG's MinerU IR builder + i/t/e multimodal
+  analysis (Gemini vlm role).
+
+Live progress is published to Redis; the Go gateway fans it to the browser
+over SSE. The resulting LightRAG doc id is persisted on ``files.doc_id``; it
+resolves basename collisions / job retries and records which document backs
+each file (for future deletion or scoped-retrieval support).
 
 Run: ``python -m pipeline.ingest.worker``
 
 The whole worker runs on ONE asyncio event loop so the cached LightRAG asyncpg
-pools survive across jobs. Synchronous bits (psycopg queue ops, the Modal HTTP
-call) are pushed to threads via ``asyncio.to_thread``.
+pools survive across jobs. Synchronous bits (psycopg queue ops, blob staging)
+are pushed to threads via ``asyncio.to_thread``.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import shutil
+from pathlib import Path
+
+from lightrag import LightRAG
+from lightrag.base import DocStatus
+from lightrag.utils import compute_mdhash_id
+from lightrag.utils_pipeline import (
+    doc_status_field,
+    get_existing_doc_by_file_basename,
+    input_dir_path,
+    normalize_document_file_path,
+)
 
 from ..config import cfg
 from ..store import db, blobstore
-from ..rag import mineru_client, progress
+from ..rag import progress
 from ..rag.cache import RagCache
 from ..rag.factory import build_ingest_rag
 
 log = logging.getLogger("evo.worker")
+
+# Ingest as plain RAW text (no GPU parse) for these file kinds.
+_TEXT_KINDS = {"txt", "md"}
+
+# doc_status stage -> coarse progress percentage for the SSE bar.
+_STAGE_PCT = {
+    str(DocStatus.PENDING.value): 20,
+    str(DocStatus.PARSING.value): 35,
+    str(DocStatus.ANALYZING.value): 60,
+    str(DocStatus.PROCESSING.value): 80,
+}
 
 
 # ----------------------------------------------------------- sync DB helpers
@@ -36,11 +69,13 @@ def _claim_one() -> dict | None:
         return job
 
 
-def _finish_ok(file_id: str, name: str, job_id: str) -> None:
+def _finish_ok(file_id: str, doc_id: str | None, name: str, job_id: str, note: str = "") -> None:
     with db.connect() as conn:
         with conn.cursor() as cur:
             db.set_file_status(cur, file_id, "ready")
-            db.add_notification(cur, "system", "Source ready", f"Finished processing {name}.")
+            db.set_file_doc_id(cur, file_id, doc_id)
+            body = note or f"Finished processing {name}."
+            db.add_notification(cur, "system", "Source ready", body)
             db.set_job(cur, job_id, "done")
         conn.commit()
 
@@ -60,14 +95,103 @@ def _read_name(file_id: str) -> str:
             return db.file_name(cur, file_id)
 
 
-def _read_text_content(blob_path: str) -> list[dict]:
-    """Build a content list directly for plain text/markdown (no GPU needed)."""
-    with open(blob_path, "r", encoding="utf-8", errors="replace") as fh:
-        text = fh.read()
-    return [{"type": "text", "text": text, "page_idx": 0}]
+def _doc_owners(doc_id: str) -> list[str]:
+    with db.connect() as conn:
+        with conn.cursor() as cur:
+            return db.file_ids_for_doc_id(cur, doc_id)
+
+
+def _read_text(path: str) -> str:
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        return fh.read()
+
+
+# ----------------------------------------------------- naming / doc identity
+
+def _suffixed(name: str, n: int) -> str:
+    p = Path(name)
+    return f"{p.stem} ({n}){p.suffix}"
+
+
+async def _resolve_canonical_name(rag: LightRAG, file_id: str, name: str) -> str:
+    """Pick the basename this file will be known by inside LightRAG.
+
+    LightRAG dedups documents by canonical basename, but our files table allows
+    several uploads with the same display name. When another file already owns
+    a doc with this basename, disambiguate with `` (2)`` / `` (3)`` … suffixes
+    (visible in citations, so keep it human-readable). A basename owned by this
+    very file (job retry) is reused so processing resumes instead of forking.
+    """
+    candidate = normalize_document_file_path(name)
+    if candidate == "unknown_source":
+        candidate = f"{file_id}.bin"
+    n = 2
+    while True:
+        match = await get_existing_doc_by_file_basename(rag.doc_status, candidate)
+        if match is None:
+            return candidate
+        existing_doc_id = match[0]
+        owners = await asyncio.to_thread(_doc_owners, existing_doc_id)
+        if not owners or owners == [file_id]:
+            # Unclaimed (retry / pre-migration doc) — claim it and resume.
+            return candidate
+        candidate = _suffixed(normalize_document_file_path(name), n)
+        n += 1
 
 
 # ----------------------------------------------------------------- pipeline
+
+async def _publish_doc_progress(rag: LightRAG, ws: str, file_id: str, doc_id: str) -> None:
+    """Poll doc_status while the pipeline runs and mirror it to the SSE bar."""
+    last = ""
+    try:
+        while True:
+            await asyncio.sleep(2.0)
+            try:
+                doc = await rag.doc_status.get_by_id(doc_id)
+            except Exception:  # noqa: BLE001 — progress is best-effort
+                continue
+            if not doc:
+                continue
+            status = str(doc_status_field(doc, "status", ""))
+            if status and status != last:
+                last = status
+                pct = _STAGE_PCT.get(status)
+                if pct is not None:
+                    stage = "parsing" if status == str(DocStatus.PARSING.value) else "indexing"
+                    progress.publish(ws, file_id, stage, pct)
+    except asyncio.CancelledError:
+        pass
+
+
+def _stage_source(ws: str, local_path: str, canonical: str) -> Path:
+    """Copy the blob into ``INPUT_DIR/<workspace>/<canonical>`` for the parser."""
+    dest_dir = input_dir_path() / ws
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / canonical
+    shutil.copyfile(local_path, dest)
+    return dest
+
+
+def _cleanup_staged(ws: str, canonical: str) -> None:
+    """Remove the staged source + parse artifacts for one document."""
+    base = input_dir_path() / ws
+    parsed = base / "__parsed__"
+    targets = [
+        base / canonical,
+        parsed / canonical,  # archived source
+        parsed / f"{canonical}.parsed",
+        parsed / f"{canonical}.modal_raw",
+    ]
+    for t in targets:
+        try:
+            if t.is_dir():
+                shutil.rmtree(t, ignore_errors=True)
+            elif t.exists():
+                t.unlink()
+        except OSError:
+            log.debug("cleanup of %s failed", t, exc_info=True)
+
 
 async def process_job(cache: RagCache, job: dict) -> None:
     payload = job["payload"] or {}
@@ -83,32 +207,72 @@ async def process_job(cache: RagCache, job: dict) -> None:
     # the shared-volume path unchanged; B2/S3 downloads the object to a temp file.
     local_path, blob_cleanup = await asyncio.to_thread(blobstore.fetch_local, blob_path)
 
-    image_dir: str | None = None
+    rag = await cache.get(ws)
+    canonical = await _resolve_canonical_name(rag, file_id, name)
+    doc_id = compute_mdhash_id(canonical, prefix="doc-")
+    staged = False
     try:
-        # 1. Obtain a MinerU-style content list. Plain text/markdown is trivial
-        #    and skips the GPU; everything else is parsed on Modal (GPU MineRU).
-        progress.publish(ws, file_id, "parsing", 15)
-        if kind in {"txt", "md"}:
-            content_list = await asyncio.to_thread(_read_text_content, local_path)
+        track_id: str
+        if kind in _TEXT_KINDS:
+            text = await asyncio.to_thread(_read_text, local_path)
+            progress.publish(ws, file_id, "indexing", 40)
+            track_id = await rag.ainsert(input=text, ids=doc_id, file_paths=canonical)
         else:
-            content_list, image_dir = await asyncio.to_thread(
-                mineru_client.parse, local_path, name
+            await asyncio.to_thread(_stage_source, ws, local_path, canonical)
+            staged = True
+            progress.publish(ws, file_id, "parsing", 15)
+            track_id = await rag.apipeline_enqueue_documents(
+                input="",
+                file_paths=canonical,
+                docs_format="pending_parse",
+                parse_engine="modal",
+                # i/t/e: analyze images, tables and equations with the vlm role.
+                process_options="ite",
             )
-        progress.publish(ws, file_id, "parsed", 45)
+            poller = asyncio.create_task(_publish_doc_progress(rag, ws, file_id, doc_id))
+            try:
+                await rag.apipeline_process_enqueue_documents()
+            finally:
+                poller.cancel()
 
-        # 2. Build / fetch the workspace's RAGAnything and ingest.
-        rag = await cache.get(ws)
-        progress.publish(ws, file_id, "indexing", 55)
-        await rag.insert_content_list(
-            content_list, file_path=name, doc_id=file_id
+        # The pipeline reports per-document failures via doc_status, not
+        # exceptions — read the outcome explicitly.
+        doc = await rag.doc_status.get_by_id(doc_id)
+        status = str(doc_status_field(doc, "status", "")) if doc else ""
+        error = str(doc_status_field(doc, "error_msg", "") or "") if doc else ""
+        if status == str(DocStatus.PROCESSED.value):
+            await asyncio.to_thread(_finish_ok, file_id, doc_id, name, job["id"])
+            progress.publish(ws, file_id, "done", 100, status="ready")
+            return
+
+        # Duplicate detection. Two shapes:
+        # - post-parse content duplicate: OUR doc_id is FAILED with
+        #   metadata.is_duplicate=True;
+        # - enqueue-time duplicate: our doc never materializes and a `dup-*`
+        #   stub carrying this run's track_id records the skip.
+        meta = doc_status_field(doc, "metadata", {}) or {}
+        is_duplicate = bool(isinstance(meta, dict) and meta.get("is_duplicate"))
+        if not is_duplicate and not doc:
+            track_docs = await rag.aget_docs_by_track_id(track_id)
+            is_duplicate = any(
+                (doc_status_field(d, "metadata", {}) or {}).get("is_duplicate")
+                for d in track_docs.values()
+            )
+        if is_duplicate:
+            # The content is queryable via the original document; this file
+            # just doesn't own a LightRAG doc of its own.
+            note = f"{name}: content already ingested; skipped re-indexing."
+            await asyncio.to_thread(_finish_ok, file_id, None, name, job["id"], note)
+            progress.publish(ws, file_id, "done", 100, status="ready", message=note)
+            return
+
+        raise RuntimeError(
+            f"ingest did not complete (doc status: {status or 'missing'})"
+            + (f": {error}" if error else "")
         )
-        progress.publish(ws, file_id, "indexing", 90)
-
-        # 3. Mark ready + notify + close the job.
-        await asyncio.to_thread(_finish_ok, file_id, name, job["id"])
-        progress.publish(ws, file_id, "done", 100, status="ready")
     finally:
-        await asyncio.to_thread(mineru_client.cleanup, image_dir)
+        if staged:
+            await asyncio.to_thread(_cleanup_staged, ws, canonical)
         await asyncio.to_thread(blob_cleanup)
 
 
@@ -118,10 +282,11 @@ async def main_async() -> None:
     )
     cache = RagCache(build_ingest_rag, maxsize=cfg.lightrag_cache_size)
     log.info(
-        "worker up — ingest_model=%s embedding=%s modal=%s",
+        "worker up — ingest_model=%s embedding=%s modal=%s input_dir=%s",
         cfg.ingest_model,
         cfg.embedding_model,
         cfg.modal_parse_url or "(unset)",
+        os.getenv("INPUT_DIR", "(unset)"),
     )
 
     try:

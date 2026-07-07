@@ -32,7 +32,7 @@
 
   --body-font-size: 0.875rem;
   --body-font-weight: 500;
-  --body-line-height: 1.35;
+  --body-line-height: 1.45;
 
   --meta-font-size: 0.825rem;
   --meta-font-weight: 500;
@@ -79,9 +79,6 @@
   --surface-card-dark-bg: #e6e9ea; /* dark card */
   --surface-card-dark-fg: #222222;
   --surface-card-border: #e6e6e6;
-  --surface-rail-bg: #fcfcfc;
-  --surface-rail-fg: #222222;
-  --surface-rail-border: #e6e6e6;
   --surface-card-hover-bg: #f7f8f8;
   --surface-card-dark-hover-bg: #f1f3f2;
   --surface-darker-bg: #e0e5e2;
@@ -97,7 +94,7 @@
   /* Borders & lines */
   --border-default: #e6e6e6;
   --border-strong: #c5c5c5;
-  --divider: #ececec;
+  --divider: #e6e6e6;
 
   /* Actions (pairs) */
   --action-primary-bg: #222222;
@@ -106,10 +103,6 @@
   --action-accent-bg: #8c7bd9;
   --action-accent-fg: #ffffff;
   --action-accent-hover: #7866cf;
-  --action-outline-bg: #ffffff;
-  --action-outline-fg: #222222;
-  --action-outline-border: #e6e6e6;
-  --action-ghost-fg: #6b6b6b;
 
   /* Tinted containers (bg + fg) + solid signal color */
   /* system colors */
@@ -127,11 +120,12 @@
   --solid-error: #fd7287;
   --tint-accent-1-bg: #ece6f6;
   --tint-accent-1-fg: #5b4aa8;
-  --tint-accent-2-bg: #eaf3e6;
-  --tint-accent-2-fg: #3c5230;
+  --tint-accent-2-bg: #e7f6ee;
+  --tint-accent-2-fg: #2f7d56;
   --solid-accent-1: #8c7bd9;
   --solid-accent-2: #7bd9ab;
   /* user colors (used for assigned colors to workspaces/quiz/event/custom cards) */
+  /* TODO: provide a set of light colors with hover */
   --solid-purple: #8c7bd9;
   --solid-purple-fg: #ffffff;
   --solid-green: #7bd9ab;
@@ -176,11 +170,6 @@
   --surface-card-fg: #f1f3f0;
   --surface-card-fg-muted: #888d88;
   --surface-card-border: #2c302d;
-  --surface-rail-bg: #20241f;
-  --surface-rail-fg: #f1f3f0;
-  --surface-rail-border: #2c302d;
-  --surface-sidebar-bg: #121513;
-  --surface-sidebar-fg: #f1f3f0;
   --surface-topbar-bg: #2b302c;
   --surface-topbar-fg: #f1f3f0;
 

@@ -57,6 +57,25 @@ def set_file_status(cur, file_id: str, status: str) -> None:
     cur.execute("UPDATE files SET status=%s WHERE id=%s", (status, file_id))
 
 
+def set_file_doc_id(cur, file_id: str, doc_id: Optional[str]) -> None:
+    """Record the LightRAG document id backing this file (None = no doc)."""
+    cur.execute("UPDATE files SET doc_id=%s WHERE id=%s", (doc_id, file_id))
+
+
+def file_ids_for_doc_id(cur, doc_id: str) -> list[str]:
+    """Files (if any) already claiming this LightRAG doc id."""
+    cur.execute("SELECT id FROM files WHERE doc_id=%s", (doc_id,))
+    return [row[0] for row in cur.fetchall()]
+
+
+def file_names_for_ids(cur, file_ids: list[str]) -> list[str]:
+    """Display names for the given file ids (order not guaranteed)."""
+    if not file_ids:
+        return []
+    cur.execute("SELECT name FROM files WHERE id = ANY(%s)", (file_ids,))
+    return [row[0] for row in cur.fetchall()]
+
+
 def add_notification(cur, kind: str, title: str, body: str) -> None:
     cur.execute(
         "INSERT INTO notifications (id, kind, title, body) VALUES (%s,%s,%s,%s)",

@@ -1,14 +1,7 @@
 import { useState } from 'react';
-import { Button, Icon, Text } from '@/components/ui';
+import { Button, Icon, IconName, Text } from '@/components/ui';
 import { useGenerate } from '@/api/hooks';
-import type {
-  Chapter,
-  Deck,
-  GenerateOptions,
-  Material,
-  Quiz,
-  SourceFile,
-} from '@/api/types';
+import type { Chapter, Deck, GenerateOptions, Material, Quiz, SourceFile } from '@/api/types';
 import { m } from '@/i18n';
 import { GenerateFormDialog, type GenerateMode } from './GenerateFormDialog';
 import type { OpenItem } from '@/features/materials/openItem';
@@ -18,11 +11,11 @@ type GenerateResultData =
   | { kind: 'quiz'; quiz?: Quiz }
   | { kind: 'mindmap' | 'diagram'; material?: Material };
 
-const TILES: [GenerateMode, Parameters<typeof Icon>[0]['name'], string][] = [
+const TILES: [GenerateMode, IconName, string][] = [
   ['flashcards', 'flashcards', m.generate_flashcards()],
   ['quiz', 'quiz', m.generate_quiz()],
   ['mindmap', 'workspaces', 'Mindmap'],
-  ['diagram', 'grid', 'Diagram'],
+  ['diagram', 'chart', 'Diagram'],
 ];
 
 export function GeneratePanel({
@@ -46,30 +39,28 @@ export function GeneratePanel({
     setMode(null);
     // Reveal the freshly-generated artifact in the center pane.
     const materialId =
-      r.kind === 'quiz'
-        ? r.quiz?.id
-        : r.kind === 'flashcards'
-          ? r.deck?.id
-          : r.material?.id;
+      r.kind === 'quiz' ? r.quiz?.id : r.kind === 'flashcards' ? r.deck?.id : r.material?.id;
     if (materialId) onOpenItem?.({ kind: 'material', id: materialId });
   }
 
   return (
     <div className="flex flex-col gap-4 overflow-auto p-4">
-      <Text variant="subtitle">{m.generate_title()}</Text>
-      <div className="grid grid-cols-2 gap-3">
+      <h3 className="t-subtitle">{m.generate_title()}</h3>
+      <div className="flex flex-wrap gap-3">
         {TILES.map(([k, icon, label]) => (
-          <button
-            key={k}
-            onClick={() => {
-              setResult(null);
-              setMode(k);
-            }}
-            className="flex aspect-square flex-col items-center justify-center gap-2 rounded-card border border-line bg-surface text-fg transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-card"
-          >
-            <Icon name={icon} size={22} />
-            <span className="text-xs font-semibold">{label}</span>
-          </button>
+          <Button asChild key={k} size="lg" variant="outline">
+            <button
+              key={k}
+              onClick={() => {
+                setResult(null);
+                setMode(k);
+              }}
+              className="hover:bg-initial flex aspect-video w-30 flex-col items-center justify-center gap-2 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-card"
+            >
+              <Icon name={icon} size={22} />
+              <span className="text-xs font-semibold">{label}</span>
+            </button>
+          </Button>
         ))}
       </div>
 
@@ -116,8 +107,8 @@ function GenerateResult({
   }
 
   return (
-    <div className="bg-surface-hover-bg flex flex-col gap-2 rounded-card border border-line p-4">
-      <Text variant="body">{label}</Text>
+    <div className="flex flex-col gap-2 rounded-card border border-line bg-surface-hover-bg p-4">
+      <p>{label}</p>
       {open && onOpenItem && (
         <Button size="sm" variant="accent" iconRight="arrowRight" onClick={() => onOpenItem(open!)}>
           Open in view

@@ -8,12 +8,10 @@ const PdfView = lazy(() => import('./PdfView'));
 export function FileViewer({ file }: { file: SourceFile | null }) {
   if (!file) {
     return (
-      <div className="grid h-full place-items-center text-fg-muted">
+      <div className="grid h-full place-items-center">
         <div className="flex flex-col items-center gap-2">
           <Icon name="files" size={32} />
-          <Text variant="body" tone="muted">
-            Select a file to read it here.
-          </Text>
+          <p>Select a file to read it here.</p>
         </div>
       </div>
     );

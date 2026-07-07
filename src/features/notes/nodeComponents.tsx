@@ -81,7 +81,7 @@ function LinkElement(props: PlateElementProps) {
     <PlateElement
       {...props}
       as="a"
-      className="text-accent underline underline-offset-2"
+      className="text-action-accent underline underline-offset-2"
       attributes={{ ...props.attributes, href: url } as PlateElementProps['attributes']}
     >
       {props.children}
@@ -196,7 +196,11 @@ function ColumnGroup(props: PlateElementProps) {
 function Column(props: PlateElementProps) {
   const width = (props.element as { width?: string }).width;
   return (
-    <PlateElement {...props} className="min-w-0 flex-1" style={width ? { flexBasis: width } : undefined}>
+    <PlateElement
+      {...props}
+      className="min-w-0 flex-1"
+      style={width ? { flexBasis: width } : undefined}
+    >
       {props.children}
     </PlateElement>
   );
@@ -221,7 +225,11 @@ function Toc(props: PlateElementProps) {
 function Mention(props: PlateElementProps) {
   const value = String((props.element as { value?: string }).value ?? '');
   return (
-    <PlateElement {...props} as="span" className="rounded bg-tint-accent-1 px-1 text-tint-accent-1-fg">
+    <PlateElement
+      {...props}
+      as="span"
+      className="rounded bg-tint-accent-1 px-1 text-tint-accent-1-fg"
+    >
       <span contentEditable={false}>@{value}</span>
       {props.children}
     </PlateElement>
@@ -232,7 +240,11 @@ function Mention(props: PlateElementProps) {
 function DateElement(props: PlateElementProps) {
   const date = String((props.element as { date?: string }).date ?? '');
   return (
-    <PlateElement {...props} as="span" className="rounded bg-surface-hover-bg px-1 text-fg-secondary">
+    <PlateElement
+      {...props}
+      as="span"
+      className="rounded bg-surface-hover-bg px-1 text-fg-secondary"
+    >
       <span contentEditable={false}>{date || 'date'}</span>
       {props.children}
     </PlateElement>

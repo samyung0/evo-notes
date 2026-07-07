@@ -54,3 +54,4 @@ export { Text } from './Text';
 export { Textarea } from './TextArea';
 export { UserColorChooser } from './UserColorChooser';
 export { WorkspaceCard, WorkspaceCardSkeleton } from './WorkspaceCard';
+export { ButtonGroup, buttonGroupVariants } from './ButtonGroup';

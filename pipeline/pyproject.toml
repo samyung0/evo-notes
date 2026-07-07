@@ -1,13 +1,15 @@
 [project]
 name = "evo-pipeline"
-version = "0.2.0"
-description = "Evo Notes ingest + retrieval pipeline (RAG-Anything + official LightRAG)"
+version = "0.3.0"
+description = "Evo Notes ingest + retrieval pipeline (official LightRAG, post RAG-Anything merge)"
 requires-python = ">=3.10"
 dependencies = [
-  # RAG-Anything orchestration + official LightRAG with Postgres/AGE/pgvector.
-  "raganything>=1.0",
-  "lightrag-hku>=1.4",
+  # Official LightRAG (v1.5 merged the RAG-Anything multimodal pipeline) with
+  # Postgres/AGE/pgvector storages. Pinned <1.6: we implement a custom parser
+  # plugin against the 1.5 parser registry contract.
+  "lightrag-hku>=1.5.4,<1.6",
   "asyncpg>=0.29",           # LightRAG PG storages (KV/vector/graph/doc-status)
+  "pgvector>=0.3",           # pgvector.asyncpg registration for PG vector storage
   # Job queue + notifications over the shared Postgres.
   "psycopg[binary]>=3.1",
   # Model providers (OpenAI-compatible: OpenRouter / DeepSeek / Gemini).
@@ -19,13 +21,22 @@ dependencies = [
   # S3-compatible blob store (Backblaze B2) downloads in the ingest worker.
   "boto3>=1.34",
   "fastapi>=0.110",
+  "python-multipart>=0.0.9",  # FastAPI UploadFile (/transcribe) form parsing
   "uvicorn[standard]>=0.29",
   "pydantic>=2",
   "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8.0"]
+# vcrpy records the expensive LLM/embedding/VLM/Modal HTTP calls to YAML
+# cassettes so the suite replays them for free (see tests/README.md). Postgres
+# and Redis are plain TCP (not recorded) and stay live during tests — they cost
+# nothing. pytest-asyncio drives the async LightRAG entry points.
+test = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.24",
+  "vcrpy>=6.0",
+]
 
 [project.scripts]
 evo-worker = "pipeline.ingest.worker:main"
@@ -40,3 +51,7 @@ include = ["pipeline*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+  "cassette: integration test that replays recorded HTTP via a VCR cassette (needs live Postgres+Redis)",
+]

@@ -1,12 +1,13 @@
-"""Adapter functions mapping our role-based model spec onto RAG-Anything's three
-slots: ``llm_model_func``, ``vision_model_func`` and ``embedding_func``.
+"""Adapter functions mapping our role-based model spec onto LightRAG's slots:
+``llm_model_func``, the ``vlm`` role config, and ``embedding_func``.
 
 Routing (per the project's existing spec):
 - embedding      -> OpenRouter ``qwen/qwen3-embedding-4b`` (dim 2560, pinned)
 - ingest LLM     -> DeepSeek ``deepseek-v4-flash`` (cheap graph extraction)
 - query LLM      -> DeepSeek, defaults to ``deepseek-v4-pro``; ``deepseek-v4-flash``
                     stays reachable via a per-request contextvar dispatcher
-- vision/caption -> Gemini ``gemini-3.1-flash-lite-preview`` (DeepSeek is text-only)
+- vlm/caption    -> Gemini ``gemini-3.1-flash-lite-preview`` (DeepSeek is text-only);
+                    wired as LightRAG's ``vlm`` role for i/t/e multimodal analysis
 
 All providers are reached over the OpenAI-compatible API, so a single
 ``AsyncOpenAI`` client style works for every role.
@@ -30,20 +31,6 @@ query_model_override: contextvars.ContextVar[Optional[str]] = contextvars.Contex
     "query_model_override", default=None
 )
 
-# OpenAI client kwargs that are safe to forward to chat.completions. Everything
-# else LightRAG/RAG-Anything passes (hashing_kv, keyword_extraction, mode, ...)
-# is internal bookkeeping and must be dropped.
-_SAFE_CHAT_KWARGS = {
-    "temperature",
-    "max_tokens",
-    "top_p",
-    "stop",
-    "presence_penalty",
-    "frequency_penalty",
-    "response_format",
-    "seed",
-}
-
 _clients: dict[str, AsyncOpenAI] = {}
 
 
@@ -54,10 +41,6 @@ def _client(p: ProviderCfg) -> AsyncOpenAI:
         client = AsyncOpenAI(api_key=p.api_key or "missing", base_url=p.base_url or None)
         _clients[key] = client
     return client
-
-
-def _safe_chat_kwargs(kwargs: dict) -> dict:
-    return {k: v for k, v in kwargs.items() if k in _SAFE_CHAT_KWARGS}
 
 
 # --------------------------------------------------------------- embeddings
@@ -151,56 +134,34 @@ def make_query_llm_func() -> Callable:
     return llm_model_func
 
 
-# -------------------------------------------------------------------- vision
+# ----------------------------------------------------------------- vlm role
 
-def _as_data_url(image_data: str) -> str:
-    if image_data.startswith("data:"):
-        return image_data
-    return f"data:image/jpeg;base64,{image_data}"
+def make_vlm_func() -> Callable:
+    """Gemini func for LightRAG's ``vlm`` role (i/t/e multimodal analysis).
 
-
-def make_vision_func(text_fallback: Callable) -> Callable:
-    """Gemini multimodal caption func, matching RAG-Anything's expected shape.
-
-    RAG-Anything calls this with either ``image_data`` (base64, at ingest) or a
-    full OpenAI-style ``messages`` list (VLM-enhanced query). With neither, it is
-    a plain text call, which we route to the provided text fallback so a single
-    slot can serve both.
+    The merged pipeline calls the vlm role as
+    ``func(prompt, stream=False, image_inputs=[{base64, mime_type, ...}],
+    response_format={"type": "json_object"})``; ``openai_complete_if_cache``
+    natively renders ``image_inputs`` into an OpenAI-style multimodal message,
+    so this is a plain pass-through with Gemini credentials.
     """
     provider = cfg.vision
     model = cfg.vision_model
 
-    async def vision_model_func(
-        prompt: str = "",
+    async def vlm_model_func(
+        prompt: str,
         system_prompt: Optional[str] = None,
         history_messages: Optional[list] = None,
-        image_data: Optional[str] = None,
-        messages: Optional[list] = None,
         **kwargs: Any,
     ) -> str:
-        if messages:
-            chat = messages
-        elif image_data:
-            content = [{"type": "text", "text": prompt or "Describe this image."}]
-            content.append(
-                {"type": "image_url", "image_url": {"url": _as_data_url(image_data)}}
-            )
-            chat = []
-            if system_prompt:
-                chat.append({"role": "system", "content": system_prompt})
-            chat.append({"role": "user", "content": content})
-        else:
-            return await text_fallback(
-                prompt,
-                system_prompt=system_prompt,
-                history_messages=history_messages or [],
-                **kwargs,
-            )
-
-        client = _client(provider)
-        resp = await client.chat.completions.create(
-            model=model, messages=chat, **_safe_chat_kwargs(kwargs)
+        return await openai_complete_if_cache(
+            model,
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages or [],
+            base_url=provider.base_url,
+            api_key=provider.api_key,
+            **kwargs,
         )
-        return resp.choices[0].message.content or ""
 
-    return vision_model_func
+    return vlm_model_func

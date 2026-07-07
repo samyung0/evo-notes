@@ -20,7 +20,11 @@ UPDATE cards SET srs = jsonb_build_object(
   'reps', 2, 'lapses', 0, 'state', 2, 'learning_steps', 0
 ) WHERE known = true AND COALESCE(srs->>'state', '0') = '0';
 
-CREATE INDEX IF NOT EXISTS cards_due_idx ON cards (((srs->>'due')::timestamptz));
+-- NOTE: (srs->>'due')::timestamptz cannot be indexed — the text->timestamptz
+-- cast is only STABLE (timezone-dependent), and Postgres requires IMMUTABLE
+-- expressions in indexes. Index the raw text instead: the stored values are
+-- uniform ISO-8601 UTC strings, which sort chronologically.
+CREATE INDEX IF NOT EXISTS cards_due_idx ON cards ((srs->>'due'));
 
 /* ---- per-user mistakes pool ------------------------------------------------ */
 

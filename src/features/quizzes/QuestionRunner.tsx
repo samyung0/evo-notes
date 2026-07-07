@@ -69,7 +69,7 @@ export function QuestionRunner({
                             ? 'border-solid-error bg-solid-error text-white'
                             : 'border-line-strong'
                         : selected
-                          ? 'border-accent bg-accent text-accent-fg'
+                          ? 'text-action-accent-fg bg-action-accent border-accent'
                           : 'border-line-strong'
                     )}
                   >

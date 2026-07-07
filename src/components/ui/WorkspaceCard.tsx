@@ -25,7 +25,7 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
         params={{ workspaceId: workspace.id }}
         preload="intent"
       >
-        <Card interactive border="solid" className="relative gap-4 p-4.5 xl:p-5.5">
+        <Card interactive border="solid" className="relative h-full gap-4 p-4.5 xl:p-5.5">
           <span
             className={cn('size-fit rounded-card p-3', workspace.color === 'transparent' && 'px-1')}
             style={{ background: c.bg, color: c.fg }}

@@ -59,3 +59,9 @@ data/
 *.sqlite
 *.sqlite3
 *.db
+
+# --- Test scratch (pipeline record-replay) ---
+# Cassettes under pipeline/tests/cassettes/ ARE committed (they are the replay
+# fixtures). These are only transient debug/probe artifacts.
+pipeline/tests/_match_debug.txt
+pipeline/tests/_probe.py

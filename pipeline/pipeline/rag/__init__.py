@@ -1,2 +1,2 @@
-"""RAG wiring: model adapters, the per-workspace RAGAnything factory + cache,
-and the Redis progress publisher."""
+"""RAG wiring: model adapters, the Modal parser engine, the per-workspace
+LightRAG factory + cache, and the Redis progress publisher."""

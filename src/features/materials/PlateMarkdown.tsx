@@ -41,7 +41,9 @@ function renderLeaf(node: Node, key: number) {
   if (node.underline) el = <u>{el}</u>;
   if (node.strikethrough) el = <s>{el}</s>;
   if (node.code)
-    el = <code className="rounded bg-surface-hover-bg px-1 py-0.5 font-mono text-[0.85em]">{el}</code>;
+    el = (
+      <code className="rounded bg-surface-hover-bg px-1 py-0.5 font-mono text-[0.85em]">{el}</code>
+    );
   return <span key={key}>{el}</span>;
 }
 
@@ -89,7 +91,7 @@ function RenderNode({ node }: { node: Node }) {
           href={String(node.url ?? '#')}
           target="_blank"
           rel="noreferrer"
-          className="text-accent underline underline-offset-2"
+          className="text-action-accent underline underline-offset-2"
         >
           {renderChildren(node.children)}
         </a>

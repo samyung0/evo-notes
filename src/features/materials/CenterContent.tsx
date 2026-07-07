@@ -37,7 +37,7 @@ function MaterialCenter({ materialId }: { materialId: string }) {
       <>
         <div className="flex items-center gap-3 border-b border-divider px-5 py-4">
           <Icon name="workspaces" className="size-5.5" />
-          <h3 className="t-subtitle translate-y-px truncate">--</h3>
+          <h2 className="t-subtitle translate-y-px truncate">--</h2>
         </div>
         <div className="flex-1 overflow-auto p-6">
           <Skeleton className="h-full min-h-[40vh] w-full" />
@@ -67,7 +67,7 @@ function EmptyCenter() {
     <>
       <div className="flex items-center gap-3 border-b border-divider px-5 py-4">
         <Icon name="files" className="size-5.5" />
-        <h3 className="t-subtitle translate-y-px truncate">--</h3>
+        <h2 className="t-subtitle translate-y-px truncate">--</h2>
       </div>
       <div className="grid flex-1 place-items-center p-6 text-fg-muted">
         <div className="flex flex-col items-center gap-2">
@@ -86,7 +86,7 @@ function Header({ item }: { item: OpenItem }) {
   return (
     <div className="flex items-center gap-3 border-b border-divider px-5 py-4">
       <Icon name={icon} className="size-5.5" />
-      <h3 className="t-subtitle translate-y-px truncate">{title ?? '--'}</h3>
+      <h2 className="t-subtitle translate-y-px truncate">{title ?? '--'}</h2>
     </div>
   );
 }

@@ -7,7 +7,7 @@
 # - redis     : pub/sub bus for live ingest progress (worker -> server -> SSE).
 # - server    : Go gateway (the frontend's /api). Writes uploads to evo_blobs,
 #               subscribes to Redis and fans progress out over SSE.
-# - worker    : Python ingest worker (RAG-Anything). Parses on Modal (GPU MineRU),
+# - worker    : Python ingest worker (LightRAG). Parses on Modal (GPU MineRU),
 #               builds the LightRAG graph in Postgres, publishes progress.
 # - retrieval : Python FastAPI chat/generate over the per-workspace LightRAG.
 #
@@ -25,7 +25,11 @@ services:
       POSTGRES_PASSWORD: evo
       POSTGRES_DB: evo
     ports:
+      # 5432 for the usual case; 5433 is an escape hatch for hosts that already
+      # run a native Postgres on 5432 (which would otherwise shadow this one for
+      # host-side tools like the pytest suite — see pipeline/tests/README.md).
       - '5432:5432'
+      - '5433:5432'
     volumes:
       - evo_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -63,9 +67,9 @@ services:
       B2_PRESIGN_TTL: ${B2_PRESIGN_TTL:-}
       REDIS_URL: redis://redis:6379/0
       # Vestigial labels stored on the job payload; the worker always uses
-      # RAG-Anything + Modal MineRU regardless.
+      # LightRAG + Modal MineRU regardless.
       EVO_PARSER: ${EVO_PARSER:-mineru}
-      EVO_ENGINE: ${EVO_ENGINE:-raganything}
+      EVO_ENGINE: ${EVO_ENGINE:-lightrag}
       PIPELINE_URL: http://retrieval:8001
       APP_URL: ${APP_URL:-http://localhost:5173}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
@@ -106,10 +110,12 @@ services:
       REDIS_URL: redis://redis:6379/0
       WORKING_DIR: /data/rag_storage
       EVO_LIGHTRAG_CACHE_SIZE: ${EVO_LIGHTRAG_CACHE_SIZE:-16}
-      # Modal GPU MineRU parse service.
+      # Modal GPU MineRU parse service (custom "modal" LightRAG parser engine).
       MODAL_PARSE_URL: ${MODAL_PARSE_URL:-}
       MODAL_PARSE_TOKEN: ${MODAL_PARSE_TOKEN:-}
+      MODAL_PARSE_TIMEOUT: ${MODAL_PARSE_TIMEOUT:-600}
       EVO_PARSE_METHOD: ${EVO_PARSE_METHOD:-auto}
+      MAX_PARALLEL_PARSE_MODAL: ${MAX_PARALLEL_PARSE_MODAL:-2}
       # Embeddings (OpenRouter) — EMBEDDING_DIM is permanent for the vector store.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}

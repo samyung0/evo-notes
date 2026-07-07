@@ -46,10 +46,18 @@ export interface MenuProps extends VariantProps<typeof menuVariants> {
   trigger?: ReactNode;
   align?: 'start' | 'center' | 'end';
   className?: string;
+  iconContainerClassName?: string;
 }
 
 /** Unified action menu — Popover-backed, thick-stroke vertical three-dot used app-wide. */
-export function Menu({ items, trigger, align = 'end', variant = 'default', className }: MenuProps) {
+export function Menu({
+  items,
+  trigger,
+  align = 'end',
+  variant = 'default',
+  iconContainerClassName,
+  className,
+}: MenuProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -62,6 +70,7 @@ export function Menu({ items, trigger, align = 'end', variant = 'default', class
             size="sm"
             strokeWidth={3.5}
             label="Open menu"
+            className={iconContainerClassName}
           />
         )}
       </PopoverTrigger>

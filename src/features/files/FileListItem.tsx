@@ -51,7 +51,7 @@ export function FileListItem({
           onClick={() => !processing && onOpen(file.id)}
           disabled={processing}
           className={cn(
-            'flex w-full items-center gap-2 rounded-row px-1.5 py-2 text-left text-sm',
+            'flex w-full items-center gap-2 rounded-row px-1.5 py-1.5 text-left',
             active ? 'font-medium text-fg' : 'text-fg-secondary',
             processing && 'cursor-default'
           )}
@@ -62,6 +62,7 @@ export function FileListItem({
         </button>
         <HoverActions
           className="absolute top-1/2 right-1 -translate-y-1/2"
+          iconContainerClassName="hover:bg-unset"
           items={[
             {
               label: m.action_rename(),

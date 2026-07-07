@@ -11,12 +11,14 @@ const buttonVariants = cva(
       variant: {
         primary:
           'border border-transparent bg-action text-action-fg outline-offset-2 hover:bg-action-hover focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-action',
-        accent: 'border border-transparent bg-accent text-accent-fg hover:bg-accent-hover',
+        accent:
+          'text-action-accent-fg bg-action-accent hover:bg-action-accent-hover border border-transparent',
         outline: 'border border-line bg-surface text-fg hover:bg-surface-hover-bg',
         surface: 'border border-transparent bg-surface text-fg hover:bg-surface-hover-bg',
         ghost: 'border-none text-fg',
         'ghost-hover': 'border-none text-fg hover:bg-surface-hover-bg',
         'ghost-link': 'border-none text-link hover:text-link-hover',
+        gray: 'bg-page text-surface-dark-fg hover:bg-surface-dark',
       },
       size: {
         sm: 'gap-[7px] rounded-button px-4 py-2 text-[0.8125rem]',

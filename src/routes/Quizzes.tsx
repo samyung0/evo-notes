@@ -69,7 +69,7 @@ function AllQuizzes() {
             key={q.id}
             interactive
             border="solid"
-            className="relative gap-3 p-4.5 xl:p-5.5"
+            className="relative h-full gap-3 p-4.5 xl:p-5.5"
             onClick={() => setInfo(q)}
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-accent-1 text-tint-accent-1-fg">
@@ -236,8 +236,7 @@ export default function Quizzes() {
     createQuiz.mutate(
       { name: 'Untitled quiz', questions: [] },
       {
-        onSuccess: (quiz) =>
-          navigate({ to: '/quizzes/$quizId/edit', params: { quizId: quiz.id } }),
+        onSuccess: (quiz) => navigate({ to: '/quizzes/$quizId/edit', params: { quizId: quiz.id } }),
       }
     );
   }

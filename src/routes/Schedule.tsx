@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
-import {
-  Card,
-  HoverActions,
-  Icon,
-  IconButton,
-  SegmentedControl,
-  Skeleton,
-} from '@/components/ui';
+import { Card, HoverActions, Icon, IconButton, SegmentedControl, Skeleton } from '@/components/ui';
 import { userColorPair } from '@/lib/userColor';
 import { useDeleteLabel, useEvents, useLabels } from '@/api/hooks';
 import { useDialogs } from '@/stores/dialogs';
@@ -218,6 +211,7 @@ export default function Schedule() {
               icon="plus"
               variant="gray"
               label="New event"
+              size="lg"
               onClick={() => openEventForm()}
             />
           }

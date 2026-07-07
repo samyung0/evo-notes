@@ -14,7 +14,7 @@ FROM pgvector/pgvector:pg16 AS build
 ARG AGE_REF
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential git flex bison postgresql-server-dev-16 \
+        build-essential git ca-certificates flex bison postgresql-server-dev-16 \
     && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 --branch "${AGE_REF}" https://github.com/apache/age.git /age
 WORKDIR /age

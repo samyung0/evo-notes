@@ -64,7 +64,7 @@ export function Card({
         raised && 'shadow-card',
         interactive &&
           'cursor-pointer transition-all duration-100 hover:-translate-y-0.5 hover:shadow-card',
-        (!hoverBackgroundColorChange || !interactive) && 'hover:bg-unset',
+        (!hoverBackgroundColorChange || !interactive) && 'hover:bg-unset', //todo
         className
       )}
       style={{ ...style }}

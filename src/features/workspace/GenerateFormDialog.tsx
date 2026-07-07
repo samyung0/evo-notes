@@ -22,7 +22,15 @@ import { m } from '@/i18n';
 
 export type GenerateMode = 'flashcards' | 'quiz' | 'mindmap' | 'diagram';
 
-const Q_TYPES: QuestionType[] = ['mcq', 'multi', 'boolean', 'fill', 'short', 'matching', 'ordering'];
+const Q_TYPES: QuestionType[] = [
+  'mcq',
+  'multi',
+  'boolean',
+  'fill',
+  'short',
+  'matching',
+  'ordering',
+];
 const Q_TYPE_LABEL: Record<QuestionType, string> = {
   mcq: 'Multiple choice',
   multi: 'Multi-select',
@@ -66,8 +74,8 @@ function Chip({
       className={cn(
         'rounded-pill border px-2.5 py-1 text-xs font-medium transition-colors',
         active
-          ? 'border-accent bg-accent text-accent-fg'
-          : 'hover:bg-surface-hover-bg border-line bg-surface text-fg-secondary'
+          ? 'text-action-accent-fg bg-action-accent border-accent'
+          : 'border-line bg-surface text-fg-secondary hover:bg-surface-hover-bg'
       )}
     >
       {children}

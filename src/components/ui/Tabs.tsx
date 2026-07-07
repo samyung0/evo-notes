@@ -14,7 +14,7 @@ const norm = (t: Tab) => (typeof t === 'string' ? { value: t, label: t } : t);
 
 export function Tabs({ tabs, value, onChange, className, bottomBorder = true }: TabsProps) {
   return (
-    <div className={cn('flex gap-1', bottomBorder && 'border-b border-divider', className)}>
+    <div className={cn('flex w-full gap-1', bottomBorder && 'border-b border-divider', className)}>
       {tabs.map((tab) => {
         const t = norm(tab);
         const active = t.value === value;

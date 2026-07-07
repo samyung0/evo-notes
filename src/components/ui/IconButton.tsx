@@ -5,23 +5,25 @@ import { cva, VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';
 
 const iconButtonVariants = cva(
-  'relative inline-flex cursor-pointer items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-action',
+  'relative inline-flex cursor-pointer items-center justify-center p-2.5 transition-colors focus-visible:ring-2 focus-visible:ring-action disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
         dark: 'bg-action text-action-fg outline-offset-2 hover:bg-action-hover focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-action',
-        accent: 'bg-accent text-accent-fg hover:bg-accent-hover',
+        accent: 'bg-action-accent text-action-accent-fg hover:bg-action-accent-hover',
+        'accent-light': 'bg-tint-accent-1 text-tint-accent-1-fg hover:bg-solid-accent-1/30',
         neutral: 'bg-surface text-surface-fg hover:bg-surface-hover-bg',
-        gray: 'bg-page text-surface-dark-fg hover:bg-surface-dark',
+        gray: 'bg-page text-fg hover:bg-surface-dark',
+        'dark-gray': 'bg-surface-dark text-fg hover:bg-surface-dark-hover-bg',
         ghost: 'bg-transparent text-fg',
         outline: 'border border-line bg-transparent text-fg hover:bg-surface-hover-bg',
         'ghost-hover': 'bg-transparent text-fg hover:bg-surface-hover-bg',
       },
       size: {
-        xs: 'size-7 rounded-row [&>svg]:size-[14px]',
-        sm: 'size-9 rounded-row [&>svg]:size-[18px]',
-        md: '[&>svg]:size-5. size-10 rounded-button',
-        lg: 'size-11 rounded-button [&>svg]:size-6',
+        xs: 'rounded-row [&>svg]:size-[14px]',
+        sm: 'rounded-row [&>svg]:size-[17px]',
+        md: 'rounded-button [&>svg]:size-5',
+        lg: 'rounded-button [&>svg]:size-6',
       },
     },
     defaultVariants: {
