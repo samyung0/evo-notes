@@ -6,15 +6,15 @@ are cached on a Modal Volume so warm starts skip the multi-GB download.
 
 Cold-start strategy (in layers):
     1. Models load ONCE per container via ``@modal.enter`` using MineRU's
-       in-process Python API (``mineru.cli.common.do_parse`` + its
+       in-process Python API (``mineru.cli.common.aio_do_parse`` + its
        ``ModelSingleton``). Warm requests skip model loading entirely — the old
        CLI-subprocess design re-imported torch and reloaded all weights on
        every single request.
-    2. CPU memory snapshots (``enable_memory_snapshot=True``) checkpoint the
-       process after the heavy imports (torch + the full MineRU pipeline
-       graph), so cold boots skip most interpreter/import cost. Model weights
-       themselves load in the post-restore phase because the GPU (and the
-       weights Volume) are only attached after restore.
+    2. GPU memory snapshots (``enable_memory_snapshot=True`` +
+       ``experimental_options={"enable_gpu_snapshot": True}``) checkpoint the
+       process AFTER the models are loaded onto the GPU and warmed up, so cold
+       boots restore straight into a ready-to-serve state instead of paying
+       imports + weight loading + vLLM engine init (~minutes) on every boot.
 
 Deploy:
     modal deploy modal/mineru_app.py
@@ -47,6 +47,15 @@ CACHE_DIR = "/cache"
 # (same default the CLI used before this refactor).
 LANG = "ch"
 
+# hybrid = MinerU2.5 VLM for layout/tables/formulas + pipeline-style native
+# text extraction and per-language OCR (higher accuracy, low hallucination).
+# The async vLLM engine is the only vlm backend usable from ``aio_do_parse``
+# (the sync engine's LLM entrypoint is not thread-safe and MinerU refuses to
+# mix sync/async engine modes). Pinned rather than "hybrid-auto-engine" so the
+# backend can't silently change under a redeploy — the GPU memory snapshot
+# captures the fully-initialized engine, so determinism matters here.
+BACKEND = "hybrid-vllm-async-engine"
+
 # Cache MinerU/HF model weights across cold starts.
 model_volume = modal.Volume.from_name("evo-mineru-models", create_if_missing=True)
 
@@ -56,12 +65,17 @@ token_secret = modal.Secret.from_name("evo-mineru-token")
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("libgl1", "libglib2.0-0", "libgomp1")
-    .pip_install("mineru[core]", "fastapi[standard]", "python-multipart")
+    # [all] (vs the old [core]) pulls in vllm, required by the hybrid backend's
+    # local inference engine. hybrid itself needs mineru>=2.7.0.
+    .pip_install("mineru[all]>=2.7.0", "fastapi[standard]", "python-multipart")
     .env(
         {
             "MINERU_MODEL_SOURCE": "huggingface",
             "HF_HOME": f"{CACHE_DIR}/huggingface",
             "MINERU_DEVICE_MODE": "cuda",
+            # torch.compile with parallel inductor threads is a known cause of
+            # GPU-memory-snapshot capture failures (see Modal snapshot docs).
+            "TORCHINDUCTOR_COMPILE_THREADS": "1",
         }
     )
 )
@@ -113,14 +127,16 @@ def _collect_outputs(out_dir: str) -> dict:
     return {"content_list": content_list, "images": images, "md": md}
 
 
-def _parse_document(data: bytes, name: str, parse_method: str) -> dict:
+async def _parse_document(data: bytes, name: str, parse_method: str) -> dict:
     """Parse one document in-process (models come from the warm ModelSingleton).
 
-    Blocking (GPU inference + file IO); callers run it via ``asyncio.to_thread``.
+    Must always run on the container's main event loop: vLLM's async engine
+    binds its background tasks to the loop it was created on (during the
+    warmup parse), and using it from another loop breaks it.
     """
     from pathlib import Path
 
-    from mineru.cli.common import do_parse, read_fn
+    from mineru.cli.common import aio_do_parse, read_fn
 
     stem = Path(os.path.basename(name)).stem or "document"
 
@@ -134,12 +150,12 @@ def _parse_document(data: bytes, name: str, parse_method: str) -> dict:
 
         out_dir = os.path.join(work, "out")
         os.makedirs(out_dir, exist_ok=True)
-        do_parse(
+        await aio_do_parse(
             output_dir=out_dir,
             pdf_file_names=[stem],
             pdf_bytes_list=[pdf_bytes],
             p_lang_list=[LANG],
-            backend="pipeline",
+            backend=BACKEND,
             parse_method=parse_method or "auto",
             # Skip artifacts nobody downloads: debug PDFs and raw model dumps.
             f_draw_layout_bbox=False,
@@ -159,30 +175,28 @@ def _parse_document(data: bytes, name: str, parse_method: str) -> dict:
     timeout=900,
     scaledown_window=300,  # keep the container ~5 min after the last request
     enable_memory_snapshot=True,
+    # GPU memory snapshots (alpha): the checkpoint also captures GPU state, so
+    # the loaded VLM + warm vLLM engine restore directly instead of being
+    # rebuilt after every cold boot.
+    experimental_options={"enable_gpu_snapshot": True},
 )
-# max_inputs=2: the models are loaded once and shared, and MineRU 3.x guards
-# inference with per-model locks, so two in-flight parses can overlap CPU work
-# (pdfium rasterization, md generation) without doubling VRAM. The old design
-# ran 4 concurrent CLI subprocesses = 4 full model copies on one 24 GB L4.
-@modal.concurrent(max_inputs=2)
+# No @modal.concurrent: one input per container. The VLM's KV cache plus the
+# pipeline OCR models already budget most of the L4's 24 GB VRAM; a second
+# in-flight document risks OOM for little gain, so overflow requests scale out
+# to a fresh container (restored from snapshot) instead.
 class MineruParser:
     @modal.enter(snap=True)
-    def preimport(self) -> None:
-        # Captured in the CPU memory snapshot: torch + the entire MineRU
-        # pipeline import graph. Must not touch the GPU (none is attached in
-        # the snapshot phase) and must not read model weights (the Volume is
-        # remounted after restore).
-        import mineru.cli.common  # noqa: F401
-        import mineru.backend.pipeline.pipeline_analyze  # noqa: F401
-
-    @modal.enter(snap=False)
-    def load_models(self) -> None:
-        # Runs after snapshot restore, with the GPU attached. Parse a tiny
-        # synthetic page through the real request path so every model
-        # (layout + OCR + formula + table) lands in the process-wide
-        # ModelSingleton under exactly the keys do_parse will use — an eager
-        # ``get_model`` call warms a different key and the first request
-        # still paid ~8s of lazy MFR-model loading.
+    async def load_models(self) -> None:
+        # Everything here is captured in the GPU memory snapshot (with
+        # enable_gpu_snapshot the GPU *is* attached during the snap phase, and
+        # the weights Volume is readable). Parse a tiny synthetic page through
+        # the real request path so the full hybrid stack — the MinerU2.5 VLM
+        # inside its async vLLM engine plus the per-language OCR models —
+        # lands in the process-wide ModelSingleton under exactly the keys
+        # aio_do_parse will use; restored containers then serve their first
+        # request with zero lazy loading. Async on purpose: Modal runs async
+        # hooks on the same event loop that serves the ASGI app, so the vLLM
+        # engine is created on the loop it will be used from.
         import io
 
         from PIL import Image as PILImage
@@ -192,7 +206,7 @@ class MineruParser:
         ImageDraw.Draw(img).text((100, 100), "warm up", fill="black")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
-        _parse_document(buf.getvalue(), "warmup.png", "auto")
+        await _parse_document(buf.getvalue(), "warmup.png", "auto")
 
     @modal.asgi_app()
     def web(self):
@@ -203,8 +217,6 @@ class MineruParser:
         # in the image — exactly the kind of transitive-version breakage a
         # long-lived serverless endpoint should not be fragile to. Reading the form
         # directly keeps this endpoint working regardless of those versions.
-        import asyncio
-
         from starlette.applications import Starlette
         from starlette.requests import Request
         from starlette.responses import JSONResponse
@@ -233,7 +245,7 @@ class MineruParser:
             data = await upload.read()
 
             try:
-                result = await asyncio.to_thread(_parse_document, data, name, parse_method)
+                result = await _parse_document(data, name, parse_method)
             except Exception as e:  # noqa: BLE001 — surface parse failures as 500 JSON
                 return JSONResponse({"detail": f"parse failed: {e}"}, status_code=500)
             return JSONResponse(result)
