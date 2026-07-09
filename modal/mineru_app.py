@@ -30,6 +30,7 @@ Contract (matches pipeline/pipeline/rag/modal_parser.py):
     Authorization: Bearer <MINERU_PARSE_TOKEN>
     -> {"content_list": [...], "images": {"<name>": "<base64>"}, "md": "..."}
 """
+
 from __future__ import annotations
 
 import base64
@@ -43,18 +44,25 @@ import modal
 
 CACHE_DIR = "/cache"
 
-# MineRU's OCR models are per-language; "ch" handles both Chinese and English
-# (same default the CLI used before this refactor).
+# p_lang_list only affects the ``pipeline`` backend (it selects the per-language
+# PP-OCR model). For ``vlm`` and ``hybrid`` backends MineRU ignores this value
+# entirely — the MinerU2.5 VLM does native multilingual OCR — so with the hybrid
+# backend below LANG is effectively a no-op kept only for the aio_do_parse
+# contract. As of 3.4 "ch" also covers Traditional Chinese, Japanese and Latin
+# (those standalone OCR options were merged into the ch model).
 LANG = "ch"
 
-# hybrid = MinerU2.5 VLM for layout/tables/formulas + pipeline-style native
-# text extraction and per-language OCR (higher accuracy, low hallucination).
-# The async vLLM engine is the only vlm backend usable from ``aio_do_parse``
-# (the sync engine's LLM entrypoint is not thread-safe and MinerU refuses to
-# mix sync/async engine modes). Pinned rather than "hybrid-auto-engine" so the
-# backend can't silently change under a redeploy — the GPU memory snapshot
-# captures the fully-initialized engine, so determinism matters here.
-BACKEND = "hybrid-vllm-async-engine"
+# hybrid = MinerU2.5 VLM for layout/tables/formulas + native multilingual OCR
+# text extraction (high accuracy, low hallucination).
+# 3.x consolidated the backend names: the old engine-specific pins like
+# "hybrid-vllm-async-engine" / "hybrid-auto-engine" no longer validate
+# (mineru.cli.backend_options.normalize_backend would raise ValueError). The
+# only public hybrid local backend is now "hybrid-engine"; routed through
+# ``aio_do_parse`` it auto-selects the *async* vLLM engine (is_async=True),
+# which is exactly what this event-loop-bound app needs. Only vllm is installed
+# in the image, so "auto" resolves deterministically across redeploys — the GPU
+# memory snapshot still captures the fully-initialized engine.
+BACKEND = "hybrid-engine"
 
 # Cache MinerU/HF model weights across cold starts.
 model_volume = modal.Volume.from_name("evo-mineru-models", create_if_missing=True)
@@ -66,8 +74,11 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("libgl1", "libglib2.0-0", "libgomp1")
     # [all] (vs the old [core]) pulls in vllm, required by the hybrid backend's
-    # local inference engine. hybrid itself needs mineru>=2.7.0.
-    .pip_install("mineru[all]>=2.7.0", "fastapi[standard]", "python-multipart")
+    # local inference engine. Pinned to the 3.4.x line: 3.4 upgrades pipeline OCR
+    # to PP-OCRv6 and the hybrid VLM to MinerU2.5-Pro with native multilingual
+    # OCR. Capped below 3.5 so a redeploy can't silently pull a new major that
+    # changes backend names or the aio_do_parse contract this app depends on.
+    .pip_install("mineru[all]>=3.4.3,<3.5", "fastapi[standard]", "python-multipart")
     .env(
         {
             "MINERU_MODEL_SOURCE": "huggingface",
@@ -89,7 +100,9 @@ def download_models() -> None:
     # `mineru-models-download` ships with the package; fall back to a tiny parse
     # that triggers the lazy download if the CLI name changes between versions.
     try:
-        subprocess.run(["mineru-models-download", "-s", "huggingface", "-m", "all"], check=True)
+        subprocess.run(
+            ["mineru-models-download", "-s", "huggingface", "-m", "all"], check=True
+        )
     except Exception:
         with tempfile.TemporaryDirectory() as d:
             sample = os.path.join(d, "warm.txt")
@@ -101,7 +114,9 @@ def download_models() -> None:
 
 def _collect_outputs(out_dir: str) -> dict:
     """Collect MineRU's normalized outputs from its output directory tree."""
-    matches = glob.glob(os.path.join(out_dir, "**", "*_content_list.json"), recursive=True)
+    matches = glob.glob(
+        os.path.join(out_dir, "**", "*_content_list.json"), recursive=True
+    )
     if not matches:
         raise RuntimeError("mineru produced no *_content_list.json")
     content_path = matches[0]
@@ -173,7 +188,7 @@ async def _parse_document(data: bytes, name: str, parse_method: str) -> dict:
     volumes={CACHE_DIR: model_volume},
     secrets=[token_secret],
     timeout=900,
-    scaledown_window=300,  # keep the container ~5 min after the last request
+    scaledown_window=60,  # keep the container ~5 min after the last request
     enable_memory_snapshot=True,
     # GPU memory snapshots (alpha): the checkpoint also captures GPU state, so
     # the loaded VLM + warm vLLM engine restore directly instead of being
@@ -197,16 +212,45 @@ class MineruParser:
         # request with zero lazy loading. Async on purpose: Modal runs async
         # hooks on the same event loop that serves the ASGI app, so the vLLM
         # engine is created on the loop it will be used from.
+        #
+        # This method runs ONLY when Modal builds the snapshot (snap=True). If
+        # you see the "[snapshot-build] warmup" logs below on an ordinary cold
+        # boot, the snapshot is NOT being restored — that's the exact failure
+        # this whole design guards against, so it's logged loudly on purpose.
         import io
+        import time
 
         from PIL import Image as PILImage
         from PIL import ImageDraw
+
+        t0 = time.perf_counter()
+        print(
+            "[snapshot-build] warmup: loading models + engine init (this is the slow path)",
+            flush=True,
+        )
 
         img = PILImage.new("RGB", (800, 600), "white")
         ImageDraw.Draw(img).text((100, 100), "warm up", fill="black")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         await _parse_document(buf.getvalue(), "warmup.png", "auto")
+
+        print(
+            f"[snapshot-build] warmup done in {time.perf_counter() - t0:.1f}s",
+            flush=True,
+        )
+
+    @modal.enter(snap=False)
+    def after_restore(self) -> None:
+        # Runs on EVERY container start AFTER a snapshot restore (snap=False).
+        # If the GPU snapshot works, reaching this point means the VLM + vLLM
+        # engine are already live in this process — the first /file_parse should
+        # then be ~parse-time only, with no minutes-long engine init. The
+        # timestamp gives a client-visible anchor for the cold-boot moment.
+        import time
+
+        self._restored_monotonic = time.perf_counter()
+        print("[cold-boot] container ready (restored from snapshot)", flush=True)
 
     @modal.asgi_app()
     def web(self):
@@ -217,6 +261,8 @@ class MineruParser:
         # in the image — exactly the kind of transitive-version breakage a
         # long-lived serverless endpoint should not be fragile to. Reading the form
         # directly keeps this endpoint working regardless of those versions.
+        import time
+
         from starlette.applications import Starlette
         from starlette.requests import Request
         from starlette.responses import JSONResponse
@@ -230,7 +276,14 @@ class MineruParser:
             return auth.startswith("Bearer ") and auth[7:] == expected
 
         async def healthz(_request: Request) -> JSONResponse:
-            return JSONResponse({"ok": True})
+            # ``uptime_s`` = seconds this container has served since the snapshot
+            # restore finished. A cold /healthz round-trip therefore measures
+            # restore-to-ready overhead with no parse cost mixed in.
+            restored = getattr(self, "_restored_monotonic", None)
+            uptime = (
+                None if restored is None else round(time.perf_counter() - restored, 3)
+            )
+            return JSONResponse({"ok": True, "uptime_s": uptime})
 
         async def file_parse(request: Request) -> JSONResponse:
             if not _authorized(request):
@@ -241,13 +294,23 @@ class MineruParser:
             if upload is None:
                 return JSONResponse({"detail": "missing file field"}, status_code=400)
             parse_method = str(form.get("parse_method") or "auto")
-            name = str(form.get("filename") or getattr(upload, "filename", "") or "document")
+            name = str(
+                form.get("filename") or getattr(upload, "filename", "") or "document"
+            )
             data = await upload.read()
 
+            t0 = time.perf_counter()
             try:
                 result = await _parse_document(data, name, parse_method)
             except Exception as e:  # noqa: BLE001 — surface parse failures as 500 JSON
                 return JSONResponse({"detail": f"parse failed: {e}"}, status_code=500)
+            # Extra keys the RAG worker ignores; the snapshot test script reads
+            # them to split server parse time from cold-boot + network latency.
+            result["_server_parse_s"] = round(time.perf_counter() - t0, 3)
+            restored = getattr(self, "_restored_monotonic", None)
+            result["_uptime_s"] = (
+                None if restored is None else round(time.perf_counter() - restored, 3)
+            )
             return JSONResponse(result)
 
         return Starlette(
