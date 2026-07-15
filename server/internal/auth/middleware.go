@@ -43,8 +43,6 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 		"/healthz",
 		"/webhooks/clerk",
 		"/webhooks/stripe",
-		"/api/integrations/google/callback",
-		"/api/integrations/microsoft/callback",
 	}, cfg.PublicPrefix...)
 
 	if cfg.SecretKey != "" {

@@ -65,7 +65,7 @@ export function SearchDialog({
         }}
         className="top-[12vh] translate-y-0"
         showCloseButton={false}
-        cardClassName="p-0"
+        cardScrollContainerClassName="p-0"
       >
         <VisuallyHidden.Root asChild>
           <DialogTitle>{m.search_placeholder()}</DialogTitle>

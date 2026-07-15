@@ -89,15 +89,19 @@ func (SubscriptionStatus) Schema(r huma.Registry) *huma.Schema {
 type FileKind string
 
 const (
-	FilePDF   FileKind = "pdf"
-	FileDoc   FileKind = "doc"
-	FileMD    FileKind = "md"
-	FileImage FileKind = "image"
-	FileTxt   FileKind = "txt"
+	FilePDF    FileKind = "pdf"
+	FileDoc    FileKind = "doc"
+	FileMD     FileKind = "md"
+	FileImage  FileKind = "image"
+	FileTxt    FileKind = "txt"
+	FileSheet  FileKind = "sheet"
+	FileSlides FileKind = "slides"
+	FileVideo  FileKind = "video"
+	FileAudio  FileKind = "audio"
 )
 
 func (FileKind) Schema(r huma.Registry) *huma.Schema {
-	return enumRef(r, "FileKind", "pdf", "doc", "md", "image", "txt")
+	return enumRef(r, "FileKind", "pdf", "doc", "md", "image", "txt", "sheet", "slides", "video", "audio")
 }
 
 // FileStatus is the ingest lifecycle state.

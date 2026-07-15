@@ -58,7 +58,7 @@ export function GeneratePanel({
               className="hover:bg-initial flex aspect-video w-30 flex-col items-center justify-center gap-2 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-card"
             >
               <Icon name={icon} size={22} />
-              <span className="text-xs font-semibold">{label}</span>
+              <span className="text-xs font-semibold tracking-wide">{label}</span>
             </button>
           </Button>
         ))}

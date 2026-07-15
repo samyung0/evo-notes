@@ -133,6 +133,11 @@ const PATHS = {
   ],
   list: ['M8 6h13', 'M8 12h13', 'M8 18h13', 'M3.5 6h.01', 'M3.5 12h.01', 'M3.5 18h.01'],
   menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
+  collapseFolder: [
+    'M10 8h10s2 0 2 2v10s0 2 -2 2h-10s-2 0 -2 -2v-10s0 -2 2 -2',
+    'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2',
+    'M12 15 L18 15',
+  ],
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -1,6 +1,7 @@
 export { Avatar } from './Avatar';
 export { Badge } from './Badge';
 export { Button } from './Button';
+export { ButtonGroup, buttonGroupVariants } from './ButtonGroup';
 export { Card } from './Card';
 export { Checkbox } from './Checkbox';
 export {
@@ -27,7 +28,7 @@ export { EmptyState, Skeleton, SkeletonCardGrid, SkeletonList, Spinner } from '.
 export { HoverActions } from './HoverActions';
 export { Icon, type IconName } from './Icon';
 export { IconButton } from './IconButton';
-export { Input, InputError } from './Input';
+export { Input, InputError, InputTitle } from './Input';
 export { LogoMark } from './Logo';
 export { Menu, type MenuItem } from './Menu';
 export { NoteCard } from './NoteCard';
@@ -54,4 +55,3 @@ export { Text } from './Text';
 export { Textarea } from './TextArea';
 export { UserColorChooser } from './UserColorChooser';
 export { WorkspaceCard, WorkspaceCardSkeleton } from './WorkspaceCard';
-export { ButtonGroup, buttonGroupVariants } from './ButtonGroup';

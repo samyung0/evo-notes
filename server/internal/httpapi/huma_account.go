@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -186,15 +187,26 @@ func (a *api) billingPortal(ctx context.Context, _ *struct{}) (*urlOutput, error
 }
 
 func (a *api) getIntegrations(ctx context.Context, _ *struct{}) (*integrationsOutput, error) {
-	st, err := a.s.IntegrationsStatus(ctx, userID(ctx))
+	// Without a Clerk key (local dev with auth disabled) report nothing
+	// connected instead of failing the whole page.
+	if a.cfg.ClerkSecretKey == "" {
+		return &integrationsOutput{}, nil
+	}
+	provs, err := integrations.ClerkConnectedProviders(ctx, userID(ctx))
 	if err != nil {
 		return nil, hErr(err)
 	}
-	return &integrationsOutput{Body: st}, nil
+	return &integrationsOutput{Body: apimodel.IntegrationsStatus{
+		Google:    provs[integrations.ProviderGoogle],
+		Microsoft: provs[integrations.ProviderMicrosoft],
+	}}, nil
 }
 
 func (a *api) googlePickerTokenH(ctx context.Context, _ *struct{}) (*accessTokenOutput, error) {
-	tok, err := integrations.EnsureAccessToken(ctx, a.s, a.oauth, userID(ctx), integrations.ProviderGoogle)
+	tok, err := integrations.ClerkAccessToken(ctx, userID(ctx), integrations.ProviderGoogle)
+	if errors.Is(err, integrations.ErrNotConnected) {
+		return nil, huma.Error404NotFound("google account not connected")
+	}
 	if err != nil {
 		return nil, hErr(err)
 	}
@@ -202,7 +214,10 @@ func (a *api) googlePickerTokenH(ctx context.Context, _ *struct{}) (*accessToken
 }
 
 func (a *api) microsoftRecent(ctx context.Context, _ *struct{}) (*recentFilesOutput, error) {
-	tok, err := integrations.EnsureAccessToken(ctx, a.s, a.oauth, userID(ctx), integrations.ProviderMicrosoft)
+	tok, err := integrations.ClerkAccessToken(ctx, userID(ctx), integrations.ProviderMicrosoft)
+	if errors.Is(err, integrations.ErrNotConnected) {
+		return nil, huma.Error404NotFound("microsoft account not connected")
+	}
 	if err != nil {
 		return nil, hErr(err)
 	}
@@ -226,10 +241,16 @@ func (a *api) microsoftRecent(ctx context.Context, _ *struct{}) (*recentFilesOut
 }
 
 func (a *api) deleteIntegrationH(ctx context.Context, in *providerInput) (*Empty, error) {
-	if in.Provider != integrations.ProviderGoogle && in.Provider != integrations.ProviderMicrosoft {
+	switch in.Provider {
+	case integrations.ProviderGoogle, integrations.ProviderMicrosoft, integrations.ProviderNotion:
+	default:
 		return nil, huma.Error400BadRequest("unknown provider")
 	}
-	if err := a.s.DeleteOAuthConnection(ctx, userID(ctx), in.Provider); err != nil {
+	err := integrations.ClerkDisconnect(ctx, userID(ctx), in.Provider)
+	if errors.Is(err, integrations.ErrNotConnected) {
+		return &Empty{}, nil // already disconnected
+	}
+	if err != nil {
 		return nil, hErr(err)
 	}
 	return &Empty{}, nil

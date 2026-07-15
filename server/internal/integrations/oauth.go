@@ -1,145 +1,21 @@
 package integrations
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"path"
 	"strings"
-	"time"
-
-	"github.com/evonotes/server/internal/store"
 )
 
-// OAuthConfig holds provider OAuth settings.
-type OAuthConfig struct {
-	GoogleClientID     string
-	GoogleClientSecret string
-	MicrosoftClientID  string
-	MicrosoftClientSecret string
-	RedirectBaseURL    string
-}
-
+// Providers supported for file import. OAuth token management lives in Clerk
+// (see clerk.go); this file only talks to the providers' file APIs.
 const (
 	ProviderGoogle    = "google"
 	ProviderMicrosoft = "microsoft"
+	ProviderNotion    = "notion"
 )
-
-func GoogleAuthURL(cfg OAuthConfig, state string) string {
-	v := url.Values{
-		"client_id":     {cfg.GoogleClientID},
-		"redirect_uri":  {cfg.RedirectBaseURL + "/api/integrations/google/callback"},
-		"response_type": {"code"},
-		"scope":         {"https://www.googleapis.com/auth/drive.readonly"},
-		"access_type":   {"offline"},
-		"prompt":        {"consent"},
-		"state":         {state},
-	}
-	return "https://accounts.google.com/o/oauth2/v2/auth?" + v.Encode()
-}
-
-func MicrosoftAuthURL(cfg OAuthConfig, state string) string {
-	v := url.Values{
-		"client_id":     {cfg.MicrosoftClientID},
-		"redirect_uri":  {cfg.RedirectBaseURL + "/api/integrations/microsoft/callback"},
-		"response_type": {"code"},
-		"scope":         {"offline_access Files.Read"},
-		"state":         {state},
-	}
-	return "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?" + v.Encode()
-}
-
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	TokenType    string `json:"token_type"`
-}
-
-func ExchangeGoogleCode(cfg OAuthConfig, code string) (TokenResponse, error) {
-	return exchangeToken("https://oauth2.googleapis.com/token", url.Values{
-		"code":          {code},
-		"client_id":     {cfg.GoogleClientID},
-		"client_secret": {cfg.GoogleClientSecret},
-		"redirect_uri":  {cfg.RedirectBaseURL + "/api/integrations/google/callback"},
-		"grant_type":    {"authorization_code"},
-	})
-}
-
-func ExchangeMicrosoftCode(cfg OAuthConfig, code string) (TokenResponse, error) {
-	return exchangeToken("https://login.microsoftonline.com/common/oauth2/v2.0/token", url.Values{
-		"code":          {code},
-		"client_id":     {cfg.MicrosoftClientID},
-		"client_secret": {cfg.MicrosoftClientSecret},
-		"redirect_uri":  {cfg.RedirectBaseURL + "/api/integrations/microsoft/callback"},
-		"grant_type":    {"authorization_code"},
-	})
-}
-
-func exchangeToken(endpoint string, data url.Values) (TokenResponse, error) {
-	resp, err := http.PostForm(endpoint, data)
-	if err != nil {
-		return TokenResponse{}, err
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 400 {
-		return TokenResponse{}, fmt.Errorf("token exchange: %s", string(body))
-	}
-	var tr TokenResponse
-	if err := json.Unmarshal(body, &tr); err != nil {
-		return TokenResponse{}, err
-	}
-	return tr, nil
-}
-
-func RefreshGoogleToken(cfg OAuthConfig, refreshToken string) (TokenResponse, error) {
-	return exchangeToken("https://oauth2.googleapis.com/token", url.Values{
-		"client_id":     {cfg.GoogleClientID},
-		"client_secret": {cfg.GoogleClientSecret},
-		"refresh_token": {refreshToken},
-		"grant_type":    {"refresh_token"},
-	})
-}
-
-func RefreshMicrosoftToken(cfg OAuthConfig, refreshToken string) (TokenResponse, error) {
-	return exchangeToken("https://login.microsoftonline.com/common/oauth2/v2.0/token", url.Values{
-		"client_id":     {cfg.MicrosoftClientID},
-		"client_secret": {cfg.MicrosoftClientSecret},
-		"refresh_token": {refreshToken},
-		"grant_type":    {"refresh_token"},
-	})
-}
-
-func EnsureAccessToken(ctx context.Context, st *store.Store, cfg OAuthConfig, userID, provider string) (string, error) {
-	conn, err := st.GetOAuthConnection(ctx, userID, provider)
-	if err != nil {
-		return "", err
-	}
-	if conn.ExpiresAt != nil && conn.ExpiresAt.After(time.Now().Add(2*time.Minute)) {
-		return conn.AccessToken, nil
-	}
-	if conn.RefreshToken == "" {
-		return conn.AccessToken, nil
-	}
-	var tr TokenResponse
-	switch provider {
-	case ProviderGoogle:
-		tr, err = RefreshGoogleToken(cfg, conn.RefreshToken)
-	case ProviderMicrosoft:
-		tr, err = RefreshMicrosoftToken(cfg, conn.RefreshToken)
-	default:
-		return "", fmt.Errorf("unknown provider")
-	}
-	if err != nil {
-		return "", err
-	}
-	exp := time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second)
-	_ = st.UpdateOAuthTokens(ctx, userID, provider, tr.AccessToken, tr.RefreshToken, &exp)
-	return tr.AccessToken, nil
-}
 
 func DownloadGoogleFile(accessToken, fileID string) ([]byte, string, error) {
 	metaReq, _ := http.NewRequest("GET", "https://www.googleapis.com/drive/v3/files/"+fileID+"?fields=name,mimeType", nil)
@@ -210,16 +86,23 @@ func DownloadMicrosoftFile(accessToken, itemID string) ([]byte, string, error) {
 }
 
 func KindFromName(name string) string {
-	lower := strings.ToLower(name)
-	switch {
-	case strings.HasSuffix(lower, ".pdf"):
+	switch strings.ToLower(path.Ext(name)) {
+	case ".pdf":
 		return "pdf"
-	case strings.HasSuffix(lower, ".doc"), strings.HasSuffix(lower, ".docx"):
+	case ".doc", ".docx":
 		return "doc"
-	case strings.HasSuffix(lower, ".md"), strings.HasSuffix(lower, ".markdown"):
+	case ".md", ".markdown":
 		return "md"
-	case strings.HasSuffix(lower, ".png"), strings.HasSuffix(lower, ".jpg"), strings.HasSuffix(lower, ".jpeg"):
+	case ".png", ".jpg", ".jpeg", ".jp2", ".gif", ".webp", ".bmp", ".svg", ".avif":
 		return "image"
+	case ".xls", ".xlsx", ".csv":
+		return "sheet"
+	case ".ppt", ".pptx":
+		return "slides"
+	case ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v":
+		return "video"
+	case ".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac":
+		return "audio"
 	default:
 		return "txt"
 	}

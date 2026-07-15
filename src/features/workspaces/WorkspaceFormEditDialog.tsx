@@ -17,6 +17,7 @@ import {
   toast,
   UserColorChooser,
 } from '@/components/ui';
+import { InputTitle } from '@/components/ui/Input';
 import {
   Select,
   SelectContent,
@@ -103,10 +104,7 @@ export function WorkspaceFormEditDialog({
               return (
                 <>
                   <label className="flex flex-col gap-1.5">
-                    <div className="t-subtitle flex items-center gap-1 font-medium">
-                      <span>Name</span>
-                      <span className="text-solid-error">*</span>
-                    </div>
+                    <InputTitle required>Chapter</InputTitle>
                     <Input
                       {...field}
                       placeholder="Workspace name"
@@ -128,10 +126,7 @@ export function WorkspaceFormEditDialog({
               return (
                 <>
                   <div className="flex min-w-full items-center justify-between gap-1.5">
-                    <div className="t-subtitle flex items-center gap-1 font-medium">
-                      <span>Visibility</span>
-                      <span className="text-solid-error">*</span>
-                    </div>
+                    <InputTitle required>Visibility</InputTitle>
                     <PrivacySelect
                       value={field.value as Privacy}
                       onChange={field.onChange}
@@ -148,9 +143,7 @@ export function WorkspaceFormEditDialog({
             control={form.control}
             render={({ field, fieldState }) => (
               <div className="flex flex-col gap-1.5">
-                <div className="t-subtitle flex items-center gap-1 font-medium">
-                  <span>Tags</span>
-                </div>
+                <InputTitle>Tags</InputTitle>
                 <TagSelect
                   kind="workspace"
                   value={field.value ?? []}
@@ -168,9 +161,7 @@ export function WorkspaceFormEditDialog({
               return (
                 <>
                   <div className="flex flex-col gap-1.5">
-                    <div className="t-subtitle flex items-center gap-1 font-medium">
-                      <span>Color</span>
-                    </div>
+                    <InputTitle>Color</InputTitle>
                     <UserColorChooser
                       selected={field.value}
                       onChange={field.onChange}
@@ -189,9 +180,7 @@ export function WorkspaceFormEditDialog({
               </Button>
             </DialogClose>
             <Button disabled={!form.formState.isDirty}>
-              {!form.formState.isSubmitting && (
-                <span>{workspace ? m.action_save() : m.action_create()}</span>
-              )}
+              {!form.formState.isSubmitting && <span>{m.action_save()}</span>}
               {form.formState.isSubmitting && (
                 <span>
                   <Spinner />
@@ -208,7 +197,7 @@ export function WorkspaceFormEditDialog({
 function PrivacySelect({ value, onChange }: { value: Privacy; onChange: (v: Privacy) => void }) {
   const current = PRIVACY_OPTIONS.find((o) => o.value === value) ?? PRIVACY_OPTIONS[0]; // TODO:
   return (
-    <div className="w-45">
+    <div className="max-w-70 min-w-45">
       <Select defaultValue={current.value} onValueChange={(v) => onChange(v as Privacy)}>
         <SelectTrigger>
           <SelectValue></SelectValue>

@@ -13,4 +13,8 @@ export const FileKind = {
   md: 'md',
   image: 'image',
   txt: 'txt',
+  sheet: 'sheet',
+  slides: 'slides',
+  video: 'video',
+  audio: 'audio',
 } as const;

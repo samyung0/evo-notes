@@ -59,6 +59,7 @@ export function ChatPanel({ workspaceId, color }: { workspaceId: string; color?:
     useChatStream(workspaceId);
   const { data: conversations } = useConversations(workspaceId);
   const deleteConv = useDeleteConversation(workspaceId);
+  // TODO: add time stamp for convos (last chat), show timestamp and action menu in chat history dropdown items
 
   const [text, setText] = useState('');
   const [selectId, setSelectId] = useState<string | null>(null);
@@ -163,7 +164,7 @@ export function ChatPanel({ workspaceId, color }: { workspaceId: string; color?:
 
       <div ref={scrollRef} className="flex flex-1 flex-col gap-4 self-stretch overflow-auto p-4">
         {!messages.length && (
-          <div className="m-auto max-w-[80%] text-center text-fg-muted">
+          <div className="m-auto max-w-[80%] text-center">
             <Icon name="message" size={26} className="mx-auto mb-2" />
             <p className="text-sm">Ask anything about your sources.</p>
           </div>

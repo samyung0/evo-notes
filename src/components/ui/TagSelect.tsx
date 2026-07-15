@@ -4,6 +4,7 @@ import { useTags } from '@/api/hooks';
 import { cn } from '@/lib/cn';
 import { Icon } from './Icon';
 import { IconButton } from './IconButton';
+import { Badge } from './Badge';
 
 const MAX_LEN = 50;
 
@@ -112,15 +113,17 @@ export function TagSelect({
     <div className="relative">
       <div
         className={cn(
-          't-body flex flex-wrap items-center gap-1.5 rounded-input border border-line bg-surface px-2 py-2 transition-[colors,border] duration-150 focus-within:border-line-strong',
+          't-body flex flex-wrap items-center gap-1.5 rounded-input border border-line bg-surface px-1 py-0.5 transition-[colors,border] duration-150 focus-within:border-line-strong',
           invalid && 'border-2 border-solid-error'
         )}
         onClick={() => inputRef.current?.focus()}
       >
         {selected.map((t, i) => (
-          <span
+          <Badge
             key={`${t.id ?? 'new'}:${t.value}:${i}`}
-            className="inline-flex items-center gap-1 rounded-pill bg-surface-hover-bg py-0.5 pr-1 pl-2 text-xs font-bold text-surface-fg"
+            tone="neutral"
+            size="md"
+            // className="inline-flex items-center gap-1 rounded-pill bg-page py-0.5 pr-1 pl-2 text-xs font-bold text-surface-fg"
           >
             # {t.value}
             <IconButton
@@ -128,18 +131,18 @@ export function TagSelect({
               icon="x"
               variant="ghost-hover"
               size="xs"
-              className="text-fg-muted"
+              className="-translate-y-px p-0.5"
               aria-label={`Remove ${t.value}`}
               onClick={(e) => {
                 e.stopPropagation();
                 removeAt(i);
               }}
             />
-          </span>
+          </Badge>
         ))}
         <input
           ref={inputRef}
-          className="min-w-32 flex-1 border-none bg-transparent py-1 pl-1.5 outline-none placeholder:text-placeholder"
+          className="min-w-32 flex-1 border-none bg-transparent px-2 py-2 outline-none placeholder:text-placeholder"
           placeholder={selected.length ? '' : placeholder}
           value={query}
           maxLength={MAX_LEN}
@@ -183,14 +186,14 @@ export function TagSelect({
                 >
                   {opt.type === 'create' ? (
                     <>
-                      <Icon name="plus" className="size-4 text-fg-muted" />
+                      <Icon name="plus" className="size-4 -translate-y-px text-fg-muted" />
                       <span>
                         Create <span className="font-medium">“{opt.value}”</span>
                       </span>
                     </>
                   ) : (
                     <>
-                      <span className="text-fg-muted">#</span>
+                      <span className="-translate-y-px text-fg-muted">#</span>
                       <span className="font-medium">{opt.tag.value}</span>
                     </>
                   )}

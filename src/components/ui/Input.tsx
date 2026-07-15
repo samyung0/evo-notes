@@ -171,3 +171,19 @@ export function InputError({
     </div>
   );
 }
+
+export function InputTitle({
+  className,
+  children,
+  required,
+  ...props
+}: React.ComponentProps<'div'> & {
+  required?: boolean;
+}) {
+  return (
+    <div className={cn('t-subtitle flex items-center gap-1 font-medium', className)} {...props}>
+      <div>{children}</div>
+      {required && <div className="text-solid-error">*</div>}
+    </div>
+  );
+}

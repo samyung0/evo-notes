@@ -64,14 +64,11 @@ class ProviderCfg:
 class Config:
     # ---- shared infra -----------------------------------------------------
     dsn: str = _env("DATABASE_URL", "postgres://evo:evo@localhost:5432/evo?sslmode=disable")
-    blob_dir: str = _env("BLOB_DIR", "./data/blobs")
     redis_url: str = _env("REDIS_URL", "redis://localhost:6379/0")
 
-    # ---- blob storage backend --------------------------------------------
-    # "disk" (default, local dev — shared /data/blobs volume) or "b2"/"s3"
-    # (production object store). On B2 the job's blobPath is an object key the
-    # worker downloads; on disk it is a shared-volume path read directly.
-    blob_backend: str = _env("BLOB_BACKEND", "disk").lower()
+    # ---- Backblaze B2 blob storage ---------------------------------------
+    # The Go gateway stores the object key in the job payload. The worker
+    # downloads that key to temporary local storage before parsing.
     b2_endpoint: str = _env("B2_ENDPOINT", "")
     b2_region: str = _env("B2_REGION", "")
     b2_bucket: str = _env("B2_BUCKET", "")
@@ -97,6 +94,13 @@ class Config:
     modal_parse_token: str = _env("MODAL_PARSE_TOKEN", "")
     modal_parse_timeout: int = int(_env("MODAL_PARSE_TIMEOUT", "600"))
     parse_method: str = _env("EVO_PARSE_METHOD", "auto")  # auto | ocr | txt
+
+    # ---- MinerU lightweight (free) cloud parse API ------------------------
+    # Token-free, IP rate-limited "Agent" endpoints on mineru.net; used for
+    # parseMode=normal jobs. 'ch' OCR pack = Chinese + English only.
+    mineru_lite_base: str = _env("MINERU_LITE_BASE_URL", "https://mineru.net/api/v1/agent")
+    mineru_lite_language: str = _env("MINERU_LITE_LANGUAGE", "ch")
+    mineru_lite_timeout: int = int(_env("MINERU_LITE_TIMEOUT", "600"))
 
     # ---- embeddings (OpenRouter, OpenAI-compatible) -----------------------
     embedding = ProviderCfg(

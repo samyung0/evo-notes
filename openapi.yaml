@@ -643,6 +643,10 @@ components:
         - md
         - image
         - txt
+        - sheet
+        - slides
+        - video
+        - audio
       type: string
     FileStatus:
       enum:

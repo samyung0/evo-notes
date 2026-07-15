@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Button, Text } from '@/components/ui';
 import { useIntegrations } from '@/api/hooks';
-import { integrationConnectUrl } from '@/api/client';
 import { USE_MSW } from '@/api/auth';
+import { useProviderConnect } from '@/lib/useProviderConnect';
 import { m } from '@/i18n';
 
 const DISMISS_KEY = 'evo_cloud_connect_dismissed';
 
 export function CloudConnectBanner() {
   const { data: integrations } = useIntegrations();
+  const connectProvider = useProviderConnect();
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === '1');
 
   if (dismissed || USE_MSW) return null;
@@ -20,7 +21,7 @@ export function CloudConnectBanner() {
   }
 
   function connect() {
-    window.location.href = integrationConnectUrl(integrations?.google ? 'microsoft' : 'google');
+    void connectProvider(integrations?.google ? 'microsoft' : 'google');
   }
 
   return (

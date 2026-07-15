@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 	"net/http"
 	"path/filepath"
@@ -22,12 +21,12 @@ import (
 	"github.com/evonotes/server/internal/auth"
 	"github.com/evonotes/server/internal/billing"
 	"github.com/evonotes/server/internal/blob"
-	"github.com/evonotes/server/internal/integrations"
 	"github.com/evonotes/server/internal/pipeline"
 	"github.com/evonotes/server/internal/store"
 )
 
-// Config holds gateway settings for auth, billing, and OAuth.
+// Config holds gateway settings for auth and billing. Provider OAuth
+// (Google/Microsoft/Notion) is managed entirely by Clerk.
 type Config struct {
 	ClerkSecretKey      string
 	ClerkWebhookSecret  string
@@ -38,7 +37,6 @@ type Config struct {
 	StripePricePro      string
 	StripePriceTeam     string
 	AppURL              string
-	OAuth               integrations.OAuthConfig
 }
 
 type api struct {
@@ -49,7 +47,6 @@ type api struct {
 	parser string
 	engine string
 	cfg    Config
-	oauth  integrations.OAuthConfig
 }
 
 // New builds the full HTTP handler. huma owns every JSON operation (and the
@@ -59,7 +56,7 @@ type api struct {
 // are intentionally absent from the spec.
 func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client, parser, engine string, cfg Config) http.Handler {
 	billing.Init(billing.Config{SecretKey: cfg.StripeSecretKey})
-	a := &api{s: s, blob: b, pipe: pipe, rdb: rdb, parser: parser, engine: engine, cfg: cfg, oauth: cfg.OAuth}
+	a := &api{s: s, blob: b, pipe: pipe, rdb: rdb, parser: parser, engine: engine, cfg: cfg}
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
@@ -84,10 +81,6 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	r.Post("/webhooks/clerk", a.clerkWebhook)
 	r.Post("/webhooks/stripe", a.stripeWebhook)
-	r.Get("/api/integrations/google/callback", a.googleCallback)
-	r.Get("/api/integrations/microsoft/callback", a.microsoftCallback)
-	r.Get("/api/integrations/google/connect", a.googleConnect)
-	r.Get("/api/integrations/microsoft/connect", a.microsoftConnect)
 	r.Post("/api/workspaces/{id}/sources", a.addSource)
 	r.Post("/api/workspaces/{id}/sources/import", a.importSources)
 	r.Get("/api/workspaces/{id}/ingest-events", a.ingestEvents)
@@ -178,13 +171,82 @@ func (a *api) addSource(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, res)
 }
 
+// Parse-mode limits. Advanced runs on the Modal MinerU hybrid backend (we cap
+// uploads at 100 MB); normal uses the free MinerU lightweight cloud API
+// (their hard limits: 10 MB / 20 pages, page count enforced by MinerU).
+const (
+	parseModeAdvanced = "advanced"
+	parseModeNormal   = "normal"
+	parseModeNone     = "none"
+
+	advancedMaxBytes = 100 << 20
+	normalMaxBytes   = 10 << 20
+	uploadMaxBytes   = advancedMaxBytes + (4 << 20) // multipart overhead headroom
+)
+
+// normalParseExts mirrors the MinerU lightweight API's supported types:
+// PDF, images (png/jpg/jpeg/jp2/webp/gif/bmp), docx, pptx, xlsx.
+var normalParseExts = map[string]bool{
+	".pdf": true, ".png": true, ".jpg": true, ".jpeg": true, ".jp2": true,
+	".webp": true, ".gif": true, ".bmp": true, ".docx": true, ".pptx": true, ".xlsx": true,
+}
+
+// advancedParseExts mirrors the Modal MinerU service allowlist
+// (pipeline/pipeline/rag/modal_parser.py _MODAL_SUFFIXES).
+var advancedParseExts = map[string]bool{
+	".pdf": true, ".doc": true, ".docx": true, ".ppt": true, ".pptx": true,
+	".xls": true, ".xlsx": true, ".png": true, ".jpg": true, ".jpeg": true,
+	".jp2": true, ".webp": true, ".gif": true, ".bmp": true,
+}
+
+// defaultParseMode picks the mode used when a client doesn't specify one:
+// advanced for anything Modal can parse, none for unparseable formats.
+// Text kinds (txt/md) are ingested directly by the worker either way.
+func defaultParseMode(name, kind string) string {
+	if kind == "txt" || kind == "md" {
+		return parseModeAdvanced // ignored by the worker; keeps a job enqueued
+	}
+	if advancedParseExts[strings.ToLower(filepath.Ext(name))] {
+		return parseModeAdvanced
+	}
+	return parseModeNone
+}
+
+func validateParseMode(mode, name, kind string, size int64) error {
+	if kind == "txt" || kind == "md" {
+		return nil // inserted as raw text; parse mode is irrelevant
+	}
+	ext := strings.ToLower(filepath.Ext(name))
+	switch mode {
+	case parseModeAdvanced:
+		if !advancedParseExts[ext] {
+			return fmt.Errorf("advanced parsing does not support %s files", ext)
+		}
+		if size > advancedMaxBytes {
+			return fmt.Errorf("advanced parsing supports files up to 100 MB")
+		}
+	case parseModeNormal:
+		if !normalParseExts[ext] {
+			return fmt.Errorf("normal parsing does not support %s files", ext)
+		}
+		if size > normalMaxBytes {
+			return fmt.Errorf("normal parsing supports files up to 10 MB")
+		}
+	case parseModeNone:
+	default:
+		return fmt.Errorf("unknown parse mode %q", mode)
+	}
+	return nil
+}
+
 func (a *api) uploadSource(w http.ResponseWriter, r *http.Request) {
 	if a.blob == nil {
 		a.fail(w, errors.New("blob store not configured"))
 		return
 	}
-	if err := r.ParseMultipartForm(64 << 20); err != nil { // 64 MiB
-		a.fail(w, err)
+	r.Body = http.MaxBytesReader(w, r.Body, uploadMaxBytes)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "upload too large or malformed: " + err.Error()})
 		return
 	}
 	file, hdr, err := r.FormFile("file")
@@ -206,13 +268,30 @@ func (a *api) uploadSource(w http.ResponseWriter, r *http.Request) {
 	if c := r.FormValue("chapterId"); c != "" {
 		chapterID = &c
 	}
+	parseMode := r.FormValue("parseMode")
+	if parseMode == "" {
+		parseMode = defaultParseMode(name, kind)
+	}
+	if err := validateParseMode(parseMode, name, kind, hdr.Size); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
+		return
+	}
 
 	blobPath, size, err := a.blob.Put(randID("blob"), file)
 	if err != nil {
 		a.fail(w, err)
 		return
 	}
-	res, _, err := a.s.CreateSourceWithJob(r.Context(), id(r), name, kind, chapterID, int(size/1024), blobPath, a.parser, a.engine)
+	if parseMode == parseModeNone && kind != "txt" && kind != "md" {
+		res, err := a.s.CreateSourceReady(r.Context(), id(r), name, kind, chapterID, int(size/1024), blobPath)
+		if err != nil {
+			a.fail(w, err)
+			return
+		}
+		writeJSON(w, 201, res)
+		return
+	}
+	res, _, err := a.s.CreateSourceWithJob(r.Context(), id(r), name, kind, chapterID, int(size/1024), blobPath, a.parser, a.engine, parseMode)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -228,26 +307,14 @@ func (a *api) getFileRaw(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case blobPath != "" && a.blob != nil:
-		// Object stores (S3/B2) redirect to a short-lived presigned URL so the
-		// bytes never proxy through the gateway. Disk has no presigner and
-		// streams inline.
-		if p, ok := a.blob.(blob.Presigner); ok {
-			signed, err := p.PresignGet(r.Context(), blobPath)
-			if err != nil {
-				a.fail(w, err)
-				return
-			}
-			http.Redirect(w, r, signed, http.StatusFound)
-			return
-		}
-		rc, err := a.blob.Open(blobPath)
+		// B2 redirects to a short-lived presigned URL so bytes never proxy
+		// through the gateway.
+		signed, err := a.blob.PresignGet(r.Context(), blobPath)
 		if err != nil {
 			a.fail(w, err)
 			return
 		}
-		defer rc.Close()
-		w.Header().Set("Content-Type", contentType(kind))
-		_, _ = io.Copy(w, rc)
+		http.Redirect(w, r, signed, http.StatusFound)
 	case content != nil:
 		w.Header().Set("Content-Type", contentType(kind))
 		_, _ = w.Write([]byte(*content))
@@ -266,8 +333,16 @@ func kindFromName(name string) string {
 		return "doc"
 	case ".md", ".markdown":
 		return "md"
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+	case ".png", ".jpg", ".jpeg", ".jp2", ".gif", ".webp", ".bmp", ".svg", ".avif":
 		return "image"
+	case ".xls", ".xlsx", ".csv":
+		return "sheet"
+	case ".ppt", ".pptx":
+		return "slides"
+	case ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v":
+		return "video"
+	case ".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac":
+		return "audio"
 	default:
 		return "txt"
 	}

@@ -21,6 +21,7 @@
   "action_add_chapter": "Add chapter",
   "action_see_all": "See all",
   "action_edit": "Edit",
+  "action_create": "Create",
   "action_delete": "Delete",
   "action_rename": "Rename",
   "action_mark_done": "Mark as done",

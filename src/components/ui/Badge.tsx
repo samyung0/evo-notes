@@ -7,11 +7,11 @@ const badgeVariants = cva('inline-flex items-center gap-1 rounded-pill leading-n
   variants: {
     size: {
       sm: 'px-2 py-0.5 text-xs',
-      md: 'px-2.5 py-[7px] text-xs',
-      lg: 'px-3 py-[9px] text-xs',
+      md: 'px-2.5 py-1.5 text-xs',
+      lg: 'px-3 py-2 text-sm',
     },
     tone: {
-      neutral: 'bg-surface-hover-bg text-surface-fg',
+      neutral: 'bg-page text-surface-fg',
       dark: 'bg-action text-action-fg',
       info: 'bg-tint-info text-tint-info-fg',
       warning: 'bg-tint-warning text-tint-warning-fg',

@@ -1,12 +1,13 @@
-// S3-compatible blob store. Backblaze B2 (and AWS S3, MinIO, R2, ...) all speak
-// the same API, so one implementation covers them. The stored "path" is the
-// object key — readers must NOT treat it as a local filesystem path.
+// B2 uses its S3-compatible API. Stored paths are object keys, never local
+// filesystem paths.
 package blob
 
 import (
 	"context"
 	"errors"
 	"io"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,21 +18,18 @@ import (
 
 const defaultPresignTTL = 15 * time.Minute
 
-// S3Config is the static credential set for an S3-compatible bucket. For
-// Backblaze B2: Endpoint is the bucket's S3 endpoint
-// (e.g. https://s3.us-west-004.backblazeb2.com), Region the matching region
-// (us-west-004), KeyID/AppKey a B2 application key pair.
-type S3Config struct {
+// B2Config contains the B2 S3 endpoint and application-key credentials.
+type B2Config struct {
 	Endpoint     string
 	Region       string
 	Bucket       string
 	KeyID        string
 	AppKey       string
-	UsePathStyle bool          // MinIO and some setups require path-style addressing.
+	UsePathStyle bool          // B2 supports virtual-hosted and path-style endpoints.
 	PresignTTL   time.Duration // 0 → defaultPresignTTL.
 }
 
-type S3 struct {
+type B2 struct {
 	client     *s3.Client
 	tm         *transfermanager.Client
 	presign    *s3.PresignClient
@@ -39,9 +37,16 @@ type S3 struct {
 	presignTTL time.Duration
 }
 
-func NewS3(cfg S3Config) (*S3, error) {
+func NewB2(cfg B2Config) (*B2, error) {
 	if cfg.Bucket == "" || cfg.KeyID == "" || cfg.AppKey == "" {
-		return nil, errors.New("blob: S3/B2 backend needs B2_BUCKET, B2_KEY_ID and B2_APP_KEY")
+		return nil, errors.New("blob: B2 needs B2_BUCKET, B2_KEY_ID and B2_APP_KEY")
+	}
+	endpoint, err := url.Parse(cfg.Endpoint)
+	if err != nil || endpoint.Scheme != "https" || !strings.HasSuffix(endpoint.Hostname(), ".backblazeb2.com") {
+		return nil, errors.New("blob: B2_ENDPOINT must be an https://*.backblazeb2.com S3 endpoint")
+	}
+	if cfg.Region == "" {
+		return nil, errors.New("blob: B2 needs B2_REGION")
 	}
 	opts := s3.Options{
 		Region:       cfg.Region,
@@ -56,7 +61,7 @@ func NewS3(cfg S3Config) (*S3, error) {
 		ttl = defaultPresignTTL
 	}
 	client := s3.New(opts)
-	return &S3{
+	return &B2{
 		client:     client,
 		tm:         transfermanager.New(client),
 		presign:    s3.NewPresignClient(client),
@@ -78,7 +83,7 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (s *S3) Put(id string, r io.Reader) (string, int64, error) {
+func (s *B2) Put(id string, r io.Reader) (string, int64, error) {
 	cr := &countingReader{r: r}
 	_, err := s.tm.UploadObject(context.Background(), &transfermanager.UploadObjectInput{
 		Bucket: aws.String(s.bucket),
@@ -91,20 +96,9 @@ func (s *S3) Put(id string, r io.Reader) (string, int64, error) {
 	return id, cr.n, nil
 }
 
-func (s *S3) Open(path string) (io.ReadCloser, error) {
-	out, err := s.client.GetObject(context.Background(), &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(path),
-	})
-	if err != nil {
-		return nil, err
-	}
-	return out.Body, nil
-}
-
 // PresignGet mints a time-limited GET URL so the gateway can redirect the
 // browser straight to the bucket instead of streaming bytes through itself.
-func (s *S3) PresignGet(ctx context.Context, path string) (string, error) {
+func (s *B2) PresignGet(ctx context.Context, path string) (string, error) {
 	req, err := s.presign.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
@@ -116,7 +110,7 @@ func (s *S3) PresignGet(ctx context.Context, path string) (string, error) {
 }
 
 // HealthCheck verifies the bucket exists and the credentials can reach it.
-func (s *S3) HealthCheck(ctx context.Context) error {
+func (s *B2) HealthCheck(ctx context.Context) error {
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(s.bucket)})
 	return err
 }

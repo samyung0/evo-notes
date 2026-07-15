@@ -12,14 +12,15 @@ import {
   useWorkspaceStats,
 } from '@/api/hooks';
 import { WorkspaceFormCreateDialog } from '@/features/workspaces/WorkspaceFormCreateDialog';
-import { TaskEditModal } from '@/features/tasks/TaskEditModal';
-import { LabelEditModal } from '@/features/schedule/LabelEditModal';
-import { EventFormModal } from '@/features/schedule/EventFormModal';
+import { TaskEditModal } from '@/features/tasks/TaskEditDialog';
+import { LabelEditModal } from '@/features/schedule/LabelEditDialog';
+import { EventFormModal } from '@/features/schedule/EventFormDialog';
 import { EventDetailDialog } from '@/features/schedule/EventDetailDialog';
-import { AddSourceModal } from '@/features/workspace/AddSourceModal';
+import { AddSourceModal } from '@/features/workspace/AddSourceDialog';
 import { useDialogs } from '@/stores/dialogs';
 import { SearchDialog } from './TopInsetBar';
 import { WorkspaceFormEditDialog } from '@/features/workspaces/WorkspaceFormEditDialog';
+import { OneDriveImportDialog } from '@/features/workspace/OneDriveImportDialog';
 
 function WorkspaceStatsModal({ id, onClose }: { id: string; onClose: () => void }) {
   const { data } = useWorkspaceStats(id);
@@ -61,6 +62,7 @@ export function GlobalDialogs() {
   const eventForm = useDialogs((s) => s.eventForm);
   const eventDetail = useDialogs((s) => s.eventDetail);
   const addSource = useDialogs((s) => s.addSource);
+  const msImport = useDialogs((s) => s.msImport);
   const confirm = useDialogs((s) => s.confirm);
   const openWorkspaceCreate = useDialogs((s) => s.openWorkspaceCreate);
   const openWorkspaceEdit = useDialogs((s) => s.openWorkspaceEdit);
@@ -73,6 +75,7 @@ export function GlobalDialogs() {
   const closeEventForm = useDialogs((s) => s.closeEventForm);
   const closeEventDetail = useDialogs((s) => s.closeEventDetail);
   const closeAddSource = useDialogs((s) => s.closeAddSource);
+  const closeMsImport = useDialogs((s) => s.closeMsImport);
   const closeConfirm = useDialogs((s) => s.closeConfirm);
 
   const createWorkspace = useCreateWorkspace();
@@ -82,12 +85,6 @@ export function GlobalDialogs() {
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
   const { data: labels } = useLabels();
-
-  // Hooks must run unconditionally; the workspace-scoped queries are gated on an
-  // id internally, so they stay idle until a workspace add-source dialog opens.
-  const addSourceWsId = addSource?.workspaceId ?? '';
-  const { data: addSourceChapters } = useChapters(addSourceWsId);
-  const uploadSource = useUploadSource(addSourceWsId);
 
   const isTopBarSearchOpen = useDialogs((s) => s.isTopBarSearchOpen);
   const setTopBarSearchOpen = useDialogs((s) => s.setTopBarSearchOpen);
@@ -181,13 +178,11 @@ export function GlobalDialogs() {
       />
 
       {addSource && (
-        <AddSourceModal
-          open
-          onClose={closeAddSource}
-          workspaceId={addSource.workspaceId}
-          chapters={addSourceChapters ?? []}
-          onAdd={(list) => list.forEach((f) => uploadSource.mutate(f))}
-        />
+        <AddSourceModal open onClose={closeAddSource} workspaceId={addSource.workspaceId} />
+      )}
+
+      {msImport && (
+        <OneDriveImportDialog open onClose={closeMsImport} workspaceId={msImport.workspaceId} />
       )}
 
       <ConfirmDialog

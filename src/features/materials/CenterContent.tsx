@@ -69,12 +69,10 @@ function EmptyCenter() {
         <Icon name="files" className="size-5.5" />
         <h2 className="t-subtitle translate-y-px truncate">--</h2>
       </div>
-      <div className="grid flex-1 place-items-center p-6 text-fg-muted">
+      <div className="grid flex-1 place-items-center p-6">
         <div className="flex flex-col items-center gap-2">
           <Icon name="files" size={32} />
-          <Text variant="body" tone="muted">
-            Select a file or material to view it here.
-          </Text>
+          <p>Select a file or material to view it here.</p>
         </div>
       </div>
     </>
@@ -82,6 +80,7 @@ function EmptyCenter() {
 }
 
 function Header({ item }: { item: OpenItem }) {
+  // TODO: magic wand for summary/AI related stuff, then some tool box? zoomin/out, same action menu
   const { icon, title } = useHeader(item);
   return (
     <div className="flex items-center gap-3 border-b border-divider px-5 py-4">

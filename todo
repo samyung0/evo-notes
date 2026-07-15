@@ -1,30 +1,36 @@
 low priority:
 
 1.  input validation and sanitizations (after react hook form in frontend, backend go should go more checking and error throwing like required fields, e.g. creating workspace must throw errors if name or privacy is missing, some unimportant fields like color or tags cna have defaults, )
-2.  check how auth middleware is used in backend
-3.  use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc) (prob need an extra field like customColor and a bunch of type changes in backend go)
-4.  paraglide check for any missed text that is not being translated (few in workspaces open walready, PRIVACY_OPTIONS, input placeholders)
-5.  make a bunch of integration and backend tests
-6.  rate limiting, bot detection (can do some funny things if we have high bot traffic), analytics, promo, posthog
-7.  work on thinkg space
-8.  check all the skeleton loaders look ok
-9.  check that components are reused as much as possible (esp dialog ( to replace modals), popover, and buttons)
-10. rewrite progress bar/other components in cva
-11. check accessibility and aria labels (use radix-ui as primitive as often as possible, which means to enforce the radius primitives in ui components and ensure these ui components are reused as often as possible)
-12. folder organization
-13. react reactivity check (many many fixes needed, give it to fable)
-14. semantics and accessibility check
-15. readme files
-16. investigate how to tie the state between search params and dialog open/close state, right now I see that we listen to change in dialog state in useeffect and then manually remove search params, and listening to change in search params to manually open the dialog. and we also need to factor in navigating cross pages and dont strip the search params on initial mount (because dialog will be initially closed)
-17. elastic search?
-18. what is the backend actually doing
-19. how to not lose ones mind when reading this repo
+2.  erorr handling (e.g. when uploading files to parse, what if backend errors or pipeline errors, the error should be logged and saved in db properly (and user prompt that system is busy or whatever))
+3.  check how auth middleware is used in backend
+4.  paginations?
+5.  shortcut keys (ctrl + n in workspace to make a note)
+6.  tooltip (for shortcut key and explanation)
+7.  use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc) (prob need an extra field like customColor and a bunch of type changes in backend go)
+8.  paraglide check for any missed text that is not being translated (few in workspaces open walready, PRIVACY_OPTIONS, input placeholders)
+9.  make a bunch of integration and backend tests
+10. rate limiting, bot detection (can do some funny things if we have high bot traffic), analytics, promo, posthog
+11. work on thinkg space
+12. check all the skeleton loaders look ok
+13. check that components are reused as much as possible (esp dialog ( to replace modals), popover, and buttons)
+14. rewrite progress bar/other components in cva
+15. check accessibility and aria labels (use radix-ui as primitive as often as possible, which means to enforce the radius primitives in ui components and ensure these ui components are reused as often as possible)
+16. folder organization
+17. react reactivity check (many many fixes needed, give it to fable)
+18. semantics and accessibility check
+19. readme files
+20. investigate how to tie the state between search params and dialog open/close state, right now I see that we listen to change in dialog state in useeffect and then manually remove search params, and listening to change in search params to manually open the dialog. and we also need to factor in navigating cross pages and dont strip the search params on initial mount (because dialog will be initially closed)
+21. elastic search?
+22. what is the backend actually doing
+23. how to not lose ones mind when reading this repo
 
 high PRIORITIES:
 
 1. in workspaces (change color filter to a general filter with a color section and a tag section (limit max height of the popover))
 2. add in input components like dropdown, date picker etc
 3. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
+4. set loading state for submit buttons (esp dialogs)
+5. remove all the <Text> components
 
 risk?
 QueryParam.ids behavior on lightrag-hku 1.5.4 in mode="mix" is unverified (plan risk #2). Code degrades safely: if ids errors it logs and falls back to unscoped, and the natural-language scope hint still steers the answer. Worth a live smoke test once the pipeline runs.

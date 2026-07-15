@@ -1,13 +1,9 @@
-"""Resolve a job's ``blobPath`` to a readable local file.
+"""Download a B2 job blob to a readable local file.
 
-The Go gateway stores uploads through one of two backends and records the
-result in ``files.blob_path`` (echoed into the ingest job as ``blobPath``):
-
-* **disk** (local dev): ``blobPath`` is a path on the shared ``/data/blobs``
-  volume — already readable, returned unchanged.
-* **b2 / s3** (production): ``blobPath`` is an object key. We download it to a
-  temp file so the existing readers (``open(...)``) and the Modal parse client
-  keep working untouched, then delete it once ingest is done.
+The Go gateway records a B2 object key in ``files.blob_path`` and echoes it
+into each ingest job as ``blobPath``. This module downloads the object to a
+temporary file so existing readers (``open(...)``) and the Modal parse client
+keep working untouched, then deletes it once ingest is done.
 
 ``fetch_local`` is synchronous (boto3 + file IO block); the worker calls it via
 ``asyncio.to_thread`` so the event loop is never blocked.
@@ -23,15 +19,13 @@ from ..config import cfg
 
 log = logging.getLogger("evo.blob")
 
-_NOOP: Callable[[], None] = lambda: None  # noqa: E731
-
 _client = None
 
 
 def _s3_client():
     global _client
     if _client is None:
-        import boto3  # imported lazily so disk-only dev needs no boto3 at runtime
+        import boto3  # imported lazily to defer client initialization
 
         _client = boto3.client(
             "s3",
@@ -46,12 +40,8 @@ def _s3_client():
 def fetch_local(blob_path: str) -> Tuple[str, Callable[[], None]]:
     """Return ``(local_path, cleanup)`` for ``blob_path``.
 
-    Disk backend hands back the shared-volume path with a no-op cleanup. B2/S3
-    downloads the object to a temp file; ``cleanup`` deletes it.
+    Downloads the B2 object to a temp file; ``cleanup`` deletes it.
     """
-    if cfg.blob_backend not in {"b2", "s3"}:
-        return blob_path, _NOOP
-
     fd, tmp = tempfile.mkstemp(prefix="evo_blob_")
     os.close(fd)
     try:

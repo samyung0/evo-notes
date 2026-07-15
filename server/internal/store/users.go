@@ -12,20 +12,10 @@ type BillingInfo struct {
 	RenewalAt          *time.Time         `json:"renewalAt,omitempty"`
 }
 
+// IntegrationsStatus reflects Clerk external-account links (not local rows).
 type IntegrationsStatus struct {
 	Google    bool `json:"google"`
 	Microsoft bool `json:"microsoft"`
-}
-
-type OAuthConnection struct {
-	ID           string
-	UserID       string
-	Provider     string
-	AccessToken  string
-	RefreshToken string
-	ExpiresAt    *time.Time
-	Scopes       string
-	AccountEmail string
 }
 
 /* --------------------------------------------------------------- users */
@@ -202,67 +192,5 @@ func (s *Store) ListStripeCustomers(ctx context.Context) ([]struct {
 	return out, rows.Err()
 }
 
-/* ------------------------------------------------------- oauth */
-
-func (s *Store) GetOAuthConnection(ctx context.Context, userID, provider string) (OAuthConnection, error) {
-	var c OAuthConnection
-	err := s.pool.QueryRow(ctx, `SELECT id, user_id, provider, access_token, COALESCE(refresh_token,''),
-		expires_at, COALESCE(scopes,''), COALESCE(account_email,'')
-		FROM oauth_connections WHERE user_id=$1 AND provider=$2`, userID, provider).
-		Scan(&c.ID, &c.UserID, &c.Provider, &c.AccessToken, &c.RefreshToken, &c.ExpiresAt, &c.Scopes, &c.AccountEmail)
-	if isNoRows(err) {
-		return c, ErrNotFound
-	}
-	return c, err
-}
-
-func (s *Store) UpsertOAuthConnection(ctx context.Context, c OAuthConnection) error {
-	if c.ID == "" {
-		c.ID = uid("oauth")
-	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO oauth_connections
-		(id, user_id, provider, access_token, refresh_token, expires_at, scopes, account_email)
-		VALUES ($1,$2,$3,$4,NULLIF($5,''),$6,NULLIF($7,''),NULLIF($8,''))
-		ON CONFLICT (user_id, provider) DO UPDATE SET
-			access_token=EXCLUDED.access_token,
-			refresh_token=COALESCE(NULLIF(EXCLUDED.refresh_token,''), oauth_connections.refresh_token),
-			expires_at=EXCLUDED.expires_at,
-			scopes=EXCLUDED.scopes,
-			account_email=EXCLUDED.account_email`,
-		c.ID, c.UserID, c.Provider, c.AccessToken, c.RefreshToken, c.ExpiresAt, c.Scopes, c.AccountEmail)
-	return err
-}
-
-func (s *Store) DeleteOAuthConnection(ctx context.Context, userID, provider string) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM oauth_connections WHERE user_id=$1 AND provider=$2`, userID, provider)
-	return err
-}
-
-func (s *Store) IntegrationsStatus(ctx context.Context, userID string) (IntegrationsStatus, error) {
-	var st IntegrationsStatus
-	rows, err := s.pool.Query(ctx, `SELECT provider FROM oauth_connections WHERE user_id=$1`, userID)
-	if err != nil {
-		return st, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var p string
-		if err := rows.Scan(&p); err != nil {
-			return st, err
-		}
-		switch p {
-		case "google":
-			st.Google = true
-		case "microsoft":
-			st.Microsoft = true
-		}
-	}
-	return st, rows.Err()
-}
-
-func (s *Store) UpdateOAuthTokens(ctx context.Context, userID, provider, accessToken, refreshToken string, expiresAt *time.Time) error {
-	_, err := s.pool.Exec(ctx, `UPDATE oauth_connections SET access_token=$3,
-		refresh_token=COALESCE(NULLIF($4,''), refresh_token), expires_at=$5
-		WHERE user_id=$1 AND provider=$2`, userID, provider, accessToken, refreshToken, expiresAt)
-	return err
-}
+// OAuth connection storage was removed: Clerk holds provider tokens now.
+// The legacy oauth_connections table can be dropped in a future migration.

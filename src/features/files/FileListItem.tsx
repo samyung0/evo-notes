@@ -7,6 +7,7 @@ import {
   Input,
   ProgressBar,
   SimpleDialog,
+  Spinner,
   Text,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -56,10 +57,16 @@ export function FileListItem({
             processing && 'cursor-default'
           )}
         >
-          <Icon name="files" size={15} className={failed ? 'text-solid-error' : undefined} />
-          <span className="flex-1 translate-y-px truncate">{file.name}</span>
-          {failed && <span className="t-label text-solid-error">failed</span>}
+          <Icon name="files" size={15} className={cn(failed && 'text-solid-error')} />
+          <span className={cn('line-clamp-2 flex-1 translate-y-px', failed && 'text-solid-error')}>
+            {file.name}
+          </span>
         </button>
+        {processing && (
+          <div className="mr-0.5">
+            <Spinner />
+          </div>
+        )}
         <HoverActions
           className="absolute top-1/2 right-1 -translate-y-1/2"
           iconContainerClassName="hover:bg-unset"
@@ -86,6 +93,9 @@ export function FileListItem({
           ]}
         />
       </div>
+      {failed && (
+        <div className="pl-2 text-xs font-medium text-solid-error">Error Processing File</div>
+      )}
       {processing && (
         <div className="mr-1.5 mb-0.5 ml-6">
           <ProgressBar value={file.ingestPct ?? 0} height={4} />

@@ -5,7 +5,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
-    BLOB_DIR=/data/blobs \
     WORKING_DIR=/data/rag_storage
 
 COPY pyproject.toml ./

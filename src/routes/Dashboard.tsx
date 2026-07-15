@@ -45,7 +45,7 @@ function StreakHeading() {
 const DASHBOARD_WORKSPACE_LIMIT = 12;
 
 function WorkspacesSection() {
-  const { data, isLoading } = useWorkspaces({ sort: 'accessed' });
+  const { data, isLoading, isError } = useWorkspaces({ sort: 'accessed' });
   const recent = data?.slice(0, DASHBOARD_WORKSPACE_LIMIT);
   const hasMore = (data?.length ?? 0) > DASHBOARD_WORKSPACE_LIMIT;
   return (
@@ -58,13 +58,28 @@ function WorkspacesSection() {
           </Link>
         </Button>
       </div>
-      {isLoading ? (
+      {isLoading && (
         <div className="grid w-full auto-rows-fr grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {Array.from({ length: DASHBOARD_WORKSPACE_LIMIT }).map((_, i) => (
             <WorkspaceCardSkeleton key={i} />
           ))}
         </div>
-      ) : (
+      )}
+      {!isLoading && (!recent || recent.length === 0) && (
+        <div className="mt-30 flex w-full items-center justify-center">
+          <p>
+            No workspaces yet.{' '}
+            <Link
+              to="/workspaces"
+              preload="intent"
+              className="underline decoration-link decoration-wavy underline-offset-2 hover:decoration-link-hover"
+            >
+              Go create your first workspace :)
+            </Link>
+          </p>
+        </div>
+      )}
+      {!isLoading && recent && recent.length > 0 && (
         <div className="grid w-full auto-rows-fr grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
           {recent?.map((w) => (
             <WorkspaceCard key={w.id} workspace={w} />

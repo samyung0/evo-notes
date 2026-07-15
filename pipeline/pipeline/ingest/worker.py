@@ -4,10 +4,14 @@ Claims ingest jobs from the Postgres queue and feeds each upload into the
 per-workspace LightRAG ingestion pipeline (v1.5, post RAG-Anything merge):
 
 - Plain text / markdown is inserted directly as RAW text (``ainsert``).
-- Everything else is staged under ``INPUT_DIR/<workspace>/`` and enqueued as
-  ``pending_parse`` with the custom ``modal`` engine, which parses on Modal
-  (GPU MineRU) and reuses LightRAG's MinerU IR builder + i/t/e multimodal
-  analysis (Gemini vlm role).
+- ``parseMode=normal`` parses via the free MinerU lightweight cloud API
+  (mineru_lite) and inserts the returned markdown as RAW text.
+- Everything else (``parseMode=advanced``, the default) is staged under
+  ``INPUT_DIR/<workspace>/`` and enqueued as ``pending_parse`` with the custom
+  ``modal`` engine, which parses on Modal (GPU MineRU) and reuses LightRAG's
+  MinerU IR builder + i/t/e multimodal analysis (Gemini vlm role).
+- ``parseMode=none`` jobs are normally never enqueued (the gateway marks the
+  file ready directly); a stray one is finished without indexing.
 
 Live progress is published to Redis; the Go gateway fans it to the browser
 over SSE. The resulting LightRAG doc id is persisted on ``files.doc_id``; it
@@ -40,7 +44,7 @@ from lightrag.utils_pipeline import (
 
 from ..config import cfg
 from ..store import db, blobstore
-from ..rag import progress
+from ..rag import mineru_lite, progress
 from ..rag.cache import RagCache
 from ..rag.factory import build_ingest_rag
 
@@ -199,12 +203,22 @@ async def process_job(cache: RagCache, job: dict) -> None:
     ws = payload["workspaceId"]
     blob_path = payload.get("blobPath")
     kind = (payload.get("kind") or "").lower()
+    # 'advanced' (Modal GPU MinerU, default), 'normal' (MinerU lightweight
+    # cloud API), or 'none' (blob-only; normally never enqueued at all).
+    parse_mode = (payload.get("parseMode") or "advanced").lower()
 
     name = await asyncio.to_thread(_read_name, file_id)
     progress.publish(ws, file_id, "queued", 5)
 
-    # Resolve the stored blobPath to a readable local file. Disk backend returns
-    # the shared-volume path unchanged; B2/S3 downloads the object to a temp file.
+    if parse_mode == "none" and kind not in _TEXT_KINDS:
+        # Safety net: the gateway skips job creation for parseMode=none, but a
+        # stray job must not fall through to a parser that can't handle it.
+        note = f"{name}: stored without parsing (not indexed for retrieval)."
+        await asyncio.to_thread(_finish_ok, file_id, None, name, job["id"], note)
+        progress.publish(ws, file_id, "done", 100, status="ready", message=note)
+        return
+
+    # Download the B2 object key to a readable local temporary file.
     local_path, blob_cleanup = await asyncio.to_thread(blobstore.fetch_local, blob_path)
 
     rag = await cache.get(ws)
@@ -217,6 +231,18 @@ async def process_job(cache: RagCache, job: dict) -> None:
             text = await asyncio.to_thread(_read_text, local_path)
             progress.publish(ws, file_id, "indexing", 40)
             track_id = await rag.ainsert(input=text, ids=doc_id, file_paths=canonical)
+        elif parse_mode == "normal":
+            # Free MinerU lightweight cloud API: upload → poll → fetch the
+            # markdown, then index it as raw text (no multimodal analysis).
+            progress.publish(ws, file_id, "parsing", 15)
+            md_text = await asyncio.to_thread(
+                mineru_lite.parse_file,
+                local_path,
+                name,
+                lambda pct: progress.publish(ws, file_id, "parsing", pct),
+            )
+            progress.publish(ws, file_id, "indexing", 60)
+            track_id = await rag.ainsert(input=md_text, ids=doc_id, file_paths=canonical)
         else:
             await asyncio.to_thread(_stage_source, ws, local_path, canonical)
             staged = True

@@ -16,7 +16,10 @@ func TestKindFromName(t *testing.T) {
 		"readme.markdown": "md",
 		"figure.png":     "image",
 		"photo.JPEG":     "image",
-		"data.csv":       "txt",
+		"data.csv":       "sheet",
+		"deck.pptx":      "slides",
+		"clip.mp4":       "video",
+		"talk.mp3":       "audio",
 		"noext":          "txt",
 	}
 	for name, want := range cases {

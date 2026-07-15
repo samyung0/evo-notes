@@ -23,6 +23,7 @@ const cardVariants = cva('flex flex-col items-stretch gap-2 p-5.5', {
     theme: {
       light: 'bg-surface text-surface-fg transition-colors hover:bg-surface-hover-bg',
       gray: 'bg-surface-dark text-surface-dark-fg hover:bg-surface-dark-hover-bg',
+      page: 'bg-page text-surface-fg',
       transparent: 'bg-transparent text-surface-fg',
     },
   },

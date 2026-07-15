@@ -29,6 +29,7 @@ import { m } from '@/i18n';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback } from 'react';
 import { Controller, useForm } from 'react-hook-form';
+import { InputTitle } from '@/components/ui/Input';
 
 const PRIVACY_OPTIONS: { value: Privacy; label: string; icon: IconName }[] = [
   { value: 'private', label: 'Private', icon: 'lock' },
@@ -90,7 +91,6 @@ export function WorkspaceFormCreateDialog({
           e.preventDefault();
           (e.currentTarget as HTMLElement).querySelector('input')?.focus();
         }}
-        className="top-1/2 -translate-y-1/2"
         showCloseButton={true}
       >
         {/* TODO: i18n */}
@@ -104,10 +104,7 @@ export function WorkspaceFormCreateDialog({
               return (
                 <>
                   <label className="flex flex-col gap-1.5">
-                    <div className="t-subtitle flex items-center gap-1 font-medium">
-                      <span>Name</span>
-                      <span className="text-solid-error">*</span>
-                    </div>
+                    <InputTitle required>Name</InputTitle>
                     <Input
                       {...field}
                       placeholder="Workspace name"
@@ -129,10 +126,7 @@ export function WorkspaceFormCreateDialog({
               return (
                 <>
                   <div className="flex min-w-full items-center justify-between gap-1.5">
-                    <div className="t-subtitle flex items-center gap-1 font-medium">
-                      <span>Visibility</span>
-                      <span className="text-solid-error">*</span>
-                    </div>
+                    <InputTitle required>Visibility</InputTitle>
                     <PrivacySelect
                       value={field.value}
                       onChange={field.onChange}
@@ -149,9 +143,7 @@ export function WorkspaceFormCreateDialog({
             control={form.control}
             render={({ field, fieldState }) => (
               <div className="flex flex-col gap-1.5">
-                <div className="t-subtitle flex items-center gap-1 font-medium">
-                  <span>Tags</span>
-                </div>
+                <InputTitle>Tags</InputTitle>
                 <TagSelect
                   kind="workspace"
                   value={field.value ?? []}
@@ -169,9 +161,7 @@ export function WorkspaceFormCreateDialog({
               return (
                 <>
                   <div className="flex flex-col gap-1.5">
-                    <div className="t-subtitle flex items-center gap-1 font-medium">
-                      <span>Color</span>
-                    </div>
+                    <InputTitle>Color</InputTitle>
                     <UserColorChooser
                       selected={field.value}
                       onChange={field.onChange}
@@ -183,16 +173,14 @@ export function WorkspaceFormCreateDialog({
               );
             }}
           />
-          <DialogFooter>
+          <DialogFooter className="pt-12">
             <DialogClose asChild>
               <Button variant="ghost-hover" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
             </DialogClose>
             <Button disabled={!form.formState.isDirty}>
-              {!form.formState.isSubmitting && (
-                <span>{workspace ? m.action_save() : m.action_create()}</span>
-              )}
+              {!form.formState.isSubmitting && <span>{m.action_create()}</span>}
               {form.formState.isSubmitting && (
                 <span>
                   <Spinner />
@@ -210,7 +198,7 @@ function PrivacySelect({ value, onChange }: { value: Privacy; onChange: (v: Priv
   const current = PRIVACY_OPTIONS.find((o) => o.value === value) ?? PRIVACY_OPTIONS[0]; // todo
   return (
     // todo tanstack form
-    <div className="w-45">
+    <div className="max-w-70 min-w-45">
       <Select defaultValue={current.value} onValueChange={(v) => onChange(v as Privacy)}>
         <SelectTrigger>
           <SelectValue></SelectValue>

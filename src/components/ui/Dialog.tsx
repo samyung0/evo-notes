@@ -44,10 +44,12 @@ function DialogContent({
   children,
   showCloseButton = true,
   cardClassName,
+  cardScrollContainerClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
   cardClassName?: string;
+  cardScrollContainerClassName?: string;
 }) {
   return (
     <DialogPortal>
@@ -63,24 +65,28 @@ function DialogContent({
         <Card
           radius="card-lg"
           raised
-          className={cn(
-            'relative max-h-[88vh] w-full items-stretch gap-0 overflow-auto',
-            cardClassName
-          )}
+          className={cn('relative w-full items-stretch gap-0 overflow-hidden p-0', cardClassName)}
         >
-          {children}
-          {showCloseButton && (
-            <DialogPrimitive.Close data-slot="dialog-close" asChild>
-              <IconButton
-                icon="x"
-                variant="ghost-hover"
-                className="absolute top-4 right-4"
-                size="md"
-              >
-                <span className="sr-only">Close</span>
-              </IconButton>
-            </DialogPrimitive.Close>
-          )}
+          <div
+            className={cn(
+              'flex max-h-[88vh] w-full flex-col items-stretch gap-0 overflow-auto p-5.5',
+              cardScrollContainerClassName
+            )}
+          >
+            {children}
+            {showCloseButton && (
+              <DialogPrimitive.Close data-slot="dialog-close" asChild>
+                <IconButton
+                  icon="x"
+                  variant="ghost-hover"
+                  className="absolute top-4 right-4"
+                  size="md"
+                >
+                  <span className="sr-only">Close</span>
+                </IconButton>
+              </DialogPrimitive.Close>
+            )}
+          </div>
         </Card>
       </DialogPrimitive.Content>
     </DialogPortal>
@@ -123,7 +129,6 @@ function SimpleDialog({
   title,
   children,
   footer,
-  width = 520,
   className,
   showCloseButton = true,
 }: {
@@ -138,11 +143,7 @@ function SimpleDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent
-        showCloseButton={showCloseButton}
-        style={{ maxWidth: width }}
-        className={className}
-      >
+      <DialogContent showCloseButton={showCloseButton} className={className}>
         {title != null && <DialogTitle className="pr-10 pb-4">{title}</DialogTitle>}
         {children}
         {footer && <DialogFooter>{footer}</DialogFooter>}

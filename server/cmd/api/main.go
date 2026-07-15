@@ -15,7 +15,6 @@ import (
 
 	"github.com/evonotes/server/internal/blob"
 	"github.com/evonotes/server/internal/httpapi"
-	"github.com/evonotes/server/internal/integrations"
 	"github.com/evonotes/server/internal/pipeline"
 	"github.com/evonotes/server/internal/store"
 )
@@ -43,7 +42,6 @@ func envInt(key string, def int) int {
 func main() {
 	dsn := env("DATABASE_URL", "postgres://evo:evo@localhost:5432/evo?sslmode=disable")
 	addr := env("ADDR", ":8080")
-	blobDir := env("BLOB_DIR", "./data/blobs")
 	parser := env("EVO_PARSER", "docling")
 	engine := env("EVO_ENGINE", "linearrag")
 	appURL := env("APP_URL", "http://localhost:5173")
@@ -55,36 +53,25 @@ func main() {
 	}
 	defer st.Close()
 
-	var blobStore blob.Store
-	switch backend := env("BLOB_BACKEND", "disk"); backend {
-	case "b2", "s3":
-		s3store, e := blob.NewS3(blob.S3Config{
-			Endpoint:     env("B2_ENDPOINT", ""),
-			Region:       env("B2_REGION", ""),
-			Bucket:       env("B2_BUCKET", ""),
-			KeyID:        env("B2_KEY_ID", ""),
-			AppKey:       env("B2_APP_KEY", ""),
-			UsePathStyle: envBool("B2_FORCE_PATH_STYLE"),
-			PresignTTL:   time.Duration(envInt("B2_PRESIGN_TTL", 900)) * time.Second,
-		})
-		if e != nil {
-			log.Fatalf("blob store (%s): %v", backend, e)
-		}
-		hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		if err := s3store.HealthCheck(hctx); err != nil {
-			cancel()
-			log.Fatalf("blob store (%s) unreachable — check B2_* config: %v", backend, err)
-		}
-		cancel()
-		blobStore = s3store
-		log.Printf("blob store: %s bucket=%s (presigned URLs)", backend, env("B2_BUCKET", ""))
-	default:
-		blobStore, err = blob.NewDisk(blobDir)
-		if err != nil {
-			log.Fatalf("blob store: %v", err)
-		}
-		log.Printf("blob store: disk dir=%s", blobDir)
+	blobStore, err := blob.NewB2(blob.B2Config{
+		Endpoint:     env("B2_ENDPOINT", ""),
+		Region:       env("B2_REGION", ""),
+		Bucket:       env("B2_BUCKET", ""),
+		KeyID:        env("B2_KEY_ID", ""),
+		AppKey:       env("B2_APP_KEY", ""),
+		UsePathStyle: envBool("B2_FORCE_PATH_STYLE"),
+		PresignTTL:   time.Duration(envInt("B2_PRESIGN_TTL", 900)) * time.Second,
+	})
+	if err != nil {
+		log.Fatalf("Backblaze B2 blob store: %v", err)
 	}
+	hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	if err := blobStore.HealthCheck(hctx); err != nil {
+		cancel()
+		log.Fatalf("Backblaze B2 unreachable — check B2_* config: %v", err)
+	}
+	cancel()
+	log.Printf("blob store: Backblaze B2 bucket=%s (presigned URLs)", env("B2_BUCKET", ""))
 
 	var pipe *pipeline.Client
 	if u := env("PIPELINE_URL", ""); u != "" {
@@ -120,13 +107,6 @@ func main() {
 		StripePricePro:      env("STRIPE_PRICE_PRO", ""),
 		StripePriceTeam:     env("STRIPE_PRICE_TEAM", ""),
 		AppURL:              appURL,
-		OAuth: integrations.OAuthConfig{
-			GoogleClientID:        env("GOOGLE_OAUTH_CLIENT_ID", ""),
-			GoogleClientSecret:    env("GOOGLE_OAUTH_CLIENT_SECRET", ""),
-			MicrosoftClientID:     env("MICROSOFT_OAUTH_CLIENT_ID", ""),
-			MicrosoftClientSecret: env("MICROSOFT_OAUTH_CLIENT_SECRET", ""),
-			RedirectBaseURL:       env("OAUTH_REDIRECT_BASE_URL", "http://localhost:8080"),
-		},
 	}
 
 	srv := &http.Server{

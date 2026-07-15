@@ -5,15 +5,15 @@
 #               doc-status backends). Built from deploy/postgres/Dockerfile;
 #               AGE is preloaded via `-c shared_preload_libraries=age`.
 # - redis     : pub/sub bus for live ingest progress (worker -> server -> SSE).
-# - server    : Go gateway (the frontend's /api). Writes uploads to evo_blobs,
-#               subscribes to Redis and fans progress out over SSE.
+# - server    : Go gateway (the frontend's /api). Writes uploads to Backblaze
+#               B2, subscribes to Redis and fans progress out over SSE.
 # - worker    : Python ingest worker (LightRAG). Parses on Modal (GPU MineRU),
 #               builds the LightRAG graph in Postgres, publishes progress.
 # - retrieval : Python FastAPI chat/generate over the per-workspace LightRAG.
 #
-# evo_blobs is shared between server (writer) and worker (reader). Real ingest
-# needs API keys (DeepSeek/OpenRouter/Google) and a deployed Modal parse URL —
-# set them in deploy/.env (see .env.example) or the shell environment.
+# Worker downloads B2 objects before parsing. Real ingest needs B2 credentials,
+# API keys (DeepSeek/OpenRouter/Google), and a deployed Modal parse URL.
+# Set them in deploy/.env (see .env.example) or the shell environment.
 
 services:
   db:
@@ -55,9 +55,7 @@ services:
       DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
       ADDR: ':8080'
       MIGRATE: 'true'
-      # Blob backend: "disk" (default, shared evo_blobs volume) or "b2"/"s3".
-      BLOB_BACKEND: ${BLOB_BACKEND:-disk}
-      BLOB_DIR: /data/blobs
+      # Backblaze B2 source-object storage.
       B2_ENDPOINT: ${B2_ENDPOINT:-}
       B2_REGION: ${B2_REGION:-}
       B2_BUCKET: ${B2_BUCKET:-}
@@ -79,15 +77,8 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
       STRIPE_PRICE_TEAM: ${STRIPE_PRICE_TEAM:-}
-      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
-      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
-      MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
-      MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
-      OAUTH_REDIRECT_BASE_URL: ${OAUTH_REDIRECT_BASE_URL:-http://localhost:8080}
     ports:
       - '8080:8080'
-    volumes:
-      - evo_blobs:/data/blobs
     depends_on:
       db:
         condition: service_healthy
@@ -99,9 +90,7 @@ services:
       context: ../pipeline
     environment:
       DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
-      # Must match the server's backend. b2/s3 downloads each object key.
-      BLOB_BACKEND: ${BLOB_BACKEND:-disk}
-      BLOB_DIR: /data/blobs
+      # Backblaze B2 source-object storage.
       B2_ENDPOINT: ${B2_ENDPOINT:-}
       B2_REGION: ${B2_REGION:-}
       B2_BUCKET: ${B2_BUCKET:-}
@@ -130,7 +119,6 @@ services:
       GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
       EVO_MODEL_IMAGE_CAPTION: ${EVO_MODEL_IMAGE_CAPTION:-gemini-3.1-flash-lite-preview}
     volumes:
-      - evo_blobs:/data/blobs
       - evo_rag:/data/rag_storage
     command: ['python', '-m', 'pipeline.ingest.worker']
     depends_on:
@@ -184,5 +172,4 @@ services:
 
 volumes:
   evo_pgdata:
-  evo_blobs:
   evo_rag:

@@ -98,7 +98,3 @@ export const qk = {
   conversations: (wsId: string) => ['workspace', wsId, 'conversations'] as const,
   messages: (convId: string) => ['conversation', convId, 'messages'] as const,
 };
-
-/** OAuth connect URLs hit the Go gateway directly (not MSW). */
-export const integrationConnectUrl = (provider: 'google' | 'microsoft') =>
-  `${API_BASE}/integrations/${provider}/connect`;

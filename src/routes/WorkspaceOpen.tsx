@@ -6,6 +6,7 @@ import {
   Button,
   HoverActions,
   Icon,
+  IconButton,
   type IconName,
   SegmentedControl,
   SkeletonList,
@@ -114,6 +115,7 @@ export default function WorkspaceOpen() {
   function filesFor(chapterId: string) {
     return files?.filter((f) => f.chapterId === chapterId) ?? [];
   }
+  // TODO: drag and drop
   function moveChapter(idx: number, dir: -1 | 1) {
     if (!chapters) return;
     const ids = chapters.map((c) => c.id);
@@ -163,22 +165,53 @@ export default function WorkspaceOpen() {
             onClick={() => openAddSource(workspaceId)}
             className="mt-4 w-full py-2"
           >
-            <Icon name="plus" size={16} /> {m.action_add_file()}
+            <Icon name="plus" size={16} className="-translate-y-px" /> {m.action_add_file()}
           </Button>
         </div>
 
         <Panel className="min-h-0 flex-1 flex-col p-1" sectionClassName="h-full gap-0">
-          <div className="min-h-0 flex-1 overflow-auto px-1.5 pt-3 pb-1.5">
+          <div className="min-h-0 flex-1 overflow-auto px-1.5 pt-0 pb-1.5">
             {!chapters && <SkeletonList count={5} rowHeight={36} className="px-1.5 py-2" />}
             {chapters && (
-              <div className="flex flex-col gap-3 py-2">
-                <div>
-                  <div className="t-label px-2 pb-1 text-fg-muted">Content</div>
+              <div className="flex flex-col gap-3 pt-1 pb-2">
+                <div className="flex flex-col">
+                  <div className="flex items-center justify-between px-2 pt-1.5 pr-0 pb-1.5">
+                    <div className="t-label text-fg-muted">Content</div>
+                    <div>
+                      <IconButton
+                        icon="plus"
+                        size={'xs'}
+                        variant={'neutral'}
+                        strokeWidth={1.5}
+                        onClick={() =>
+                          createNote.mutate(
+                            {},
+                            {
+                              onSuccess: (mt) => setOpenItem({ kind: 'material', id: mt.id }),
+                            }
+                          )
+                        }
+                        className="rounded-md px-1 py-1.5"
+                      />
+                      <IconButton
+                        icon="collapseFolder"
+                        size={'xs'}
+                        variant={'neutral'}
+                        strokeWidth={1.5}
+                        onClick={() =>
+                          setOpenChapters({
+                            ...Object.fromEntries(chapters.map((c) => [c.id, false])),
+                          })
+                        }
+                        className="rounded-md px-1 py-1.5"
+                      />
+                    </div>
+                  </div>
                   {chapters.map((ch, idx) => {
                     const expanded = openChapters[ch.id] ?? true;
                     return (
                       <div key={ch.id}>
-                        <div className="group relative flex items-center rounded-row py-2 pr-8 hover:bg-surface-hover-bg">
+                        <div className="group relative flex items-center rounded-row py-1.5 pr-8 hover:bg-surface-hover-bg">
                           <button
                             onClick={() => setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))}
                             className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left"
@@ -315,7 +348,7 @@ export default function WorkspaceOpen() {
             }}
             className="m-2 py-2"
           >
-            <Icon name="plus" size={15} /> {m.action_add_chapter()}
+            <Icon name="plus" size={15} className="-translate-y-px" /> {m.action_add_chapter()}
           </Button>
         </Panel>
       </ResizablePanel>

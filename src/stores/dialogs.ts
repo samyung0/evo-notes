@@ -1,6 +1,6 @@
 import { CreateWorkspaceReq, UpdateWorkspaceReq } from '@/api/gen/model';
 import type { CalendarEvent, Label, Task } from '@/api/types';
-import type { EventDraft } from '@/features/schedule/EventFormModal';
+import type { EventDraft } from '@/features/schedule/EventFormDialog';
 import { createWorkspaceDefaultValues } from '@/stores/defaultValues';
 import { create } from 'zustand';
 
@@ -14,7 +14,7 @@ export interface ConfirmConfig {
 
 interface DialogState {
   // these forms re-renders on the object change, so the initial value
-  // in tanstack form changes together without any shenanigans
+  // in tanstack form changes together without any shenanigans (otherwise we need some useeffect hook to listen to prop changes and then programmatically changes the defaultValue as defaultValue is not reactive)
   // the state of this zustand store is also not tied with other states like react query
   // because its gonna cause a lot of issues, and also some dialogs like the worksapce
   // can let you add new/modify existing workspaces, and tying them to react query
@@ -33,6 +33,7 @@ interface DialogState {
   eventForm: EventDraft | null;
   eventDetail: CalendarEvent | null;
   addSource: { workspaceId: string } | null;
+  msImport: { workspaceId: string } | null;
   confirm: ConfirmConfig | null;
 
   openWorkspaceCreate: (workspace?: CreateWorkspaceReq) => void;
@@ -43,6 +44,7 @@ interface DialogState {
   openEventForm: (draft?: EventDraft) => void;
   openEventDetail: (event: CalendarEvent) => void;
   openAddSource: (workspaceId: string) => void;
+  openMsImport: (workspaceId: string) => void;
   openConfirm: (config: ConfirmConfig) => void;
 
   closeWorkspaceCreate: () => void;
@@ -53,6 +55,7 @@ interface DialogState {
   closeEventForm: () => void;
   closeEventDetail: () => void;
   closeAddSource: () => void;
+  closeMsImport: () => void;
   closeConfirm: () => void;
 
   isTopBarSearchOpen: boolean;
@@ -70,6 +73,7 @@ export const useDialogs = create<DialogState>((set) => ({
   eventForm: null,
   eventDetail: null,
   addSource: null,
+  msImport: null,
   confirm: null,
 
   openWorkspaceCreate: (workspace?) =>
@@ -83,6 +87,7 @@ export const useDialogs = create<DialogState>((set) => ({
   openEventForm: (draft) => set({ eventForm: draft ?? {} }),
   openEventDetail: (event) => set({ eventDetail: event }),
   openAddSource: (workspaceId) => set({ addSource: { workspaceId } }),
+  openMsImport: (workspaceId) => set({ msImport: { workspaceId } }),
   openConfirm: (config) => set({ confirm: config }),
 
   closeWorkspaceCreate: () => set({ workspaceCreate: null }),
@@ -93,6 +98,7 @@ export const useDialogs = create<DialogState>((set) => ({
   closeEventForm: () => set({ eventForm: null }),
   closeEventDetail: () => set({ eventDetail: null }),
   closeAddSource: () => set({ addSource: null }),
+  closeMsImport: () => set({ msImport: null }),
   closeConfirm: () => set({ confirm: null }),
 
   isTopBarSearchOpen: false,

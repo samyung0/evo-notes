@@ -1,59 +1,48 @@
 package blob
 
 import (
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
-func TestDiskPutOpenRoundTrip(t *testing.T) {
-	dir := t.TempDir()
-	store, err := NewDisk(dir)
-	if err != nil {
-		t.Fatalf("NewDisk: %v", err)
-	}
-
-	content := "the mitochondria is the powerhouse of the cell"
-	path, size, err := store.Put("blob_abc", strings.NewReader(content))
-	if err != nil {
-		t.Fatalf("Put: %v", err)
-	}
-	if size != int64(len(content)) {
-		t.Errorf("size = %d, want %d", size, len(content))
-	}
-	if filepath.Dir(path) != dir {
-		t.Errorf("blob written outside dir: %q", path)
-	}
-
-	rc, err := store.Open(path)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer rc.Close()
-	got, err := io.ReadAll(rc)
-	if err != nil {
-		t.Fatalf("ReadAll: %v", err)
-	}
-	if string(got) != content {
-		t.Errorf("round-trip mismatch: got %q want %q", got, content)
+func TestNewB2RequiresB2Configuration(t *testing.T) {
+	if _, err := NewB2(B2Config{}); err == nil {
+		t.Fatal("NewB2 accepted missing B2 configuration")
 	}
 }
 
-func TestNewDiskCreatesDir(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "nested", "blobs")
-	if _, err := NewDisk(dir); err != nil {
-		t.Fatalf("NewDisk nested: %v", err)
-	}
-	if _, err := os.Stat(dir); err != nil {
-		t.Errorf("expected dir created: %v", err)
+func TestNewB2RejectsNonB2Endpoint(t *testing.T) {
+	_, err := NewB2(B2Config{
+		Endpoint: "https://s3.amazonaws.com",
+		Region:   "us-east-1",
+		Bucket:   "evo-notes",
+		KeyID:    "test-key-id",
+		AppKey:   "test-app-key",
+	})
+	if err == nil {
+		t.Fatal("NewB2 accepted a non-B2 endpoint")
 	}
 }
 
-func TestOpenMissing(t *testing.T) {
-	store, _ := NewDisk(t.TempDir())
-	if _, err := store.Open(filepath.Join(t.TempDir(), "nope")); err == nil {
-		t.Errorf("expected error opening missing blob")
+func TestNewB2BuildsB2Client(t *testing.T) {
+	store, err := NewB2(B2Config{
+		Endpoint: "https://s3.us-west-004.backblazeb2.com",
+		Region:   "us-west-004",
+		Bucket:   "evo-notes",
+		KeyID:    "test-key-id",
+		AppKey:   "test-app-key",
+	})
+	if err != nil {
+		t.Fatalf("NewB2: %v", err)
+	}
+	if store.bucket != "evo-notes" {
+		t.Errorf("bucket = %q, want %q", store.bucket, "evo-notes")
+	}
+	if store.presignTTL != defaultPresignTTL {
+		t.Errorf("presignTTL = %s, want %s", store.presignTTL, defaultPresignTTL)
+	}
+	if got := aws.ToString(store.client.Options().BaseEndpoint); got != "https://s3.us-west-004.backblazeb2.com" {
+		t.Errorf("BaseEndpoint = %q", got)
 	}
 }

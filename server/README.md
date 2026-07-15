@@ -21,6 +21,9 @@ go mod tidy                   # resolve deps + write go.sum (first run)
 go run ./cmd/api
 ```
 
+Backblaze B2 is required. Set every `B2_*` variable in `.env`; startup verifies
+bucket access and exits if those credentials are invalid.
+
 The server applies the embedded migrations in `migrations/*.sql` (schema +
 seed) on startup; both are idempotent.
 

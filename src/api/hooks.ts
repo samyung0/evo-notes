@@ -326,16 +326,21 @@ export function useUploadSource(wsId: string) {
       file,
       kind,
       chapterId,
+      parseMode,
     }: {
       file: File;
       kind: SourceFile['kind'];
       chapterId?: string | null;
+      /** advanced = Modal MinerU hybrid backend, normal = free MinerU
+       * lightweight cloud API, none = store only (no parsing/indexing). */
+      parseMode?: 'advanced' | 'normal' | 'none';
     }) => {
       const form = new FormData();
       form.append('file', file, file.name);
       form.append('name', file.name);
       form.append('kind', kind);
       if (chapterId) form.append('chapterId', chapterId);
+      if (parseMode) form.append('parseMode', parseMode);
       return api.upload<SourceFile>(`/workspaces/${wsId}/sources`, form);
     },
     onSuccess: (file) => {

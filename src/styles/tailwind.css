@@ -19,8 +19,6 @@
   /* Surfaces → bg-* */
   --color-page: var(--surface-page);
 
-  --color-canvas: var(--surface-canvas);
-
   --color-surface: var(--surface-card-bg);
   --color-surface-hover-bg: var(--surface-card-hover-bg);
 

@@ -124,10 +124,10 @@ export function Sidebar({
   return (
     <Card
       asChild
-      theme="gray"
+      theme="page"
       radius="card-xl"
       className={cn(
-        'm-2.5 mr-0 flex w-52 shrink-0 items-stretch gap-0 overflow-y-auto px-2.5 py-4',
+        'm-2.5 mr-0 ml-1 flex w-52 shrink-0 items-stretch gap-0 overflow-y-auto px-2.5 py-4',
         className
       )}
     >
