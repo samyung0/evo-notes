@@ -40,8 +40,10 @@ import type {
   ThinkingCanvas,
   User,
   Workspace,
+  PublicDeck,
   PublicQuiz,
   PublicWorkspace,
+  CloneWorkspaceResult,
 } from './types';
 
 /* ---------------- account / shell ---------------- */
@@ -243,6 +245,31 @@ export function useUpdateFile(wsId: string) {
     onSuccess: (file) => {
       qc.invalidateQueries({ queryKey: qk.files(wsId) });
       qc.invalidateQueries({ queryKey: qk.file(file.id) });
+      qc.invalidateQueries({ queryKey: qk.chapters(wsId) });
+    },
+  });
+}
+/** File a source under a chapter (membership), or unfile it (chapterId=null).
+ * The API uses an empty-string sentinel to unfile; null maps to "". Optimistic:
+ * patches the files cache, rolls back on error, reconciles chapters on settle. */
+export function useMoveFile(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, chapterId }: { id: string; chapterId: string | null }) =>
+      api.patch<SourceFile>(`/files/${id}`, { chapterId: chapterId ?? '' }),
+    onMutate: async ({ id, chapterId }) => {
+      await qc.cancelQueries({ queryKey: qk.files(wsId) });
+      const prev = qc.getQueryData<SourceFile[]>(qk.files(wsId));
+      qc.setQueryData<SourceFile[]>(qk.files(wsId), (list) =>
+        list?.map((f) => (f.id === id ? { ...f, chapterId } : f))
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(qk.files(wsId), ctx.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qk.files(wsId) });
       qc.invalidateQueries({ queryKey: qk.chapters(wsId) });
     },
   });
@@ -480,6 +507,33 @@ export function useUpdateMaterial(wsId: string) {
       qc.setQueryData(qk.material(mt.id), mt);
       qc.invalidateQueries({ queryKey: qk.materials(wsId) });
     },
+  });
+}
+
+/** File a material under a chapter (membership), or unfile it (chapterId=null).
+ * The API uses an empty-string sentinel to unfile; null maps to "". Optimistic:
+ * patches the materials list + single-material caches, rolls back on error. */
+export function useMoveMaterial(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, chapterId }: { id: string; chapterId: string | null }) =>
+      api.patch<Material>(`/materials/${id}`, { chapterId: chapterId ?? '' }),
+    onMutate: async ({ id, chapterId }) => {
+      await qc.cancelQueries({ queryKey: qk.materials(wsId) });
+      const prevList = qc.getQueryData<MaterialRef[]>(qk.materials(wsId));
+      qc.setQueryData<MaterialRef[]>(qk.materials(wsId), (prev) =>
+        prev?.map((r) => (r.id === id ? { ...r, chapterId } : r))
+      );
+      qc.setQueryData<Material>(qk.material(id), (prev) =>
+        prev ? { ...prev, chapterId } : prev
+      );
+      return { prevList };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prevList) qc.setQueryData(qk.materials(wsId), ctx.prevList);
+    },
+    onSuccess: (mt) => qc.setQueryData(qk.material(mt.id), mt),
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.materials(wsId) }),
   });
 }
 
@@ -833,3 +887,67 @@ export const exploreQuizzesQuery = () =>
     queryFn: () => api.get<PublicQuiz[]>('/explore/quizzes'),
   });
 export const useExploreQuizzes = () => useQuery(exploreQuizzesQuery());
+
+export const exploreDecksQuery = () =>
+  queryOptions({
+    queryKey: qk.exploreDecks,
+    queryFn: () => api.get<PublicDeck[]>('/explore/decks'),
+  });
+export const useExploreDecks = () => useQuery(exploreDecksQuery());
+
+/* ---------------- sharing & cloning ---------------- */
+
+/** Deep-copy a shared workspace (chapters, files, materials and — via the
+ * pipeline — the parsed knowledge graph) into the caller's account. */
+export function useCloneWorkspace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<CloneWorkspaceResult>(`/workspaces/${id}/clone`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      qc.invalidateQueries({ queryKey: qk.quizzes });
+      qc.invalidateQueries({ queryKey: qk.decks });
+      qc.invalidateQueries({ queryKey: qk.exploreWorkspaces });
+    },
+  });
+}
+
+/** Copy a shared quiz into the caller's library (most recent workspace). */
+export function useCloneQuiz() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<Quiz>(`/quizzes/${id}/clone`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.quizzes });
+      qc.invalidateQueries({ queryKey: qk.exploreQuizzes });
+      invalidateAllMaterials(qc);
+    },
+  });
+}
+
+/** Copy a shared deck (with reset SRS state) into the caller's library. */
+export function useCloneDeck() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<Deck>(`/decks/${id}/clone`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.decks });
+      qc.invalidateQueries({ queryKey: qk.exploreDecks });
+      invalidateAllMaterials(qc);
+    },
+  });
+}
+
+/** Rename / recolor a deck or change its visibility (share standalone). */
+export function useUpdateDeck() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; color?: string; privacy?: string }) =>
+      api.patch<Deck>(`/decks/${id}`, body),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: qk.decks });
+      qc.invalidateQueries({ queryKey: qk.deck(v.id) });
+      invalidateAllMaterials(qc);
+    },
+  });
+}

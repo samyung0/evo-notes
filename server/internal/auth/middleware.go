@@ -22,7 +22,9 @@ type Config struct {
 
 // UserStore lazily provisions users on first authenticated request.
 type UserStore interface {
-	UpsertUserFromClerk(ctx context.Context, id, name, email, avatarURL string) error
+	// UpsertUserFromClerk returns true when a new user row was inserted.
+	UpsertUserFromClerk(ctx context.Context, id, name, email, avatarURL string) (bool, error)
+	CreateDefaultWorkspace(ctx context.Context, userID string) error
 }
 
 func isPublic(path string, prefixes []string) bool {
@@ -87,7 +89,9 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 
 				if cfg.Store != nil {
 					name, email, avatar := profileFromSession(r.Context(), userID)
-					_ = cfg.Store.UpsertUserFromClerk(r.Context(), userID, name, email, avatar)
+					if created, err := cfg.Store.UpsertUserFromClerk(r.Context(), userID, name, email, avatar); err == nil && created {
+						_ = cfg.Store.CreateDefaultWorkspace(r.Context(), userID)
+					}
 				}
 
 				next.ServeHTTP(w, r.WithContext(WithUserID(r.Context(), userID)))

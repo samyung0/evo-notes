@@ -16,6 +16,7 @@ export interface PublicWorkspace {
   createdAt: string;
   fileCount: number;
   id: string;
+  isOwner: boolean;
   lastAccessedAt: string;
   name: string;
   privacy: Privacy;

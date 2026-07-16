@@ -291,7 +291,13 @@ export const handlers = [
     if (!f) return new HttpResponse(null, { status: 404 });
     const body = (await request.json()) as Partial<Pick<SourceFile, 'name' | 'chapterId'>>;
     if (body.name !== undefined) f.name = body.name;
-    if (body.chapterId !== undefined) f.chapterId = body.chapterId;
+    if (body.chapterId !== undefined) {
+      // Empty-string sentinel unfiles (mirrors the Go gateway).
+      const next = body.chapterId === '' ? null : body.chapterId;
+      for (const c of db.chapters) c.fileIds = c.fileIds.filter((id) => id !== f.id);
+      f.chapterId = next;
+      if (next) db.chapters.find((c) => c.id === next)?.fileIds.push(f.id);
+    }
     return HttpResponse.json(f);
   }),
   http.delete('/api/files/:id', async ({ params }) => {
@@ -311,7 +317,13 @@ export const handlers = [
     const wsId = String(params.id);
     const refs: MaterialRef[] = db.materials
       .filter((mt) => mt.workspaceId === wsId)
-      .map((mt) => ({ id: mt.id, type: refType(mt.kind), title: mt.title, createdAt: mt.createdAt }))
+      .map((mt) => ({
+        id: mt.id,
+        type: refType(mt.kind),
+        title: mt.title,
+        chapterId: mt.chapterId ?? null,
+        createdAt: mt.createdAt,
+      }))
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     return HttpResponse.json(refs);
   }),
@@ -333,6 +345,7 @@ export const handlers = [
       kind: body.kind ?? 'note',
       title: body.title || 'Untitled note',
       content: body.content ?? '',
+      chapterId: null,
       scopeChapters: body.scopeChapters ?? [],
       scopeFileIds: body.scopeFileIds ?? [],
       privacy: 'private',
@@ -353,11 +366,14 @@ export const handlers = [
     const body = (await request.json().catch(() => ({}))) as {
       title?: string;
       content?: string;
+      chapterId?: string;
       scopeChapters?: string[];
       scopeFileIds?: string[];
     };
     if (body.title != null) mt.title = body.title;
     if (body.content != null) mt.content = body.content;
+    // Empty-string sentinel unfiles; a real id files it; omitted leaves it.
+    if (body.chapterId != null) mt.chapterId = body.chapterId === '' ? null : body.chapterId;
     if (body.scopeChapters != null) mt.scopeChapters = body.scopeChapters;
     if (body.scopeFileIds != null) mt.scopeFileIds = body.scopeFileIds;
     return HttpResponse.json(mt);
@@ -590,13 +606,18 @@ export const handlers = [
     const opts = (await request.json()) as GenerateOptions;
     const wsId = String(params.id);
     const wsName = db.workspaces.find((w) => w.id === wsId)?.name ?? 'Workspace';
+    // Chapters arrive as ids; resolve to names for display + storage parity
+    // with the Go backend.
+    const scopeChapterNames = opts.chapters
+      .map((cid) => db.chapters.find((c) => c.id === cid)?.name)
+      .filter(Boolean) as string[];
     // Human-readable scope, for material titles / bodies.
     const scopeFileNames = ('fileIds' in opts ? opts.fileIds : [])
       .map((fid) => db.files.find((f) => f.id === fid)?.name)
       .filter(Boolean) as string[];
     const scopeLabel =
-      opts.chapters.length || scopeFileNames.length
-        ? [...opts.chapters, ...scopeFileNames].join(', ')
+      scopeChapterNames.length || scopeFileNames.length
+        ? [...scopeChapterNames, ...scopeFileNames].join(', ')
         : 'the whole workspace';
 
     if (opts.kind === 'flashcards') {
@@ -616,7 +637,8 @@ export const handlers = [
         title: name,
         color: 'green',
         content: flashcardsMarkdown(name, cardContents),
-        scopeChapters: opts.chapters,
+        chapterId: null,
+        scopeChapters: scopeChapterNames,
         scopeFileIds: opts.fileIds,
         privacy: 'private',
         createdAt: new Date().toISOString(),
@@ -668,7 +690,8 @@ export const handlers = [
                 '  C -->|No| E[Outcome 2]',
                 '```',
               ].join('\n'),
-        scopeChapters: opts.chapters,
+        chapterId: null,
+        scopeChapters: scopeChapterNames,
         scopeFileIds: opts.fileIds,
         privacy: 'private',
         createdAt: new Date().toISOString(),
@@ -751,7 +774,8 @@ export const handlers = [
       kind: 'quiz',
       title: name,
       content: quizMarkdown(name, { questions: qs, timeLimitMin: opts.timeLimitMin }),
-      scopeChapters: opts.chapters,
+      chapterId: null,
+      scopeChapters: scopeChapterNames,
       scopeFileIds: opts.fileIds,
       privacy: 'private',
       createdAt: new Date().toISOString(),
@@ -779,6 +803,7 @@ export const handlers = [
         questions: body.questions ?? [],
         timeLimitMin: body.timeLimitMin,
       }),
+      chapterId: null,
       scopeChapters: body.chapters ?? [],
       scopeFileIds: [],
       privacy: body.privacy ?? 'private',
@@ -914,6 +939,7 @@ export const handlers = [
       title: name,
       color: body.color ?? 'green',
       content: flashcardsMarkdown(name, []),
+      chapterId: null,
       scopeChapters: [],
       scopeFileIds: [],
       privacy: 'private',

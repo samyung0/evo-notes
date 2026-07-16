@@ -4,6 +4,7 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { Privacy } from './privacy.ts';
 import type { UserColor } from './userColor.ts';
 
 export interface Deck {
@@ -13,8 +14,10 @@ export interface Deck {
   color: UserColor;
   dueCount: number;
   id: string;
+  isOwner: boolean;
   knownPct: number;
   name: string;
+  privacy: Privacy;
   workspaceId: string;
   workspaceName: string;
 }

@@ -132,7 +132,7 @@ function CountRow({ value, onChange }: { value: number; onChange: (n: number) =>
  * the parent mounts this with `key={mode}` so each open starts fresh. On a
  * successful generate the parent closes the dialog and shows the result.
  *
- * Scope is dual: chapters (by name) and/or individual files (by id). Empty
+ * Scope is dual: chapters (by id) and/or individual files (by id). Empty
  * scope means the whole workspace.
  */
 export function GenerateFormDialog({
@@ -189,10 +189,10 @@ export function GenerateFormDialog({
               {chapters.map((c) => (
                 <Chip
                   key={c.id}
-                  active={chapterScope.includes(c.name)}
+                  active={chapterScope.includes(c.id)}
                   onClick={() =>
                     setChapterScope((s) =>
-                      s.includes(c.name) ? s.filter((x) => x !== c.name) : [...s, c.name]
+                      s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]
                     )
                   }
                 >

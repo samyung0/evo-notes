@@ -47,7 +47,7 @@ func (a *api) assertMaterialOwner(ctx context.Context, matID string) error {
 }
 
 func (a *api) listMaterials(ctx context.Context, in *workspaceIDInput) (*materialRefsOutput, error) {
-	if err := a.assertOwner(ctx, in.ID); err != nil {
+	if _, err := a.workspaceRead(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	res, err := a.s.ListMaterialRefs(ctx, in.ID)
@@ -86,17 +86,20 @@ func (a *api) createMaterial(ctx context.Context, in *createMaterialInput) (*mat
 	if err != nil {
 		return nil, hErr(err)
 	}
+	res.IsOwner = true
 	return &materialOutput{Body: res}, nil
 }
 
 func (a *api) getMaterial(ctx context.Context, in *materialIDInput) (*materialOutput, error) {
-	if err := a.assertMaterialOwner(ctx, in.ID); err != nil {
+	isOwner, err := a.materialRead(ctx, in.ID)
+	if err != nil {
 		return nil, hErr(err)
 	}
 	res, err := a.s.GetMaterial(ctx, in.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
+	res.IsOwner = isOwner
 	return &materialOutput{Body: res}, nil
 }
 
@@ -104,15 +107,29 @@ func (a *api) updateMaterial(ctx context.Context, in *updateMaterialInput) (*mat
 	if err := a.assertMaterialOwner(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
-	res, err := a.s.UpdateMaterial(ctx, in.ID, store.MaterialPatch{
+	patch := store.MaterialPatch{
 		Title:         in.Body.Title,
 		Content:       in.Body.Content,
 		ScopeChapters: in.Body.ScopeChapters,
 		ScopeFileIDs:  in.Body.ScopeFileIDs,
-	})
+		Privacy:       in.Body.Privacy,
+	}
+	// chapterId: "" unfiles (NULL), a real id files it, omitted leaves it.
+	if in.Body.ChapterID != nil {
+		if *in.Body.ChapterID == "" {
+			var none *string
+			patch.ChapterID = &none
+		} else {
+			cid := *in.Body.ChapterID
+			p := &cid
+			patch.ChapterID = &p
+		}
+	}
+	res, err := a.s.UpdateMaterial(ctx, in.ID, patch)
 	if err != nil {
 		return nil, hErr(err)
 	}
+	res.IsOwner = true
 	return &materialOutput{Body: res}, nil
 }
 

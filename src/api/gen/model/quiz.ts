@@ -13,6 +13,7 @@ export interface Quiz {
   chapters: string[];
   createdAt: string;
   id: string;
+  isOwner: boolean;
   name: string;
   privacy: Privacy;
   questions: QuizQuestionsItem[];

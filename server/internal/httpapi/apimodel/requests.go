@@ -57,11 +57,18 @@ type CreateMaterialReq struct {
 }
 
 // UpdateMaterialReq is the (partial) body for PATCH /api/materials/{id}.
+//
+// ChapterID files the material under a chapter (membership): omit to leave it
+// unchanged, send an empty string to unfile it, or a chapter id to file it. The
+// empty-string sentinel is needed because JSON null is indistinguishable from
+// an omitted field with a single pointer.
 type UpdateMaterialReq struct {
-	Title         *string   `json:"title,omitempty"`
-	Content       *string   `json:"content,omitempty"`
-	ScopeChapters *[]string `json:"scopeChapters,omitempty"`
-	ScopeFileIDs  *[]string `json:"scopeFileIds,omitempty"`
+	Title         *string        `json:"title,omitempty"`
+	Content       *string        `json:"content,omitempty"`
+	ChapterID     *string        `json:"chapterId,omitempty" doc:"Chapter to file under; empty string unfiles; omit to leave unchanged"`
+	ScopeChapters *[]string      `json:"scopeChapters,omitempty"`
+	ScopeFileIDs  *[]string      `json:"scopeFileIds,omitempty"`
+	Privacy       *store.Privacy `json:"privacy,omitempty" doc:"Visibility (share standalone)"`
 }
 
 type CreateQuizReq struct {
@@ -93,6 +100,13 @@ type CreateDeckReq struct {
 	Name        string          `json:"name,omitempty"`
 	Color       store.UserColor `json:"color,omitempty"`
 	WorkspaceID string          `json:"workspaceId,omitempty"`
+}
+
+// UpdateDeckReq is the (partial) body for PATCH /api/decks/{id}.
+type UpdateDeckReq struct {
+	Name    *string          `json:"name,omitempty"`
+	Color   *store.UserColor `json:"color,omitempty"`
+	Privacy *store.Privacy   `json:"privacy,omitempty" doc:"Visibility (share standalone)"`
 }
 
 type CreateCardReq struct {

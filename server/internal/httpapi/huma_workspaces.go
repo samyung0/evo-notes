@@ -55,11 +55,26 @@ func (a *api) listWorkspaces(ctx context.Context, in *listWorkspacesInput) (*wor
 }
 
 func (a *api) getWorkspace(ctx context.Context, in *workspaceIDInput) (*workspaceOutput, error) {
-	res, err := a.s.GetWorkspace(ctx, userID(ctx), in.ID, true)
+	// Owners get a normal (touching) read; non-owners may view link/public
+	// workspaces read-only.
+	isOwner, err := a.workspaceRead(ctx, in.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
-	return &workspaceOutput{Body: apimodel.FromWorkspace(res)}, nil
+	if isOwner {
+		res, err := a.s.GetWorkspace(ctx, userID(ctx), in.ID, true)
+		if err != nil {
+			return nil, hErr(err)
+		}
+		return &workspaceOutput{Body: apimodel.FromWorkspace(res)}, nil
+	}
+	res, err := a.s.GetWorkspaceShared(ctx, in.ID)
+	if err != nil {
+		return nil, hErr(err)
+	}
+	body := apimodel.FromWorkspace(res)
+	body.IsOwner = false
+	return &workspaceOutput{Body: body}, nil
 }
 
 func (a *api) createWorkspace(ctx context.Context, in *createWorkspaceInput) (*workspaceOutput, error) {

@@ -78,11 +78,18 @@ func (a *api) getQuiz(ctx context.Context, in *quizIDInput) (*quizOutput, error)
 	if in.ID == "review_mistakes" {
 		return a.getMistakes(ctx, nil)
 	}
+	// Owners plus link/public viewers (shared quizzes can be attempted).
+	isOwner, err := a.materialRead(ctx, in.ID)
+	if err != nil {
+		return nil, hErr(err)
+	}
 	res, err := a.s.GetQuiz(ctx, in.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
-	return &quizOutput{Body: apimodel.FromQuiz(res)}, nil
+	body := apimodel.FromQuiz(res)
+	body.IsOwner = isOwner
+	return &quizOutput{Body: body}, nil
 }
 
 func (a *api) createQuiz(ctx context.Context, in *createQuizInput) (*quizOutput, error) {
@@ -114,6 +121,9 @@ func (a *api) createQuiz(ctx context.Context, in *createQuizInput) (*quizOutput,
 }
 
 func (a *api) updateQuiz(ctx context.Context, in *updateQuizInput) (*quizOutput, error) {
+	if err := a.assertMaterialOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	p := store.QuizPatch{Name: in.Body.Name, Chapters: in.Body.Chapters, Privacy: in.Body.Privacy, TimeLimitMin: in.Body.TimeLimitMin}
 	if in.Body.Questions != nil {
 		raw := apimodel.EncodeQuestions(*in.Body.Questions)
@@ -127,6 +137,9 @@ func (a *api) updateQuiz(ctx context.Context, in *updateQuizInput) (*quizOutput,
 }
 
 func (a *api) deleteQuiz(ctx context.Context, in *quizIDInput) (*Empty, error) {
+	if err := a.assertMaterialOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	if err := a.s.DeleteQuiz(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}

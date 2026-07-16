@@ -80,6 +80,8 @@ type (
 )
 
 // Workspace is the response contract. Tags are object-wrapped for useFieldArray.
+// IsOwner is request-scoped: false when a non-owner reads a link/public
+// workspace (the client renders it read-only with a clone action).
 type Workspace struct {
 	ID             string          `json:"id"`
 	Name           string          `json:"name"`
@@ -90,13 +92,14 @@ type Workspace struct {
 	FileCount      int             `json:"fileCount"`
 	CreatedAt      time.Time       `json:"createdAt"`
 	LastAccessedAt time.Time       `json:"lastAccessedAt"`
+	IsOwner        bool            `json:"isOwner"`
 }
 
 func FromWorkspace(w store.Workspace) Workspace {
 	return Workspace{
 		ID: w.ID, Name: w.Name, Color: w.Color, Privacy: w.Privacy,
 		Tags: WrapTags(w.Tags), ChapterCount: w.ChapterCount, FileCount: w.FileCount,
-		CreatedAt: w.CreatedAt, LastAccessedAt: w.LastAccessedAt,
+		CreatedAt: w.CreatedAt, LastAccessedAt: w.LastAccessedAt, IsOwner: true,
 	}
 }
 
@@ -135,13 +138,15 @@ type Quiz struct {
 	CreatedAt     time.Time        `json:"createdAt"`
 	Privacy       store.Privacy    `json:"privacy"`
 	TimeLimitMin  *int             `json:"timeLimitMin,omitempty"`
+	// IsOwner is request-scoped: false for link/public shared reads.
+	IsOwner bool `json:"isOwner"`
 }
 
 func FromQuiz(q store.Quiz) Quiz {
 	out := Quiz{
 		ID: q.ID, Name: q.Name, WorkspaceID: q.WorkspaceID, WorkspaceName: q.WorkspaceName,
 		Chapters: q.Chapters, Questions: decodeQuestions(q.Questions), CreatedAt: q.CreatedAt,
-		Privacy: q.Privacy, TimeLimitMin: q.TimeLimitMin,
+		Privacy: q.Privacy, TimeLimitMin: q.TimeLimitMin, IsOwner: true,
 	}
 	if out.Chapters == nil {
 		out.Chapters = []string{}
@@ -184,7 +189,32 @@ type PublicQuiz struct {
 func FromPublicQuizzes(qs []store.PublicQuiz) []PublicQuiz {
 	out := make([]PublicQuiz, len(qs))
 	for i, q := range qs {
-		out[i] = PublicQuiz{Quiz: FromQuiz(q.Quiz), Author: q.Author, Clones: q.Clones}
+		pq := PublicQuiz{Quiz: FromQuiz(q.Quiz), Author: q.Author, Clones: q.Clones}
+		pq.IsOwner = false
+		out[i] = pq
 	}
 	return out
+}
+
+// PublicDeck is a flashcard deck shared on Explore.
+type PublicDeck struct {
+	store.Deck
+	Author string `json:"author"`
+	Clones int    `json:"clones"`
+}
+
+func FromPublicDecks(ds []store.PublicDeck) []PublicDeck {
+	out := make([]PublicDeck, len(ds))
+	for i, d := range ds {
+		out[i] = PublicDeck{Deck: d.Deck, Author: d.Author, Clones: d.Clones}
+	}
+	return out
+}
+
+// CloneWorkspaceResp reports the cloned workspace and whether the parsed
+// LightRAG knowledge base was copied along with it (false = pipeline offline;
+// re-ingest files to rebuild the knowledge graph).
+type CloneWorkspaceResp struct {
+	Workspace Workspace `json:"workspace"`
+	RagCloned bool      `json:"ragCloned"`
 }

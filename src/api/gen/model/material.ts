@@ -10,10 +10,13 @@ import type { UserColor } from './userColor.ts';
 export interface Material {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
+  /** @nullable */
+  chapterId: string | null;
   color?: UserColor;
   content: string;
   createdAt: string;
   id: string;
+  isOwner: boolean;
   kind: string;
   privacy: Privacy;
   scopeChapters: string[];

@@ -65,7 +65,7 @@ func (a *api) assertOwner(ctx context.Context, wsID string) error {
 }
 
 func (a *api) listChapters(ctx context.Context, in *workspaceIDInput) (*chaptersOutput, error) {
-	if err := a.assertOwner(ctx, in.ID); err != nil {
+	if _, err := a.workspaceRead(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	res, err := a.s.ListChapters(ctx, in.ID)
@@ -87,6 +87,9 @@ func (a *api) addChapter(ctx context.Context, in *addChapterInput) (*chapterOutp
 }
 
 func (a *api) updateChapter(ctx context.Context, in *updateChapterInput) (*chapterOutput, error) {
+	if err := a.assertChapterOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	res, err := a.s.UpdateChapter(ctx, in.ID, store.ChapterPatch{Name: in.Body.Name, Order: in.Body.Order})
 	if err != nil {
 		return nil, hErr(err)
@@ -105,6 +108,9 @@ func (a *api) reorderChapters(ctx context.Context, in *reorderChaptersInput) (*E
 }
 
 func (a *api) deleteChapter(ctx context.Context, in *chapterIDInput) (*Empty, error) {
+	if err := a.assertChapterOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	if err := a.s.DeleteChapter(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
@@ -120,7 +126,7 @@ func (a *api) listAllFiles(ctx context.Context, _ *struct{}) (*filesOutput, erro
 }
 
 func (a *api) listWorkspaceFiles(ctx context.Context, in *workspaceIDInput) (*filesOutput, error) {
-	if err := a.assertOwner(ctx, in.ID); err != nil {
+	if _, err := a.workspaceRead(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	res, err := a.s.ListFiles(ctx, userID(ctx), in.ID)
@@ -131,6 +137,9 @@ func (a *api) listWorkspaceFiles(ctx context.Context, in *workspaceIDInput) (*fi
 }
 
 func (a *api) getFile(ctx context.Context, in *fileIDInput) (*fileOutput, error) {
+	if _, err := a.fileRead(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	res, err := a.s.GetFile(ctx, in.ID)
 	if err != nil {
 		return nil, hErr(err)
@@ -139,10 +148,20 @@ func (a *api) getFile(ctx context.Context, in *fileIDInput) (*fileOutput, error)
 }
 
 func (a *api) updateFile(ctx context.Context, in *updateFileInput) (*fileOutput, error) {
+	if err := a.assertFileOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	patch := store.FilePatch{Name: in.Body.Name}
+	// chapterId: "" unfiles (NULL), a real id files it, omitted leaves it.
 	if in.Body.ChapterID != nil {
-		cid := in.Body.ChapterID
-		patch.ChapterID = &cid
+		if *in.Body.ChapterID == "" {
+			var none *string
+			patch.ChapterID = &none
+		} else {
+			cid := *in.Body.ChapterID
+			p := &cid
+			patch.ChapterID = &p
+		}
 	}
 	res, err := a.s.UpdateFile(ctx, in.ID, patch)
 	if err != nil {
@@ -152,6 +171,9 @@ func (a *api) updateFile(ctx context.Context, in *updateFileInput) (*fileOutput,
 }
 
 func (a *api) deleteFile(ctx context.Context, in *fileIDInput) (*Empty, error) {
+	if err := a.assertFileOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	if err := a.s.DeleteFile(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}

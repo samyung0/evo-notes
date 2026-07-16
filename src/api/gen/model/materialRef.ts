@@ -6,6 +6,8 @@
  */
 
 export interface MaterialRef {
+  /** @nullable */
+  chapterId: string | null;
   createdAt: string;
   id: string;
   title: string;

@@ -236,12 +236,13 @@ func (s *Store) WorkspaceStats(ctx context.Context, userID, id string) (Workspac
 		return WorkspaceStats{}, err
 	}
 	var st WorkspaceStats
+	// Quizzes live in `materials` since 0010 (the legacy quizzes table is gone).
 	err := s.pool.QueryRow(ctx, `SELECT
 		(SELECT count(*) FROM chapters WHERE workspace_id=$1),
 		(SELECT count(*) FROM files WHERE workspace_id=$1),
-		(SELECT count(*) FROM quizzes WHERE workspace_id=$1),
-		(SELECT count(*) FROM attempts a JOIN quizzes q ON q.id=a.quiz_id WHERE q.workspace_id=$1),
-		COALESCE((SELECT round(avg(a.pct))::int FROM attempts a JOIN quizzes q ON q.id=a.quiz_id WHERE q.workspace_id=$1),0)`,
+		(SELECT count(*) FROM materials WHERE workspace_id=$1 AND kind='quiz'),
+		(SELECT count(*) FROM attempts a JOIN materials m ON m.id=a.quiz_id WHERE m.workspace_id=$1),
+		COALESCE((SELECT round(avg(a.pct))::int FROM attempts a JOIN materials m ON m.id=a.quiz_id WHERE m.workspace_id=$1),0)`,
 		id).Scan(&st.Chapters, &st.Files, &st.Quizzes, &st.Attempts, &st.AvgScore)
 	return st, err
 }
@@ -549,11 +550,11 @@ func (s *Store) DeleteFile(ctx context.Context, id string) error {
 
 /* ------------------------------------------------------------- materials */
 
-const materialCols = `id, workspace_id, workspace_name, kind, title, content, scope_chapters, scope_file_ids, privacy, color, created_at`
+const materialCols = `id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color, created_at`
 
 func scanMaterial(row pgx.Row) (Material, error) {
 	var mt Material
-	err := row.Scan(&mt.ID, &mt.WorkspaceID, &mt.WorkspaceName, &mt.Kind, &mt.Title, &mt.Content, &mt.ScopeChapters, &mt.ScopeFileIDs, &mt.Privacy, &mt.Color, &mt.CreatedAt)
+	err := row.Scan(&mt.ID, &mt.WorkspaceID, &mt.WorkspaceName, &mt.Kind, &mt.Title, &mt.Content, &mt.ChapterID, &mt.ScopeChapters, &mt.ScopeFileIDs, &mt.Privacy, &mt.Color, &mt.CreatedAt)
 	if mt.ScopeChapters == nil {
 		mt.ScopeChapters = []string{}
 	}
@@ -579,9 +580,9 @@ func (s *Store) CreateMaterial(ctx context.Context, mt Material) (Material, erro
 	if mt.Color == "" {
 		mt.Color = "green"
 	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO materials (id, workspace_id, workspace_name, kind, title, content, scope_chapters, scope_file_ids, privacy, color)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		mt.ID, mt.WorkspaceID, mt.WorkspaceName, mt.Kind, mt.Title, mt.Content, mt.ScopeChapters, mt.ScopeFileIDs, mt.Privacy, mt.Color)
+	_, err := s.pool.Exec(ctx, `INSERT INTO materials (id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		mt.ID, mt.WorkspaceID, mt.WorkspaceName, mt.Kind, mt.Title, mt.Content, mt.ChapterID, mt.ScopeChapters, mt.ScopeFileIDs, mt.Privacy, mt.Color)
 	if err != nil {
 		return Material{}, err
 	}
@@ -608,12 +609,15 @@ func (s *Store) DeleteMaterial(ctx context.Context, id string) error {
 }
 
 // MaterialPatch is a partial update for a material. Only non-nil fields are
-// written. Used for user-authored notes (title/content/scope edits).
+// written. Used for user-authored notes (title/content/scope edits) and filing
+// a material under a chapter.
 type MaterialPatch struct {
 	Title         *string
 	Content       *string
+	ChapterID     **string // double pointer: nil = leave, &nil = unfile, &&v = set
 	ScopeChapters *[]string
 	ScopeFileIDs  *[]string
+	Privacy       *Privacy
 }
 
 func (s *Store) UpdateMaterial(ctx context.Context, id string, p MaterialPatch) (Material, error) {
@@ -631,6 +635,9 @@ func (s *Store) UpdateMaterial(ctx context.Context, id string, p MaterialPatch) 
 	if p.Content != nil {
 		add("content", *p.Content)
 	}
+	if p.ChapterID != nil {
+		add("chapter_id", *p.ChapterID)
+	}
 	if p.ScopeChapters != nil {
 		sc := *p.ScopeChapters
 		if sc == nil {
@@ -644,6 +651,9 @@ func (s *Store) UpdateMaterial(ctx context.Context, id string, p MaterialPatch) 
 			sf = []string{}
 		}
 		add("scope_file_ids", sf)
+	}
+	if p.Privacy != nil {
+		add("privacy", *p.Privacy)
 	}
 	if len(sets) == 0 {
 		return s.GetMaterial(ctx, id)
@@ -676,14 +686,14 @@ func (s *Store) MaterialWorkspaceID(ctx context.Context, id string) (string, err
 // to the client as the legacy ref type "deck".
 func (s *Store) ListMaterialRefs(ctx context.Context, wsID string) ([]MaterialRef, error) {
 	out := []MaterialRef{}
-	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, created_at FROM materials WHERE workspace_id=$1 ORDER BY created_at DESC`, wsID)
+	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, chapter_id, created_at FROM materials WHERE workspace_id=$1 ORDER BY created_at DESC`, wsID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var r MaterialRef
-		if err := rows.Scan(&r.ID, &r.Type, &r.Title, &r.CreatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.Type, &r.Title, &r.ChapterID, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		if r.Type == "flashcards" {
@@ -888,12 +898,12 @@ const deckStatsExpr = `
 
 func scanDeck(row pgx.Row) (Deck, error) {
 	var d Deck
-	err := row.Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.CardCount, &d.KnownPct, &d.DueCount)
+	err := row.Scan(&d.ID, &d.Name, &d.WorkspaceID, &d.WorkspaceName, &d.Color, &d.Privacy, &d.CardCount, &d.KnownPct, &d.DueCount)
 	return d, err
 }
 
 func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
-	rows, err := s.pool.Query(ctx, `SELECT m.id, m.title, COALESCE(m.workspace_id,''), m.workspace_name, m.color,`+deckStatsExpr+`
+	rows, err := s.pool.Query(ctx, `SELECT m.id, m.title, COALESCE(m.workspace_id,''), m.workspace_name, m.color, m.privacy,`+deckStatsExpr+`
 		FROM materials m JOIN workspaces w ON w.id=m.workspace_id
 		WHERE w.user_id=$1 AND m.kind='flashcards' ORDER BY m.title`, userID)
 	if err != nil {
@@ -906,13 +916,14 @@ func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
 		if err != nil {
 			return nil, err
 		}
+		d.IsOwner = true
 		out = append(out, d)
 	}
 	return out, rows.Err()
 }
 
 func (s *Store) GetDeck(ctx context.Context, id string) (Deck, error) {
-	d, err := scanDeck(s.pool.QueryRow(ctx, `SELECT m.id, m.title, COALESCE(m.workspace_id,''), m.workspace_name, m.color,`+deckStatsExpr+`
+	d, err := scanDeck(s.pool.QueryRow(ctx, `SELECT m.id, m.title, COALESCE(m.workspace_id,''), m.workspace_name, m.color, m.privacy,`+deckStatsExpr+`
 		FROM materials m WHERE m.id=$1 AND m.kind='flashcards'`, id))
 	if isNoRows(err) {
 		return d, ErrNotFound
@@ -1375,50 +1386,6 @@ func (s *Store) SaveCanvas(ctx context.Context, id string, name *string, scene j
 		return Canvas{}, ErrNotFound
 	}
 	return s.GetCanvas(ctx, id)
-}
-
-/* ----------------------------------------------------------------- explore */
-
-func (s *Store) ListPublicWorkspaces(ctx context.Context) ([]PublicWorkspace, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, color, privacy, tags, chapter_count, file_count, created_at, last_accessed_at, author, clones
-		FROM public_workspaces ORDER BY clones DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []PublicWorkspace{}
-	for rows.Next() {
-		var w PublicWorkspace
-		var tagNames []string
-		if err := rows.Scan(&w.ID, &w.Name, &w.Color, &w.Privacy, &tagNames, &w.ChapterCount, &w.FileCount, &w.CreatedAt, &w.LastAccessedAt, &w.Author, &w.Clones); err != nil {
-			return nil, err
-		}
-		w.Tags = tagsFromNames(tagNames)
-		out = append(out, w)
-	}
-	return out, rows.Err()
-}
-
-func (s *Store) ListPublicQuizzes(ctx context.Context) ([]PublicQuiz, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, workspace_id, workspace_name, chapters, questions, created_at, privacy, time_limit_min, author, clones
-		FROM public_quizzes ORDER BY clones DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []PublicQuiz{}
-	for rows.Next() {
-		var w PublicQuiz
-		var wsID *string
-		if err := rows.Scan(&w.ID, &w.Name, &wsID, &w.WorkspaceName, &w.Chapters, &w.Questions, &w.CreatedAt, &w.Privacy, &w.TimeLimitMin, &w.Author, &w.Clones); err != nil {
-			return nil, err
-		}
-		if wsID != nil {
-			w.WorkspaceID = *wsID
-		}
-		out = append(out, w)
-	}
-	return out, rows.Err()
 }
 
 func nullStr(s string) *string {

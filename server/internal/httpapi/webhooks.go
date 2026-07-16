@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,6 +12,21 @@ import (
 
 	"github.com/evonotes/server/internal/billing"
 )
+
+// webhookStore is the narrow slice of *store.Store the webhook handlers touch.
+// Declaring it here lets tests inject a fake and exercise the full HTTP path
+// (signature verification, idempotency, payload dispatch) without a database.
+type webhookStore interface {
+	WebhookProcessed(ctx context.Context, id string) (bool, error)
+	RecordWebhookEvent(ctx context.Context, id, source, eventType string, payload json.RawMessage) error
+	MarkWebhookProcessed(ctx context.Context, id string, procErr error) error
+	UpsertUserFromWebhook(ctx context.Context, id, name, email, avatarURL string) error
+	CreateDefaultWorkspace(ctx context.Context, userID string) error
+	MarkUserDeleted(ctx context.Context, id string) error
+	UserIDByStripeCustomer(ctx context.Context, customerID string) (string, error)
+	SetStripeCustomerID(ctx context.Context, userID, customerID string) error
+	UpdateSubscriptionByCustomerID(ctx context.Context, customerID, status, planTier string) error
+}
 
 func (a *api) clerkWebhook(w http.ResponseWriter, r *http.Request) {
 	if a.cfg.ClerkWebhookSecret == "" {
@@ -50,12 +66,12 @@ func (a *api) clerkWebhook(w http.ResponseWriter, r *http.Request) {
 		eventID = "clerk_" + evt.Type
 	}
 
-	done, _ := a.s.WebhookProcessed(r.Context(), eventID)
+	done, _ := a.wh.WebhookProcessed(r.Context(), eventID)
 	if done {
 		writeJSON(w, 200, map[string]string{"status": "already processed"})
 		return
 	}
-	_ = a.s.RecordWebhookEvent(r.Context(), eventID, "clerk", evt.Type, body)
+	_ = a.wh.RecordWebhookEvent(r.Context(), eventID, "clerk", evt.Type, body)
 
 	var procErr error
 	switch evt.Type {
@@ -91,9 +107,9 @@ func (a *api) clerkWebhook(w http.ResponseWriter, r *http.Request) {
 		if wrapper.ImageURL != nil {
 			avatar = *wrapper.ImageURL
 		}
-		procErr = a.s.UpsertUserFromWebhook(r.Context(), wrapper.ID, name, email, avatar)
+		procErr = a.wh.UpsertUserFromWebhook(r.Context(), wrapper.ID, name, email, avatar)
 		if procErr == nil && evt.Type == "user.created" {
-			_ = a.s.CreateDefaultWorkspace(r.Context(), wrapper.ID)
+			_ = a.wh.CreateDefaultWorkspace(r.Context(), wrapper.ID)
 		}
 	case "user.deleted":
 		var data struct {
@@ -103,10 +119,10 @@ func (a *api) clerkWebhook(w http.ResponseWriter, r *http.Request) {
 			procErr = err
 			break
 		}
-		procErr = a.s.MarkUserDeleted(r.Context(), data.ID)
+		procErr = a.wh.MarkUserDeleted(r.Context(), data.ID)
 	}
 
-	_ = a.s.MarkWebhookProcessed(r.Context(), eventID, procErr)
+	_ = a.wh.MarkWebhookProcessed(r.Context(), eventID, procErr)
 	if procErr != nil {
 		a.fail(w, procErr)
 		return
@@ -130,12 +146,12 @@ func (a *api) stripeWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	done, _ := a.s.WebhookProcessed(r.Context(), event.ID)
+	done, _ := a.wh.WebhookProcessed(r.Context(), event.ID)
 	if done {
 		writeJSON(w, 200, map[string]string{"status": "already processed"})
 		return
 	}
-	_ = a.s.RecordWebhookEvent(r.Context(), event.ID, "stripe", string(event.Type), event.Data.Raw)
+	_ = a.wh.RecordWebhookEvent(r.Context(), event.ID, "stripe", string(event.Type), event.Data.Raw)
 
 	var procErr error
 	switch event.Type {
@@ -147,10 +163,10 @@ func (a *api) stripeWebhook(w http.ResponseWriter, r *http.Request) {
 		}
 		userID := sess.Metadata["user_id"]
 		if userID == "" && sess.Customer != nil {
-			userID, _ = a.s.UserIDByStripeCustomer(r.Context(), sess.Customer.ID)
+			userID, _ = a.wh.UserIDByStripeCustomer(r.Context(), sess.Customer.ID)
 		}
 		if userID != "" && sess.Customer != nil {
-			_ = a.s.SetStripeCustomerID(r.Context(), userID, sess.Customer.ID)
+			_ = a.wh.SetStripeCustomerID(r.Context(), userID, sess.Customer.ID)
 		}
 	case "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted":
 		var sub stripe.Subscription
@@ -172,11 +188,11 @@ func (a *api) stripeWebhook(w http.ResponseWriter, r *http.Request) {
 			planTier = "free"
 		}
 		if customerID != "" {
-			procErr = a.s.UpdateSubscriptionByCustomerID(r.Context(), customerID, status, planTier)
+			procErr = a.wh.UpdateSubscriptionByCustomerID(r.Context(), customerID, status, planTier)
 		}
 	}
 
-	_ = a.s.MarkWebhookProcessed(r.Context(), event.ID, procErr)
+	_ = a.wh.MarkWebhookProcessed(r.Context(), event.ID, procErr)
 	if procErr != nil {
 		a.fail(w, procErr)
 		return

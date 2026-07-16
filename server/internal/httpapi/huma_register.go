@@ -76,5 +76,6 @@ func registerRoutes(api huma.API, a *api) {
 	a.registerSchedule(api)
 	a.registerThinking(api)
 	a.registerExplore(api)
+	a.registerShare(api)
 	a.registerBillingIntegrations(api)
 }

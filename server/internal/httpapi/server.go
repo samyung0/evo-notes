@@ -41,6 +41,7 @@ type Config struct {
 
 type api struct {
 	s      *store.Store
+	wh     webhookStore
 	blob   blob.Store
 	pipe   *pipeline.Client
 	rdb    *redis.Client
@@ -56,7 +57,7 @@ type api struct {
 // are intentionally absent from the spec.
 func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client, parser, engine string, cfg Config) http.Handler {
 	billing.Init(billing.Config{SecretKey: cfg.StripeSecretKey})
-	a := &api{s: s, blob: b, pipe: pipe, rdb: rdb, parser: parser, engine: engine, cfg: cfg}
+	a := &api{s: s, wh: s, blob: b, pipe: pipe, rdb: rdb, parser: parser, engine: engine, cfg: cfg}
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
@@ -300,6 +301,11 @@ func (a *api) uploadSource(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) getFileRaw(w http.ResponseWriter, r *http.Request) {
+	// Owners plus link/public viewers (shared workspaces expose their sources).
+	if _, err := a.fileRead(r.Context(), id(r)); err != nil {
+		a.fail(w, err)
+		return
+	}
 	blobPath, kind, content, url, err := a.s.FileBlob(r.Context(), id(r))
 	if err != nil {
 		a.fail(w, err)
@@ -407,7 +413,7 @@ type generateOpts struct {
 	Types        []string `json:"types"`
 	Levels       []string `json:"levels"`     // cognitive levels: recall|application|analysis
 	Difficulty   []string `json:"difficulty"` // legacy alias, still accepted
-	Chapters     []string `json:"chapters"`
+	Chapters     []string `json:"chapters"`    // chapter ids; resolved to files + names in resolveScope
 	FileIds      []string `json:"fileIds"`     // file-scoped retrieval filtering
 	Detail       string   `json:"detail"`      // mindmap: brief|standard|detailed
 	DiagramType  string   `json:"diagramType"` // diagram: auto|flowchart|sequence|class|state|er
@@ -464,14 +470,17 @@ func (a *api) generate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, payload)
 }
 
-// resolveScopeFileIDs turns the requested scope into a concrete set of file ids
-// for true retrieval filtering. Chapters arrive as names (brittle across rename,
-// but that's what the UI sends), so we map them to their file ids via the
-// chapter records and union with any explicitly selected file ids. An empty
+// resolveScope maps the requested generation scope into (a) the concrete set of
+// file ids for retrieval filtering and (b) the chapter *names* used for display
+// (stored on the quiz/material) and the pipeline's natural-language scope hint.
+//
+// Chapters arrive as ids (stable across rename), matched by id against the
+// workspace's chapter records; their member files union with any explicitly
+// selected file ids. Requested order is preserved for names. An empty fileIDs
 // result means "whole workspace" (no filtering).
-func (a *api) resolveScopeFileIDs(ctx context.Context, wsID string, opts *generateOpts) []string {
+func (a *api) resolveScope(ctx context.Context, wsID string, opts *generateOpts) (fileIDs, chapterNames []string) {
 	seen := map[string]struct{}{}
-	out := make([]string, 0, len(opts.FileIds))
+	fileIDs = make([]string, 0, len(opts.FileIds))
 	add := func(id string) {
 		if id == "" {
 			return
@@ -480,38 +489,41 @@ func (a *api) resolveScopeFileIDs(ctx context.Context, wsID string, opts *genera
 			return
 		}
 		seen[id] = struct{}{}
-		out = append(out, id)
+		fileIDs = append(fileIDs, id)
 	}
 	for _, id := range opts.FileIds {
 		add(id)
 	}
 	if len(opts.Chapters) > 0 {
-		want := map[string]struct{}{}
-		for _, name := range opts.Chapters {
-			want[name] = struct{}{}
-		}
 		if chapters, err := a.s.ListChapters(ctx, wsID); err == nil {
+			byID := make(map[string]store.Chapter, len(chapters))
 			for _, ch := range chapters {
-				if _, ok := want[ch.Name]; !ok {
+				byID[ch.ID] = ch
+			}
+			for _, id := range opts.Chapters {
+				ch, ok := byID[id]
+				if !ok {
 					continue
 				}
+				chapterNames = append(chapterNames, ch.Name)
 				for _, fid := range ch.FileIDs {
 					add(fid)
 				}
 			}
 		}
 	}
-	return out
+	return fileIDs, chapterNames
 }
 
 // generateViaPipe asks the retrieval service to produce grounded output, then
 // persists it (quiz -> quizzes, flashcards -> deck+cards, mindmap/diagram ->
 // materials) so every artifact shows up in the workspace materials list.
 func (a *api) generateViaPipe(ctx context.Context, userID, wsID, wsName string, opts *generateOpts) (any, bool) {
+	fileIDs, chapterNames := a.resolveScope(ctx, wsID, opts)
 	body := map[string]any{
 		"workspaceId": wsID, "kind": opts.Kind, "length": opts.Length, "format": opts.Format,
 		"count": opts.Count, "style": opts.Style, "types": opts.Types, "levels": opts.cognitiveLevels(),
-		"chapters": opts.Chapters, "fileIds": a.resolveScopeFileIDs(ctx, wsID, opts),
+		"chapters": chapterNames, "fileIds": fileIDs,
 		"detail": opts.Detail, "diagramType": opts.DiagramType, "timeLimitMin": opts.TimeLimitMin,
 	}
 	raw, err := a.pipe.PostRaw(ctx, "/generate", body)
@@ -539,7 +551,7 @@ func (a *api) generateViaPipe(ctx context.Context, userID, wsID, wsName string, 
 		}
 		chapters := qp.Chapters
 		if chapters == nil {
-			chapters = opts.Chapters
+			chapters = chapterNames
 		}
 		quiz, err := a.s.CreateQuiz(ctx, store.Quiz{
 			Name: name, WorkspaceID: wsID, WorkspaceName: wsName, Chapters: chapters,
@@ -572,7 +584,7 @@ func (a *api) generateViaPipe(ctx context.Context, userID, wsID, wsName string, 
 			Content string `json:"content"`
 		}
 		_ = json.Unmarshal(raw, &mp)
-		res, err := a.persistMaterial(ctx, wsID, wsName, head.Kind, mp.Title, mp.Content, opts)
+		res, err := a.persistMaterial(ctx, wsID, wsName, head.Kind, mp.Title, mp.Content, opts, chapterNames)
 		if err != nil {
 			return nil, false
 		}
@@ -587,6 +599,7 @@ func (a *api) generateViaPipe(ctx context.Context, userID, wsID, wsName string, 
 
 // generateLocal is the offline fallback (and the mock-parity generator).
 func (a *api) generateLocal(ctx context.Context, userID, wsID, wsName string, opts generateOpts) (any, error) {
+	_, chapterNames := a.resolveScope(ctx, wsID, &opts)
 	switch opts.Kind {
 	case "flashcards":
 		n := opts.Count
@@ -599,11 +612,11 @@ func (a *api) generateLocal(ctx context.Context, userID, wsID, wsName string, op
 		}
 		return a.persistDeck(ctx, userID, wsID, wsName, cards)
 	case "mindmap", "diagram":
-		return a.persistMaterial(ctx, wsID, wsName, opts.Kind, "", localMaterialContent(wsName, opts), &opts)
+		return a.persistMaterial(ctx, wsID, wsName, opts.Kind, "", localMaterialContent(wsName, opts), &opts, chapterNames)
 	default:
 		quiz, err := a.s.CreateQuiz(ctx, store.Quiz{
 			Name: wsName + " quiz", WorkspaceID: wsID, WorkspaceName: wsName,
-			Chapters: opts.Chapters, Questions: buildQuestions(opts), Privacy: "private", TimeLimitMin: opts.TimeLimitMin,
+			Chapters: chapterNames, Questions: buildQuestions(opts), Privacy: "private", TimeLimitMin: opts.TimeLimitMin,
 		})
 		if err != nil {
 			return nil, err
@@ -632,7 +645,8 @@ func (a *api) persistDeck(ctx context.Context, userID, wsID, wsName string, card
 }
 
 // persistMaterial stores a generated mindmap/diagram markdown document.
-func (a *api) persistMaterial(ctx context.Context, wsID, wsName, kind, title, content string, opts *generateOpts) (any, error) {
+// chapterNames are the resolved display names for the requested chapter scope.
+func (a *api) persistMaterial(ctx context.Context, wsID, wsName, kind, title, content string, opts *generateOpts, chapterNames []string) (any, error) {
 	if title == "" {
 		title = wsName + " " + kind
 	}
@@ -641,7 +655,7 @@ func (a *api) persistMaterial(ctx context.Context, wsID, wsName, kind, title, co
 	}
 	mt, err := a.s.CreateMaterial(ctx, store.Material{
 		WorkspaceID: wsID, WorkspaceName: wsName, Kind: kind, Title: title, Content: content,
-		ScopeChapters: opts.Chapters, ScopeFileIDs: opts.FileIds, Privacy: "private",
+		ScopeChapters: chapterNames, ScopeFileIDs: opts.FileIds, Privacy: "private",
 	})
 	if err != nil {
 		return nil, err

@@ -5,20 +5,19 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Privacy } from './privacy.ts';
-import type { Tag } from './tag.ts';
 import type { UserColor } from './userColor.ts';
 
-export interface Workspace {
-  /** A URL to the JSON Schema for this object. */
-  readonly $schema?: string;
-  chapterCount: number;
+export interface PublicDeck {
+  author: string;
+  cardCount: number;
+  clones: number;
   color: UserColor;
-  createdAt: string;
-  fileCount: number;
+  dueCount: number;
   id: string;
   isOwner: boolean;
-  lastAccessedAt: string;
+  knownPct: number;
   name: string;
   privacy: Privacy;
-  tags: Tag[];
+  workspaceId: string;
+  workspaceName: string;
 }

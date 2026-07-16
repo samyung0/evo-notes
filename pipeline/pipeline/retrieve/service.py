@@ -24,6 +24,7 @@ from lightrag import QueryParam
 from ..config import cfg
 from ..store import db
 from ..rag.cache import RagCache
+from ..rag.clone import clone_workspace_state
 from ..rag.factory import build_query_rag
 from ..rag.models import query_model_override
 
@@ -168,6 +169,11 @@ async def _scope_hint(chapters: Optional[List[str]], file_ids: Optional[List[str
     prompt is the only scoping lever. Naming the actual source files (LightRAG
     stores each document's basename as its citation ``file_path``) steers
     retrieval-grounded generation far better than a bare file count.
+
+    The Go gateway already expands chapter ids to their member file ids and
+    unions them into ``file_ids`` (see ``resolveScope``), so those files are
+    named here too; ``chapters`` carries the resolved chapter names for a
+    human-readable scope label.
     """
     parts: list[str] = []
     if chapters:
@@ -202,6 +208,26 @@ def _strip_fence(text: str) -> str:
 @app.get("/healthz")
 def healthz():
     return {"ok": True, "query_model": cfg.query_model, "embedding": cfg.embedding_model}
+
+
+class CloneWorkspaceReq(BaseModel):
+    sourceWorkspaceId: str
+    targetWorkspaceId: str
+
+
+@app.post("/workspace/clone")
+async def workspace_clone(req: CloneWorkspaceReq):
+    """Copy one workspace's parsed LightRAG state (PG rows + AGE graph) into
+    another workspace. Called by the Go gateway after it clones the app rows
+    (files/materials keep their doc ids, so the copied state lines up)."""
+    assert _cache is not None
+    # Initialize the target workspace first so LightRAG creates its graph,
+    # labels and indexes — the row copy requires them to exist.
+    await _cache.get(req.targetWorkspaceId)
+    result = await asyncio.to_thread(
+        clone_workspace_state, req.sourceWorkspaceId, req.targetWorkspaceId
+    )
+    return {"ok": True, **result}
 
 
 @app.post("/chat")

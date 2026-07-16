@@ -23,6 +23,7 @@ import type {
   Attempt as GenAttempt,
   AttemptDetail as GenAttemptDetail,
   Chapter as GenChapter,
+  Deck as GenDeck,
   Event as GenEvent,
   File as GenFile,
   Quiz as GenQuiz,
@@ -92,6 +93,15 @@ export type Quiz = Omit<GenQuiz, 'questions'> & {
 
 export type PublicWorkspace = Workspace & { author: string; clones: number };
 export type PublicQuiz = Quiz & { author: string; clones: number };
+export type PublicDeck = GenDeck & { author: string; clones: number };
+
+/** Response of POST /workspaces/{id}/clone. `ragCloned` is false when the
+ * pipeline was offline — the copied files exist but have no knowledge graph
+ * until they are re-ingested. */
+export interface CloneWorkspaceResult {
+  workspace: Workspace;
+  ragCloned: boolean;
+}
 
 /* ---------------- chat ----------------
    Conversation + Message + Citation are modelled on the wire (huma) and come
@@ -171,13 +181,15 @@ export type Question =
   ChoiceQuestion | BooleanQuestion | TextQuestion | MatchingQuestion | OrderingQuestion;
 
 /* ---------------- Generate (request options, not wire response types) ----------------
-   Every generation is scoped: `chapters` (names) and/or `fileIds` narrow the
-   source material. Empty scope means the whole workspace. */
+   Every generation is scoped: `chapters` (ids) and/or `fileIds` narrow the
+   source material. The backend resolves chapter ids to their member files (for
+   retrieval) and to names (for display + the LLM scope hint). Empty scope means
+   the whole workspace. */
 export type GenerateKind = 'flashcards' | 'quiz' | 'mindmap' | 'diagram';
 
 export interface GenerateScope {
-  chapters: string[];
-  fileIds: string[];
+  chapters: string[]; // chapter ids
+  fileIds: string[]; // file ids
 }
 export interface GenerateFlashcardsOptions extends GenerateScope {
   kind: 'flashcards';
@@ -221,12 +233,17 @@ export interface Material {
   /** Markdown body. Mindmaps/diagrams embed ```mermaid fences; quizzes and
    * flashcards embed ```quiz / ```flashcards fences (YAML payload). */
   content: string;
+  /** Chapter this material is filed under (membership). null = unfiled.
+   * Orthogonal to scopeChapters (provenance of the generated content). */
+  chapterId: string | null;
   scopeChapters: string[];
   scopeFileIds: string[];
   privacy: Privacy;
   /** Presentation tint; only meaningful for flashcards decks. */
   color?: UserColor;
   createdAt: string;
+  /** Request-scoped: false when viewing someone else's shared material. */
+  isOwner?: boolean;
 }
 
 /** A row in the left-panel materials list. Aggregates markdown materials plus
@@ -236,6 +253,8 @@ export interface MaterialRef {
   id: string;
   type: MaterialRefType;
   title: string;
+  /** Chapter this material is filed under (membership). null = unfiled. */
+  chapterId: string | null;
   createdAt: string;
 }
 

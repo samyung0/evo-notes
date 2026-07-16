@@ -68,14 +68,22 @@ func (a *api) createDeck(ctx context.Context, in *createDeckInput) (*deckOutput,
 }
 
 func (a *api) getDeck(ctx context.Context, in *deckIDInput) (*deckOutput, error) {
+	isOwner, err := a.materialRead(ctx, in.ID)
+	if err != nil {
+		return nil, hErr(err)
+	}
 	res, err := a.s.GetDeck(ctx, in.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
+	res.IsOwner = isOwner
 	return &deckOutput{Body: res}, nil
 }
 
 func (a *api) listCards(ctx context.Context, in *deckIDInput) (*cardsOutput, error) {
+	if _, err := a.materialRead(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	res, err := a.s.ListCards(ctx, in.ID)
 	if err != nil {
 		return nil, hErr(err)
@@ -84,6 +92,9 @@ func (a *api) listCards(ctx context.Context, in *deckIDInput) (*cardsOutput, err
 }
 
 func (a *api) createCard(ctx context.Context, in *createCardInput) (*cardOutput, error) {
+	if err := a.assertMaterialOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	res, err := a.s.CreateCard(ctx, in.ID, in.Body.Front, in.Body.Back)
 	if err != nil {
 		return nil, hErr(err)
@@ -92,6 +103,9 @@ func (a *api) createCard(ctx context.Context, in *createCardInput) (*cardOutput,
 }
 
 func (a *api) updateCard(ctx context.Context, in *updateCardInput) (*cardOutput, error) {
+	if err := a.assertCardOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	p := store.CardPatch{Front: in.Body.Front, Back: in.Body.Back, Known: in.Body.Known}
 	if in.Body.Srs != nil {
 		raw := apimodel.EncodeRaw(*in.Body.Srs)
@@ -105,6 +119,9 @@ func (a *api) updateCard(ctx context.Context, in *updateCardInput) (*cardOutput,
 }
 
 func (a *api) deleteCard(ctx context.Context, in *cardIDInput) (*Empty, error) {
+	if err := a.assertCardOwner(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
 	if err := a.s.DeleteCard(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}

@@ -31,26 +31,33 @@ func (s *Store) Me(ctx context.Context, userID string) (User, error) {
 	return u, err
 }
 
-func (s *Store) UpsertUserFromClerk(ctx context.Context, id, name, email, avatarURL string) error {
+// UpsertUserFromClerk inserts or updates a user. The returned bool is true only
+// when a new row was inserted (first sign-in), so callers can run one-time
+// provisioning such as CreateDefaultWorkspace. Detection uses xmax=0, which is
+// 0 for freshly inserted tuples and non-zero for rows touched by ON CONFLICT.
+func (s *Store) UpsertUserFromClerk(ctx context.Context, id, name, email, avatarURL string) (bool, error) {
 	if name == "" {
 		name = email
 	}
 	if name == "" {
 		name = "User"
 	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO users (id, clerk_id, name, email, avatar_url)
+	var created bool
+	err := s.pool.QueryRow(ctx, `INSERT INTO users (id, clerk_id, name, email, avatar_url)
 		VALUES ($1,$1,$2,$3,NULLIF($4,''))
 		ON CONFLICT (id) DO UPDATE SET
 			name=EXCLUDED.name,
 			email=EXCLUDED.email,
 			avatar_url=COALESCE(NULLIF(EXCLUDED.avatar_url,''), users.avatar_url),
-			updated_at=now()`,
-		id, name, email, avatarURL)
-	return err
+			updated_at=now()
+		RETURNING (xmax = 0)`,
+		id, name, email, avatarURL).Scan(&created)
+	return created, err
 }
 
 func (s *Store) UpsertUserFromWebhook(ctx context.Context, id, name, email, avatarURL string) error {
-	return s.UpsertUserFromClerk(ctx, id, name, email, avatarURL)
+	_, err := s.UpsertUserFromClerk(ctx, id, name, email, avatarURL)
+	return err
 }
 
 func (s *Store) MarkUserDeleted(ctx context.Context, id string) error {
@@ -58,15 +65,32 @@ func (s *Store) MarkUserDeleted(ctx context.Context, id string) error {
 	return err
 }
 
+// CreateDefaultWorkspace provisions a starter workspace on first sign-in. Both
+// the Clerk webhook and the JWT middleware can invoke this concurrently for the
+// same brand-new user, so a session-level advisory lock serializes the
+// check-then-create critical section to prevent duplicate default workspaces.
 func (s *Store) CreateDefaultWorkspace(ctx context.Context, userID string) error {
+	lockKey := "ws_default:" + userID
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock(hashtext($1))`, lockKey); err != nil {
+		return err
+	}
+	// Unlock on a detached context so release still runs if ctx is cancelled.
+	defer func() { _, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtext($1))`, lockKey) }()
+
 	var n int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM workspaces WHERE user_id=$1`, userID).Scan(&n); err != nil {
+	if err := conn.QueryRow(ctx, `SELECT count(*) FROM workspaces WHERE user_id=$1`, userID).Scan(&n); err != nil {
 		return err
 	}
 	if n > 0 {
 		return nil
 	}
-	_, err := s.CreateWorkspace(ctx, userID, "My workspace", "green", "private", []TagRef{})
+	_, err = s.CreateWorkspace(ctx, userID, "My workspace", "green", "private", []TagRef{})
 	return err
 }
 

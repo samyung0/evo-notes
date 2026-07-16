@@ -24,16 +24,19 @@ import {
   useFiles,
   useIngestProgress,
   useMaterials,
+  useMoveFile,
+  useMoveMaterial,
   useReorderChapters,
   useUpdateChapter,
   useWorkspace,
 } from '@/api/hooks';
-import type { MaterialRef, MaterialRefType } from '@/api/types';
+import type { Chapter, MaterialRef, MaterialRefType } from '@/api/types';
 import { FileListItem } from '@/features/files/FileListItem';
 import { CenterContent } from '@/features/materials/CenterContent';
 import type { OpenItem } from '@/features/materials/openItem';
 import { ChatPanel } from '@/features/workspace/ChatPanel';
 import { GeneratePanel } from '@/features/workspace/GeneratePanel';
+import { MoveToChapterDialog } from '@/features/workspace/MoveToChapterDialog';
 import { useDialogs } from '@/stores/dialogs';
 import { m } from '@/i18n';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/Resizable';
@@ -51,16 +54,36 @@ function MaterialListItem({
   active,
   onOpen,
   onDelete,
+  chapters,
+  onMove,
 }: {
   data: MaterialRef;
   active: boolean;
   onOpen: () => void;
   onDelete?: () => void;
+  /** All workspace chapters, for the "Move to…" menu. */
+  chapters: Chapter[];
+  /** File this material under a chapter (null = unfile). */
+  onMove: (chapterId: string | null) => void;
 }) {
   // TODO: show generation process (like the file process bar), auto scroll to position after clicking on generation
   // TODO: reuse filelistitem instead
+  const [moveOpen, setMoveOpen] = useState(false);
+  const items = [
+    { label: 'Move to chapter…', icon: 'files' as IconName, onClick: () => setMoveOpen(true) },
+    ...(onDelete
+      ? [{ label: m.action_delete(), icon: 'trash' as IconName, danger: true, onClick: onDelete }]
+      : []),
+  ];
   return (
-    <div className="group relative flex items-center rounded-row pr-8 hover:bg-surface-hover-bg">
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/x-evo-material', matRef.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      className="group relative flex items-center rounded-row pr-8 hover:bg-surface-hover-bg"
+    >
       <button
         onClick={onOpen}
         className={cn(
@@ -71,12 +94,14 @@ function MaterialListItem({
         <Icon name={MATERIAL_ICON[matRef.type]} size={15} />
         <span className="flex-1 translate-y-px truncate">{matRef.title}</span>
       </button>
-      {onDelete && (
-        <HoverActions
-          className="absolute top-1/2 right-1 -translate-y-1/2"
-          items={[{ label: m.action_delete(), icon: 'trash', danger: true, onClick: onDelete }]}
-        />
-      )}
+      <HoverActions className="absolute top-1/2 right-1 -translate-y-1/2" items={items} />
+      <MoveToChapterDialog
+        open={moveOpen}
+        onClose={() => setMoveOpen(false)}
+        chapters={chapters}
+        currentChapterId={matRef.chapterId}
+        onSelect={onMove}
+      />
     </div>
   );
 }
@@ -95,12 +120,16 @@ export default function WorkspaceOpen() {
   const reorder = useReorderChapters(workspaceId);
   const delChapter = useDeleteChapter(workspaceId);
   const delMaterial = useDeleteMaterial(workspaceId);
+  const moveMaterial = useMoveMaterial(workspaceId);
+  const moveFile = useMoveFile(workspaceId);
   const createNote = useCreateNote(workspaceId);
   const openAddSource = useDialogs((s) => s.openAddSource);
 
   const [openItem, setOpenItem] = useState<OpenItem | null>(null);
   const [mode, setMode] = useState('chat');
   const [openChapters, setOpenChapters] = useState<Record<string, boolean>>({});
+  // Drop-target highlight while dragging a material. 'unfiled' = the flat list.
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   // Auto-open the first ready file when nothing is selected yet.
   useEffect(() => {
@@ -111,9 +140,66 @@ export default function WorkspaceOpen() {
 
   const pair = userColorPair(ws?.color);
   const unfiled = files?.filter((f) => f.chapterId === null) ?? [];
+  const unfiledMaterials = materials?.filter((mt) => mt.chapterId == null) ?? [];
 
   function filesFor(chapterId: string) {
     return files?.filter((f) => f.chapterId === chapterId) ?? [];
+  }
+  function materialsFor(chapterId: string) {
+    return materials?.filter((mt) => mt.chapterId === chapterId) ?? [];
+  }
+  // Quizzes/decks have their own delete flows elsewhere; only these are
+  // deletable from this list (matches prior behavior). Moving applies to all.
+  const canDelete = (t: MaterialRefType) => t === 'mindmap' || t === 'diagram' || t === 'note';
+
+  // Native drag-and-drop: a material or file row carries its id; chapters (and
+  // the unfiled buckets) are drop zones that re-file whichever was dropped.
+  const DND_TYPES = ['application/x-evo-material', 'application/x-evo-file'];
+  function onItemDrop(chapterId: string | null, e: React.DragEvent) {
+    e.preventDefault();
+    setDropTarget(null);
+    const matId = e.dataTransfer.getData('application/x-evo-material');
+    if (matId) {
+      moveMaterial.mutate({ id: matId, chapterId });
+      return;
+    }
+    const fileId = e.dataTransfer.getData('application/x-evo-file');
+    if (fileId) moveFile.mutate({ id: fileId, chapterId });
+  }
+  function dropZone(key: string, chapterId: string | null) {
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (DND_TYPES.some((t) => e.dataTransfer.types.includes(t))) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (dropTarget !== key) setDropTarget(key);
+        }
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget((t) => (t === key ? null : t));
+      },
+      onDrop: (e: React.DragEvent) => onItemDrop(chapterId, e),
+    };
+  }
+  function renderMaterial(mt: MaterialRef) {
+    return (
+      <MaterialListItem
+        key={`${mt.type}:${mt.id}`}
+        data={mt}
+        active={openItem?.kind === 'material' && openItem.id === mt.id}
+        onOpen={() => setOpenItem({ kind: 'material', id: mt.id })}
+        chapters={chapters ?? []}
+        onMove={(chapterId) => moveMaterial.mutate({ id: mt.id, chapterId })}
+        onDelete={
+          canDelete(mt.type)
+            ? () => {
+                delMaterial.mutate(mt.id);
+                if (openItem?.kind === 'material' && openItem.id === mt.id) setOpenItem(null);
+              }
+            : undefined
+        }
+      />
+    );
   }
   // TODO: drag and drop
   function moveChapter(idx: number, dir: -1 | 1) {
@@ -210,7 +296,14 @@ export default function WorkspaceOpen() {
                   {chapters.map((ch, idx) => {
                     const expanded = openChapters[ch.id] ?? true;
                     return (
-                      <div key={ch.id}>
+                      <div
+                        key={ch.id}
+                        {...dropZone(ch.id, ch.id)}
+                        className={cn(
+                          'rounded-row',
+                          dropTarget === ch.id && 'ring-2 ring-accent ring-inset bg-action-accent/40'
+                        )}
+                      >
                         <div className="group relative flex items-center rounded-row py-1.5 pr-8 hover:bg-surface-hover-bg">
                           <button
                             onClick={() => setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))}
@@ -265,9 +358,14 @@ export default function WorkspaceOpen() {
                                 active={isFileActive(f.id)}
                                 onOpen={(id) => setOpenItem({ kind: 'file', id })}
                                 workspaceId={workspaceId}
+                                chapters={chapters}
                                 onDeleted={onFileDeleted}
                               />
                             ))}
+                            {materialsFor(ch.id).map(renderMaterial)}
+                            {filesFor(ch.id).length === 0 && materialsFor(ch.id).length === 0 && (
+                              <div className="px-1.5 py-1 text-xs text-fg-muted">Empty</div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -276,7 +374,13 @@ export default function WorkspaceOpen() {
                 </div>
 
                 {unfiled.length > 0 && (
-                  <div>
+                  <div
+                    {...dropZone('unfiled-files', null)}
+                    className={cn(
+                      'rounded-row',
+                      dropTarget === 'unfiled-files' && 'ring-2 ring-accent ring-inset bg-action-accent/40'
+                    )}
+                  >
                     <div className="t-label px-1.5 py-1.5 text-fg-muted">Others</div>
                     <div>
                       {unfiled.map((f) => (
@@ -286,6 +390,7 @@ export default function WorkspaceOpen() {
                           active={isFileActive(f.id)}
                           onOpen={(id) => setOpenItem({ kind: 'file', id })}
                           workspaceId={workspaceId}
+                          chapters={chapters}
                           onDeleted={onFileDeleted}
                         />
                       ))}
@@ -293,9 +398,16 @@ export default function WorkspaceOpen() {
                   </div>
                 )}
 
-                {/* Study materials — flat, not chapter-scoped. */}
-                {/* TODO: allow chapter-scoped (this requires implementing moving files into other chapters, would like to implement this by drag and drop) */}
-                <div>
+                {/* Study materials — unfiled (not yet moved into a chapter).
+                    Drag onto a chapter above, or use the row's "Move to…" menu.
+                    Dropping here unfiles a material. */}
+                <div
+                  {...dropZone('unfiled', null)}
+                  className={cn(
+                    'rounded-row',
+                    dropTarget === 'unfiled' && 'ring-2 ring-accent ring-inset bg-action-accent/40'
+                  )}
+                >
                   <div className="flex items-center justify-between px-1.5 py-1.5">
                     <span className="t-label text-fg-muted">Study materials</span>
                     <button
@@ -313,27 +425,13 @@ export default function WorkspaceOpen() {
                       <Icon name="plus" size={13} /> Write note
                     </button>
                   </div>
-                  {materials?.length ? (
-                    materials.map((mt) => (
-                      <MaterialListItem
-                        key={`${mt.type}:${mt.id}`}
-                        data={mt}
-                        active={openItem?.kind === 'material' && openItem.id === mt.id}
-                        onOpen={() => setOpenItem({ kind: 'material', id: mt.id })}
-                        onDelete={
-                          mt.type === 'mindmap' || mt.type === 'diagram' || mt.type === 'note'
-                            ? () => {
-                                delMaterial.mutate(mt.id);
-                                if (openItem?.kind === 'material' && openItem.id === mt.id)
-                                  setOpenItem(null);
-                              }
-                            : undefined
-                        }
-                      />
-                    ))
+                  {unfiledMaterials.length ? (
+                    unfiledMaterials.map(renderMaterial)
                   ) : (
                     <div className="px-1.5 py-2 text-xs text-fg-muted">
-                      Generate flashcards, quizzes, mindmaps, or diagrams — or write your own note.
+                      {materials?.length
+                        ? 'All materials are filed under chapters.'
+                        : 'Generate flashcards, quizzes, mindmaps, or diagrams — or write your own note.'}
                     </div>
                   )}
                 </div>

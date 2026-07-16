@@ -13,6 +13,7 @@ export interface PublicQuiz {
   clones: number;
   createdAt: string;
   id: string;
+  isOwner: boolean;
   name: string;
   privacy: Privacy;
   questions: PublicQuizQuestionsItem[];

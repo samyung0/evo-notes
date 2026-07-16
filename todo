@@ -27,7 +27,7 @@ low priority:
 high PRIORITIES:
 
 1. in workspaces (change color filter to a general filter with a color section and a tag section (limit max height of the popover))
-2. add in input components like dropdown, date picker etc
+2. add in input components: date picker etc
 3. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
 4. set loading state for submit buttons (esp dialogs)
 5. remove all the <Text> components

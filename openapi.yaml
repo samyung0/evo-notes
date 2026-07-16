@@ -230,6 +230,23 @@ components:
         - fileName
         - snippet
       type: object
+    CloneWorkspaceResp:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/CloneWorkspaceResp.json
+          format: uri
+          readOnly: true
+          type: string
+        ragCloned:
+          type: boolean
+        workspace:
+          $ref: "#/components/schemas/Workspace"
+      required:
+        - workspace
+        - ragCloned
+      type: object
     Conversation:
       additionalProperties: false
       properties:
@@ -490,11 +507,15 @@ components:
           type: integer
         id:
           type: string
+        isOwner:
+          type: boolean
         knownPct:
           format: int64
           type: integer
         name:
           type: string
+        privacy:
+          $ref: "#/components/schemas/Privacy"
         workspaceId:
           type: string
         workspaceName:
@@ -505,9 +526,11 @@ components:
         - workspaceId
         - workspaceName
         - color
+        - privacy
         - cardCount
         - knownPct
         - dueCount
+        - isOwner
       type: object
     ErrorDetail:
       additionalProperties: false
@@ -723,6 +746,9 @@ components:
           format: uri
           readOnly: true
           type: string
+        chapterId:
+          nullable: true
+          type: string
         color:
           $ref: "#/components/schemas/UserColor"
         content:
@@ -732,6 +758,8 @@ components:
           type: string
         id:
           type: string
+        isOwner:
+          type: boolean
         kind:
           type: string
         privacy:
@@ -757,14 +785,19 @@ components:
         - kind
         - title
         - content
+        - chapterId
         - scopeChapters
         - scopeFileIds
         - privacy
         - createdAt
+        - isOwner
       type: object
     MaterialRef:
       additionalProperties: false
       properties:
+        chapterId:
+          nullable: true
+          type: string
         createdAt:
           format: date-time
           type: string
@@ -778,6 +811,7 @@ components:
         - id
         - type
         - title
+        - chapterId
         - createdAt
       type: object
     Message:
@@ -851,6 +885,51 @@ components:
         - public
         - link
       type: string
+    PublicDeck:
+      additionalProperties: false
+      properties:
+        author:
+          type: string
+        cardCount:
+          format: int64
+          type: integer
+        clones:
+          format: int64
+          type: integer
+        color:
+          $ref: "#/components/schemas/UserColor"
+        dueCount:
+          format: int64
+          type: integer
+        id:
+          type: string
+        isOwner:
+          type: boolean
+        knownPct:
+          format: int64
+          type: integer
+        name:
+          type: string
+        privacy:
+          $ref: "#/components/schemas/Privacy"
+        workspaceId:
+          type: string
+        workspaceName:
+          type: string
+      required:
+        - author
+        - clones
+        - id
+        - name
+        - workspaceId
+        - workspaceName
+        - color
+        - privacy
+        - cardCount
+        - knownPct
+        - dueCount
+        - isOwner
+      type: object
     PublicQuiz:
       additionalProperties: false
       properties:
@@ -868,6 +947,8 @@ components:
           type: string
         id:
           type: string
+        isOwner:
+          type: boolean
         name:
           type: string
         privacy:
@@ -895,6 +976,7 @@ components:
         - questions
         - createdAt
         - privacy
+        - isOwner
       type: object
     PublicWorkspace:
       additionalProperties: false
@@ -917,6 +999,8 @@ components:
           type: integer
         id:
           type: string
+        isOwner:
+          type: boolean
         lastAccessedAt:
           format: date-time
           type: string
@@ -940,6 +1024,7 @@ components:
         - fileCount
         - createdAt
         - lastAccessedAt
+        - isOwner
       type: object
     Quiz:
       additionalProperties: false
@@ -959,6 +1044,8 @@ components:
           type: string
         id:
           type: string
+        isOwner:
+          type: boolean
         name:
           type: string
         privacy:
@@ -984,6 +1071,7 @@ components:
         - questions
         - createdAt
         - privacy
+        - isOwner
       type: object
     RecentFile:
       additionalProperties: false
@@ -1201,6 +1289,23 @@ components:
           format: int64
           type: integer
       type: object
+    UpdateDeckReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/UpdateDeckReq.json
+          format: uri
+          readOnly: true
+          type: string
+        color:
+          $ref: "#/components/schemas/UserColor"
+        name:
+          type: string
+        privacy:
+          $ref: "#/components/schemas/Privacy"
+          description: Visibility (share standalone)
+      type: object
     UpdateEventReq:
       additionalProperties: false
       properties:
@@ -1250,8 +1355,14 @@ components:
           format: uri
           readOnly: true
           type: string
+        chapterId:
+          description: Chapter to file under; empty string unfiles; omit to leave unchanged
+          type: string
         content:
           type: string
+        privacy:
+          $ref: "#/components/schemas/Privacy"
+          description: Visibility (share standalone)
         scopeChapters:
           items:
             type: string
@@ -1391,6 +1502,8 @@ components:
           type: integer
         id:
           type: string
+        isOwner:
+          type: boolean
         lastAccessedAt:
           format: date-time
           type: string
@@ -1412,6 +1525,7 @@ components:
         - fileCount
         - createdAt
         - lastAccessedAt
+        - isOwner
       type: object
     WorkspaceStats:
       additionalProperties: false
@@ -1785,6 +1899,36 @@ paths:
       summary: Get a deck
       tags:
         - Flashcards
+    patch:
+      operationId: updateDeck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeckReq"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update a deck (rename / recolor / share)
+      tags:
+        - Sharing
   /api/decks/{id}/cards:
     get:
       operationId: listCards
@@ -1843,6 +1987,31 @@ paths:
       summary: Create a card
       tags:
         - Flashcards
+  /api/decks/{id}/clone:
+    post:
+      operationId: cloneDeck
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Clone a shared deck
+      tags:
+        - Sharing
   /api/events:
     get:
       operationId: listEvents
@@ -1940,6 +2109,28 @@ paths:
       summary: Update an event
       tags:
         - Schedule
+  /api/explore/decks:
+    get:
+      operationId: exploreDecks
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/PublicDeck"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Public flashcard decks
+      tags:
+        - Explore
   /api/explore/quizzes:
     get:
       operationId: exploreQuizzes
@@ -2259,6 +2450,31 @@ paths:
       summary: Update a material
       tags:
         - Materials
+  /api/materials/{id}/clone:
+    post:
+      operationId: cloneMaterial
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Material"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Clone a shared material
+      tags:
+        - Sharing
   /api/me:
     get:
       operationId: getMe
@@ -2486,6 +2702,31 @@ paths:
       summary: Record a quiz attempt
       tags:
         - Quizzes
+  /api/quizzes/{id}/clone:
+    post:
+      operationId: cloneQuiz
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quiz"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Clone a shared quiz
+      tags:
+        - Sharing
   /api/search:
     get:
       operationId: search
@@ -2926,6 +3167,31 @@ paths:
       summary: Reorder chapters
       tags:
         - Content
+  /api/workspaces/{id}/clone:
+    post:
+      operationId: cloneWorkspace
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloneWorkspaceResp"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Clone a shared workspace
+      tags:
+        - Sharing
   /api/workspaces/{id}/conversations:
     get:
       operationId: listConversations

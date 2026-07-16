@@ -11,8 +11,9 @@ import {
   Text,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
-import { useDeleteFile, useUpdateFile } from '@/api/hooks';
-import type { SourceFile } from '@/api/types';
+import { useDeleteFile, useMoveFile, useUpdateFile } from '@/api/hooks';
+import type { Chapter, SourceFile } from '@/api/types';
+import { MoveToChapterDialog } from '@/features/workspace/MoveToChapterDialog';
 import { m } from '@/i18n';
 
 function formatSize(kb: number): string {
@@ -27,27 +28,39 @@ export function FileListItem({
   active,
   onOpen,
   workspaceId,
+  chapters = [],
   onDeleted,
 }: {
   file: SourceFile;
   active: boolean;
   onOpen: (id: string) => void;
   workspaceId: string;
+  /** Workspace chapters, for the "Move to chapter…" picker. */
+  chapters?: Chapter[];
   onDeleted?: (id: string) => void;
 }) {
   const processing = file.status === 'processing';
   const failed = file.status === 'failed';
   const updateFile = useUpdateFile(workspaceId);
+  const moveFile = useMoveFile(workspaceId);
   const delFile = useDeleteFile(workspaceId);
 
   const [renameOpen, setRenameOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [name, setName] = useState(file.name);
 
   return (
     <div className="flex flex-col">
-      <div className="group relative flex items-center rounded-row pr-8 hover:bg-surface-hover-bg">
+      <div
+        draggable={!processing}
+        onDragStart={(e) => {
+          e.dataTransfer.setData('application/x-evo-file', file.id);
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        className="group relative flex items-center rounded-row pr-8 hover:bg-surface-hover-bg"
+      >
         <button
           onClick={() => !processing && onOpen(file.id)}
           disabled={processing}
@@ -78,6 +91,11 @@ export function FileListItem({
                 setName(file.name);
                 setRenameOpen(true);
               },
+            },
+            {
+              label: 'Move to chapter…',
+              icon: 'files',
+              onClick: () => setMoveOpen(true),
             },
             {
               label: 'Properties',
@@ -151,6 +169,14 @@ export function FileListItem({
         }}
         title={`Delete ${file.name}?`}
         body="This removes the file from the workspace. This cannot be undone."
+      />
+
+      <MoveToChapterDialog
+        open={moveOpen}
+        onClose={() => setMoveOpen(false)}
+        chapters={chapters}
+        currentChapterId={file.chapterId}
+        onSelect={(chapterId) => moveFile.mutate({ id: file.id, chapterId })}
       />
     </div>
   );

@@ -94,6 +94,7 @@ export const qk = {
   canvas: (id: string) => ['canvas', id] as const,
   exploreWorkspaces: ['explore', 'workspaces'] as const,
   exploreQuizzes: ['explore', 'quizzes'] as const,
+  exploreDecks: ['explore', 'decks'] as const,
   tags: (kind: string) => ['tags', kind] as const,
   conversations: (wsId: string) => ['workspace', wsId, 'conversations'] as const,
   messages: (convId: string) => ['conversation', convId, 'messages'] as const,

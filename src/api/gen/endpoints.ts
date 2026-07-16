@@ -13,6 +13,7 @@ import type {
   BillingInfo,
   Canvas,
   Chapter,
+  CloneWorkspaceResp,
   Conversation,
   CreateAttemptReq,
   CreateCanvasReq,
@@ -36,6 +37,7 @@ import type {
   MaterialRef,
   Message,
   Notification,
+  PublicDeck,
   PublicQuiz,
   PublicWorkspace,
   Quiz,
@@ -49,6 +51,7 @@ import type {
   URLResp,
   UpdateCardReq,
   UpdateChapterReq,
+  UpdateDeckReq,
   UpdateEventReq,
   UpdateFileReq,
   UpdateMaterialReq,
@@ -693,6 +696,50 @@ export const getDeck = async (id: string, options?: RequestInit): Promise<getDec
   return { data, status: res.status, headers: res.headers } as getDeckResponse;
 };
 
+export type updateDeckResponse200 = {
+  data: Deck;
+  status: 200;
+};
+
+export type updateDeckResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type updateDeckResponseSuccess = updateDeckResponse200 & {
+  headers: Headers;
+};
+export type updateDeckResponseError = updateDeckResponseDefault & {
+  headers: Headers;
+};
+
+export type updateDeckResponse = updateDeckResponseSuccess | updateDeckResponseError;
+
+export const getUpdateDeckUrl = (id: string) => {
+  return `/api/decks/${id}`;
+};
+
+/**
+ * @summary Update a deck (rename / recolor / share)
+ */
+export const updateDeck = async (
+  id: string,
+  updateDeckReq: NonReadonly<UpdateDeckReq>,
+  options?: RequestInit
+): Promise<updateDeckResponse> => {
+  const res = await fetch(getUpdateDeckUrl(id), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateDeckReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateDeckResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as updateDeckResponse;
+};
+
 export type listCardsResponse200 = {
   data: Flashcard[] | null;
   status: 200;
@@ -773,6 +820,44 @@ export const createCard = async (
 
   const data: createCardResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as createCardResponse;
+};
+
+export type cloneDeckResponse201 = {
+  data: Deck;
+  status: 201;
+};
+
+export type cloneDeckResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type cloneDeckResponseSuccess = cloneDeckResponse201 & {
+  headers: Headers;
+};
+export type cloneDeckResponseError = cloneDeckResponseDefault & {
+  headers: Headers;
+};
+
+export type cloneDeckResponse = cloneDeckResponseSuccess | cloneDeckResponseError;
+
+export const getCloneDeckUrl = (id: string) => {
+  return `/api/decks/${id}/clone`;
+};
+
+/**
+ * @summary Clone a shared deck
+ */
+export const cloneDeck = async (id: string, options?: RequestInit): Promise<cloneDeckResponse> => {
+  const res = await fetch(getCloneDeckUrl(id), {
+    ...options,
+    method: 'POST',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: cloneDeckResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as cloneDeckResponse;
 };
 
 export type listEventsResponse200 = {
@@ -939,6 +1024,44 @@ export const updateEvent = async (
 
   const data: updateEventResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as updateEventResponse;
+};
+
+export type exploreDecksResponse200 = {
+  data: PublicDeck[] | null;
+  status: 200;
+};
+
+export type exploreDecksResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type exploreDecksResponseSuccess = exploreDecksResponse200 & {
+  headers: Headers;
+};
+export type exploreDecksResponseError = exploreDecksResponseDefault & {
+  headers: Headers;
+};
+
+export type exploreDecksResponse = exploreDecksResponseSuccess | exploreDecksResponseError;
+
+export const getExploreDecksUrl = () => {
+  return `/api/explore/decks`;
+};
+
+/**
+ * @summary Public flashcard decks
+ */
+export const exploreDecks = async (options?: RequestInit): Promise<exploreDecksResponse> => {
+  const res = await fetch(getExploreDecksUrl(), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: exploreDecksResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as exploreDecksResponse;
 };
 
 export type exploreQuizzesResponse200 = {
@@ -1507,6 +1630,47 @@ export const updateMaterial = async (
   return { data, status: res.status, headers: res.headers } as updateMaterialResponse;
 };
 
+export type cloneMaterialResponse201 = {
+  data: Material;
+  status: 201;
+};
+
+export type cloneMaterialResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type cloneMaterialResponseSuccess = cloneMaterialResponse201 & {
+  headers: Headers;
+};
+export type cloneMaterialResponseError = cloneMaterialResponseDefault & {
+  headers: Headers;
+};
+
+export type cloneMaterialResponse = cloneMaterialResponseSuccess | cloneMaterialResponseError;
+
+export const getCloneMaterialUrl = (id: string) => {
+  return `/api/materials/${id}/clone`;
+};
+
+/**
+ * @summary Clone a shared material
+ */
+export const cloneMaterial = async (
+  id: string,
+  options?: RequestInit
+): Promise<cloneMaterialResponse> => {
+  const res = await fetch(getCloneMaterialUrl(id), {
+    ...options,
+    method: 'POST',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: cloneMaterialResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as cloneMaterialResponse;
+};
+
 export type getMeResponse200 = {
   data: User;
   status: 200;
@@ -1913,6 +2077,44 @@ export const createAttempt = async (
 
   const data: createAttemptResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as createAttemptResponse;
+};
+
+export type cloneQuizResponse201 = {
+  data: Quiz;
+  status: 201;
+};
+
+export type cloneQuizResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type cloneQuizResponseSuccess = cloneQuizResponse201 & {
+  headers: Headers;
+};
+export type cloneQuizResponseError = cloneQuizResponseDefault & {
+  headers: Headers;
+};
+
+export type cloneQuizResponse = cloneQuizResponseSuccess | cloneQuizResponseError;
+
+export const getCloneQuizUrl = (id: string) => {
+  return `/api/quizzes/${id}/clone`;
+};
+
+/**
+ * @summary Clone a shared quiz
+ */
+export const cloneQuiz = async (id: string, options?: RequestInit): Promise<cloneQuizResponse> => {
+  const res = await fetch(getCloneQuizUrl(id), {
+    ...options,
+    method: 'POST',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: cloneQuizResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as cloneQuizResponse;
 };
 
 export type searchResponse200 = {
@@ -2609,6 +2811,47 @@ export const reorderChapters = async (
 
   const data: reorderChaptersResponse['data'] = body ? JSON.parse(body) : undefined;
   return { data, status: res.status, headers: res.headers } as reorderChaptersResponse;
+};
+
+export type cloneWorkspaceResponse201 = {
+  data: CloneWorkspaceResp;
+  status: 201;
+};
+
+export type cloneWorkspaceResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type cloneWorkspaceResponseSuccess = cloneWorkspaceResponse201 & {
+  headers: Headers;
+};
+export type cloneWorkspaceResponseError = cloneWorkspaceResponseDefault & {
+  headers: Headers;
+};
+
+export type cloneWorkspaceResponse = cloneWorkspaceResponseSuccess | cloneWorkspaceResponseError;
+
+export const getCloneWorkspaceUrl = (id: string) => {
+  return `/api/workspaces/${id}/clone`;
+};
+
+/**
+ * @summary Clone a shared workspace
+ */
+export const cloneWorkspace = async (
+  id: string,
+  options?: RequestInit
+): Promise<cloneWorkspaceResponse> => {
+  const res = await fetch(getCloneWorkspaceUrl(id), {
+    ...options,
+    method: 'POST',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: cloneWorkspaceResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as cloneWorkspaceResponse;
 };
 
 export type listConversationsResponse200 = {

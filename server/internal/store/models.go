@@ -117,9 +117,13 @@ type Deck struct {
 	WorkspaceID   string    `json:"workspaceId"`
 	WorkspaceName string    `json:"workspaceName"`
 	Color         UserColor `json:"color"`
+	Privacy       Privacy   `json:"privacy"`
 	CardCount     int       `json:"cardCount"`
 	KnownPct      int       `json:"knownPct"`
 	DueCount      int       `json:"dueCount"`
+	// IsOwner is request-scoped: true when the requester owns the parent
+	// workspace (false for link/public shared reads).
+	IsOwner bool `json:"isOwner"`
 }
 
 // Srs is the FSRS scheduling state persisted as jsonb; the shape mirrors
@@ -134,7 +138,11 @@ type Flashcard struct {
 }
 
 // Material is a persisted mindmap/diagram: a markdown document (mermaid fences)
-// scoped to chapters and/or files. Workspace-scoped, not chapter-scoped.
+// scoped to chapters and/or files.
+//
+// ScopeChapters/ScopeFileIDs record *provenance* (what a generated artifact was
+// built from). ChapterID is the orthogonal *membership* link — which chapter
+// the material is filed under in the tree (null = unfiled), mirroring File.
 type Material struct {
 	ID            string    `json:"id"`
 	WorkspaceID   string    `json:"workspaceId"`
@@ -142,19 +150,25 @@ type Material struct {
 	Kind          string    `json:"kind"` // mindmap | diagram | quiz | flashcards
 	Title         string    `json:"title"`
 	Content       string    `json:"content"`
+	ChapterID     *string   `json:"chapterId"` // null = unfiled (not omitempty)
 	ScopeChapters []string  `json:"scopeChapters" nullable:"false"`
 	ScopeFileIDs  []string  `json:"scopeFileIds" nullable:"false"`
 	Privacy       Privacy   `json:"privacy"`
 	Color         UserColor `json:"color,omitempty"` // decks only; presentation tint
 	CreatedAt     time.Time `json:"createdAt"`
+	// IsOwner is request-scoped (not persisted): true when the requester owns
+	// the parent workspace, false for link/public shared reads.
+	IsOwner bool `json:"isOwner"`
 }
 
 // MaterialRef is one row in the unified left-panel materials list, aggregating
-// markdown materials plus the workspace's quizzes and decks.
+// markdown materials plus the workspace's quizzes and decks. ChapterID lets the
+// tree group refs under their chapter (null = unfiled).
 type MaterialRef struct {
 	ID        string    `json:"id"`
 	Type      string    `json:"type"` // mindmap | diagram | quiz | deck
 	Title     string    `json:"title"`
+	ChapterID *string   `json:"chapterId"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -214,6 +228,12 @@ type PublicWorkspace struct {
 
 type PublicQuiz struct {
 	Quiz
+	Author string `json:"author"`
+	Clones int    `json:"clones"`
+}
+
+type PublicDeck struct {
+	Deck
 	Author string `json:"author"`
 	Clones int    `json:"clones"`
 }
