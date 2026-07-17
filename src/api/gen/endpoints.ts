@@ -14,17 +14,24 @@ import type {
   Canvas,
   Chapter,
   CloneWorkspaceResp,
+  Comment,
   Conversation,
   CreateAttemptReq,
   CreateCanvasReq,
   CreateCardReq,
+  CreateCommentReq,
   CreateConversationReq,
   CreateDeckReq,
+  CreateDiscussionReq,
   CreateEventReq,
   CreateMaterialReq,
+  CreateMaterialSuggestionReq,
   CreateQuizReq,
+  CreateWorkspaceInviteReq,
   CreateWorkspaceReq,
+  CreatedWorkspaceInvite,
   Deck,
+  Discussion,
   ErrorModel,
   Event,
   File,
@@ -35,6 +42,8 @@ import type {
   ListWorkspacesParams,
   Material,
   MaterialRef,
+  MaterialRevision,
+  MaterialSuggestion,
   Message,
   Notification,
   PublicDeck,
@@ -51,15 +60,21 @@ import type {
   URLResp,
   UpdateCardReq,
   UpdateChapterReq,
+  UpdateCommentReq,
   UpdateDeckReq,
+  UpdateDiscussionReq,
   UpdateEventReq,
   UpdateFileReq,
   UpdateMaterialReq,
+  UpdateMaterialSuggestionStatusReq,
   UpdateQuizReq,
   UpdateTaskReq,
+  UpdateWorkspaceMemberReq,
   UpdateWorkspaceReq,
   User,
   Workspace,
+  WorkspaceInvite,
+  WorkspaceMember,
   WorkspaceStats,
 } from './model';
 
@@ -493,6 +508,95 @@ export const updateChapter = async (
   return { data, status: res.status, headers: res.headers } as updateChapterResponse;
 };
 
+export type deleteMaterialCommentResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteMaterialCommentResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type deleteMaterialCommentResponseSuccess = deleteMaterialCommentResponse204 & {
+  headers: Headers;
+};
+export type deleteMaterialCommentResponseError = deleteMaterialCommentResponseDefault & {
+  headers: Headers;
+};
+
+export type deleteMaterialCommentResponse =
+  | deleteMaterialCommentResponseSuccess
+  | deleteMaterialCommentResponseError;
+
+export const getDeleteMaterialCommentUrl = (id: string) => {
+  return `/api/comments/${id}`;
+};
+
+/**
+ * @summary Delete a discussion comment
+ */
+export const deleteMaterialComment = async (
+  id: string,
+  options?: RequestInit
+): Promise<deleteMaterialCommentResponse> => {
+  const res = await fetch(getDeleteMaterialCommentUrl(id), {
+    ...options,
+    method: 'DELETE',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteMaterialCommentResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as deleteMaterialCommentResponse;
+};
+
+export type updateMaterialCommentResponse200 = {
+  data: Comment;
+  status: 200;
+};
+
+export type updateMaterialCommentResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type updateMaterialCommentResponseSuccess = updateMaterialCommentResponse200 & {
+  headers: Headers;
+};
+export type updateMaterialCommentResponseError = updateMaterialCommentResponseDefault & {
+  headers: Headers;
+};
+
+export type updateMaterialCommentResponse =
+  | updateMaterialCommentResponseSuccess
+  | updateMaterialCommentResponseError;
+
+export const getUpdateMaterialCommentUrl = (id: string) => {
+  return `/api/comments/${id}`;
+};
+
+/**
+ * @summary Edit a discussion comment
+ */
+export const updateMaterialComment = async (
+  id: string,
+  updateCommentReq: NonReadonly<UpdateCommentReq>,
+  options?: RequestInit
+): Promise<updateMaterialCommentResponse> => {
+  const res = await fetch(getUpdateMaterialCommentUrl(id), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateCommentReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateMaterialCommentResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as updateMaterialCommentResponse;
+};
+
 export type deleteConversationResponse204 = {
   data: void;
   status: 204;
@@ -858,6 +962,141 @@ export const cloneDeck = async (id: string, options?: RequestInit): Promise<clon
 
   const data: cloneDeckResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as cloneDeckResponse;
+};
+
+export type deleteMaterialDiscussionResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type deleteMaterialDiscussionResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type deleteMaterialDiscussionResponseSuccess = deleteMaterialDiscussionResponse204 & {
+  headers: Headers;
+};
+export type deleteMaterialDiscussionResponseError = deleteMaterialDiscussionResponseDefault & {
+  headers: Headers;
+};
+
+export type deleteMaterialDiscussionResponse =
+  | deleteMaterialDiscussionResponseSuccess
+  | deleteMaterialDiscussionResponseError;
+
+export const getDeleteMaterialDiscussionUrl = (id: string) => {
+  return `/api/discussions/${id}`;
+};
+
+/**
+ * @summary Delete a discussion
+ */
+export const deleteMaterialDiscussion = async (
+  id: string,
+  options?: RequestInit
+): Promise<deleteMaterialDiscussionResponse> => {
+  const res = await fetch(getDeleteMaterialDiscussionUrl(id), {
+    ...options,
+    method: 'DELETE',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteMaterialDiscussionResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as deleteMaterialDiscussionResponse;
+};
+
+export type updateMaterialDiscussionResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type updateMaterialDiscussionResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type updateMaterialDiscussionResponseSuccess = updateMaterialDiscussionResponse204 & {
+  headers: Headers;
+};
+export type updateMaterialDiscussionResponseError = updateMaterialDiscussionResponseDefault & {
+  headers: Headers;
+};
+
+export type updateMaterialDiscussionResponse =
+  | updateMaterialDiscussionResponseSuccess
+  | updateMaterialDiscussionResponseError;
+
+export const getUpdateMaterialDiscussionUrl = (id: string) => {
+  return `/api/discussions/${id}`;
+};
+
+/**
+ * @summary Resolve or reopen a discussion
+ */
+export const updateMaterialDiscussion = async (
+  id: string,
+  updateDiscussionReq: NonReadonly<UpdateDiscussionReq>,
+  options?: RequestInit
+): Promise<updateMaterialDiscussionResponse> => {
+  const res = await fetch(getUpdateMaterialDiscussionUrl(id), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateDiscussionReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateMaterialDiscussionResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as updateMaterialDiscussionResponse;
+};
+
+export type createMaterialCommentResponse201 = {
+  data: Comment;
+  status: 201;
+};
+
+export type createMaterialCommentResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type createMaterialCommentResponseSuccess = createMaterialCommentResponse201 & {
+  headers: Headers;
+};
+export type createMaterialCommentResponseError = createMaterialCommentResponseDefault & {
+  headers: Headers;
+};
+
+export type createMaterialCommentResponse =
+  | createMaterialCommentResponseSuccess
+  | createMaterialCommentResponseError;
+
+export const getCreateMaterialCommentUrl = (id: string) => {
+  return `/api/discussions/${id}/comments`;
+};
+
+/**
+ * @summary Add a discussion comment
+ */
+export const createMaterialComment = async (
+  id: string,
+  createCommentReq: NonReadonly<CreateCommentReq>,
+  options?: RequestInit
+): Promise<createMaterialCommentResponse> => {
+  const res = await fetch(getCreateMaterialCommentUrl(id), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createCommentReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createMaterialCommentResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as createMaterialCommentResponse;
 };
 
 export type listEventsResponse200 = {
@@ -1504,6 +1743,101 @@ export const listLabels = async (options?: RequestInit): Promise<listLabelsRespo
   return { data, status: res.status, headers: res.headers } as listLabelsResponse;
 };
 
+export type withdrawMaterialSuggestionResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type withdrawMaterialSuggestionResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type withdrawMaterialSuggestionResponseSuccess = withdrawMaterialSuggestionResponse204 & {
+  headers: Headers;
+};
+export type withdrawMaterialSuggestionResponseError = withdrawMaterialSuggestionResponseDefault & {
+  headers: Headers;
+};
+
+export type withdrawMaterialSuggestionResponse =
+  | withdrawMaterialSuggestionResponseSuccess
+  | withdrawMaterialSuggestionResponseError;
+
+export const getWithdrawMaterialSuggestionUrl = (id: string) => {
+  return `/api/material-suggestions/${id}`;
+};
+
+/**
+ * @summary Withdraw a suggestion
+ */
+export const withdrawMaterialSuggestion = async (
+  id: string,
+  options?: RequestInit
+): Promise<withdrawMaterialSuggestionResponse> => {
+  const res = await fetch(getWithdrawMaterialSuggestionUrl(id), {
+    ...options,
+    method: 'DELETE',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: withdrawMaterialSuggestionResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as withdrawMaterialSuggestionResponse;
+};
+
+export type updateMaterialSuggestionStatusResponse200 = {
+  data: MaterialSuggestion;
+  status: 200;
+};
+
+export type updateMaterialSuggestionStatusResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type updateMaterialSuggestionStatusResponseSuccess =
+  updateMaterialSuggestionStatusResponse200 & {
+    headers: Headers;
+  };
+export type updateMaterialSuggestionStatusResponseError =
+  updateMaterialSuggestionStatusResponseDefault & {
+    headers: Headers;
+  };
+
+export type updateMaterialSuggestionStatusResponse =
+  | updateMaterialSuggestionStatusResponseSuccess
+  | updateMaterialSuggestionStatusResponseError;
+
+export const getUpdateMaterialSuggestionStatusUrl = (id: string) => {
+  return `/api/material-suggestions/${id}`;
+};
+
+/**
+ * @summary Accept, reject, or withdraw a suggestion
+ */
+export const updateMaterialSuggestionStatus = async (
+  id: string,
+  updateMaterialSuggestionStatusReq: NonReadonly<UpdateMaterialSuggestionStatusReq>,
+  options?: RequestInit
+): Promise<updateMaterialSuggestionStatusResponse> => {
+  const res = await fetch(getUpdateMaterialSuggestionStatusUrl(id), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateMaterialSuggestionStatusReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateMaterialSuggestionStatusResponse['data'] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as updateMaterialSuggestionStatusResponse;
+};
+
 export type deleteMaterialResponse204 = {
   data: void;
   status: 204;
@@ -1669,6 +2003,227 @@ export const cloneMaterial = async (
 
   const data: cloneMaterialResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as cloneMaterialResponse;
+};
+
+export type listMaterialDiscussionsResponse200 = {
+  data: Discussion[] | null;
+  status: 200;
+};
+
+export type listMaterialDiscussionsResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listMaterialDiscussionsResponseSuccess = listMaterialDiscussionsResponse200 & {
+  headers: Headers;
+};
+export type listMaterialDiscussionsResponseError = listMaterialDiscussionsResponseDefault & {
+  headers: Headers;
+};
+
+export type listMaterialDiscussionsResponse =
+  | listMaterialDiscussionsResponseSuccess
+  | listMaterialDiscussionsResponseError;
+
+export const getListMaterialDiscussionsUrl = (id: string) => {
+  return `/api/materials/${id}/discussions`;
+};
+
+/**
+ * @summary List material discussions
+ */
+export const listMaterialDiscussions = async (
+  id: string,
+  options?: RequestInit
+): Promise<listMaterialDiscussionsResponse> => {
+  const res = await fetch(getListMaterialDiscussionsUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMaterialDiscussionsResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listMaterialDiscussionsResponse;
+};
+
+export type createMaterialDiscussionResponse201 = {
+  data: Discussion;
+  status: 201;
+};
+
+export type createMaterialDiscussionResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type createMaterialDiscussionResponseSuccess = createMaterialDiscussionResponse201 & {
+  headers: Headers;
+};
+export type createMaterialDiscussionResponseError = createMaterialDiscussionResponseDefault & {
+  headers: Headers;
+};
+
+export type createMaterialDiscussionResponse =
+  | createMaterialDiscussionResponseSuccess
+  | createMaterialDiscussionResponseError;
+
+export const getCreateMaterialDiscussionUrl = (id: string) => {
+  return `/api/materials/${id}/discussions`;
+};
+
+/**
+ * @summary Create a material discussion
+ */
+export const createMaterialDiscussion = async (
+  id: string,
+  createDiscussionReq: NonReadonly<CreateDiscussionReq>,
+  options?: RequestInit
+): Promise<createMaterialDiscussionResponse> => {
+  const res = await fetch(getCreateMaterialDiscussionUrl(id), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createDiscussionReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createMaterialDiscussionResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as createMaterialDiscussionResponse;
+};
+
+export type listMaterialRevisionsResponse200 = {
+  data: MaterialRevision[] | null;
+  status: 200;
+};
+
+export type listMaterialRevisionsResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listMaterialRevisionsResponseSuccess = listMaterialRevisionsResponse200 & {
+  headers: Headers;
+};
+export type listMaterialRevisionsResponseError = listMaterialRevisionsResponseDefault & {
+  headers: Headers;
+};
+
+export type listMaterialRevisionsResponse =
+  | listMaterialRevisionsResponseSuccess
+  | listMaterialRevisionsResponseError;
+
+export const getListMaterialRevisionsUrl = (id: string) => {
+  return `/api/materials/${id}/revisions`;
+};
+
+/**
+ * @summary List material revisions
+ */
+export const listMaterialRevisions = async (
+  id: string,
+  options?: RequestInit
+): Promise<listMaterialRevisionsResponse> => {
+  const res = await fetch(getListMaterialRevisionsUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMaterialRevisionsResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listMaterialRevisionsResponse;
+};
+
+export type listMaterialSuggestionsResponse200 = {
+  data: MaterialSuggestion[] | null;
+  status: 200;
+};
+
+export type listMaterialSuggestionsResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listMaterialSuggestionsResponseSuccess = listMaterialSuggestionsResponse200 & {
+  headers: Headers;
+};
+export type listMaterialSuggestionsResponseError = listMaterialSuggestionsResponseDefault & {
+  headers: Headers;
+};
+
+export type listMaterialSuggestionsResponse =
+  | listMaterialSuggestionsResponseSuccess
+  | listMaterialSuggestionsResponseError;
+
+export const getListMaterialSuggestionsUrl = (id: string) => {
+  return `/api/materials/${id}/suggestions`;
+};
+
+/**
+ * @summary List material suggestions
+ */
+export const listMaterialSuggestions = async (
+  id: string,
+  options?: RequestInit
+): Promise<listMaterialSuggestionsResponse> => {
+  const res = await fetch(getListMaterialSuggestionsUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listMaterialSuggestionsResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listMaterialSuggestionsResponse;
+};
+
+export type createMaterialSuggestionResponse201 = {
+  data: MaterialSuggestion;
+  status: 201;
+};
+
+export type createMaterialSuggestionResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type createMaterialSuggestionResponseSuccess = createMaterialSuggestionResponse201 & {
+  headers: Headers;
+};
+export type createMaterialSuggestionResponseError = createMaterialSuggestionResponseDefault & {
+  headers: Headers;
+};
+
+export type createMaterialSuggestionResponse =
+  | createMaterialSuggestionResponseSuccess
+  | createMaterialSuggestionResponseError;
+
+export const getCreateMaterialSuggestionUrl = (id: string) => {
+  return `/api/materials/${id}/suggestions`;
+};
+
+/**
+ * @summary Create a material suggestion
+ */
+export const createMaterialSuggestion = async (
+  id: string,
+  createMaterialSuggestionReq: NonReadonly<CreateMaterialSuggestionReq>,
+  options?: RequestInit
+): Promise<createMaterialSuggestionResponse> => {
+  const res = await fetch(getCreateMaterialSuggestionUrl(id), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createMaterialSuggestionReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createMaterialSuggestionResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as createMaterialSuggestionResponse;
 };
 
 export type getMeResponse200 = {
@@ -2464,6 +3019,49 @@ export const saveCanvas = async (
   return { data, status: res.status, headers: res.headers } as saveCanvasResponse;
 };
 
+export type acceptWorkspaceInviteResponse200 = {
+  data: WorkspaceMember;
+  status: 200;
+};
+
+export type acceptWorkspaceInviteResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type acceptWorkspaceInviteResponseSuccess = acceptWorkspaceInviteResponse200 & {
+  headers: Headers;
+};
+export type acceptWorkspaceInviteResponseError = acceptWorkspaceInviteResponseDefault & {
+  headers: Headers;
+};
+
+export type acceptWorkspaceInviteResponse =
+  | acceptWorkspaceInviteResponseSuccess
+  | acceptWorkspaceInviteResponseError;
+
+export const getAcceptWorkspaceInviteUrl = (token: string) => {
+  return `/api/workspace-invites/${token}/accept`;
+};
+
+/**
+ * @summary Accept a workspace invite
+ */
+export const acceptWorkspaceInvite = async (
+  token: string,
+  options?: RequestInit
+): Promise<acceptWorkspaceInviteResponse> => {
+  const res = await fetch(getAcceptWorkspaceInviteUrl(token), {
+    ...options,
+    method: 'POST',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: acceptWorkspaceInviteResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as acceptWorkspaceInviteResponse;
+};
+
 export type listWorkspacesResponse200 = {
   data: Workspace[] | null;
   status: 200;
@@ -2986,6 +3584,139 @@ export const listWorkspaceFiles = async (
   return { data, status: res.status, headers: res.headers } as listWorkspaceFilesResponse;
 };
 
+export type listWorkspaceInvitesResponse200 = {
+  data: WorkspaceInvite[] | null;
+  status: 200;
+};
+
+export type listWorkspaceInvitesResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listWorkspaceInvitesResponseSuccess = listWorkspaceInvitesResponse200 & {
+  headers: Headers;
+};
+export type listWorkspaceInvitesResponseError = listWorkspaceInvitesResponseDefault & {
+  headers: Headers;
+};
+
+export type listWorkspaceInvitesResponse =
+  | listWorkspaceInvitesResponseSuccess
+  | listWorkspaceInvitesResponseError;
+
+export const getListWorkspaceInvitesUrl = (id: string) => {
+  return `/api/workspaces/${id}/invites`;
+};
+
+/**
+ * @summary List workspace invites
+ */
+export const listWorkspaceInvites = async (
+  id: string,
+  options?: RequestInit
+): Promise<listWorkspaceInvitesResponse> => {
+  const res = await fetch(getListWorkspaceInvitesUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listWorkspaceInvitesResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listWorkspaceInvitesResponse;
+};
+
+export type createWorkspaceInviteResponse201 = {
+  data: CreatedWorkspaceInvite;
+  status: 201;
+};
+
+export type createWorkspaceInviteResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 201>;
+};
+
+export type createWorkspaceInviteResponseSuccess = createWorkspaceInviteResponse201 & {
+  headers: Headers;
+};
+export type createWorkspaceInviteResponseError = createWorkspaceInviteResponseDefault & {
+  headers: Headers;
+};
+
+export type createWorkspaceInviteResponse =
+  | createWorkspaceInviteResponseSuccess
+  | createWorkspaceInviteResponseError;
+
+export const getCreateWorkspaceInviteUrl = (id: string) => {
+  return `/api/workspaces/${id}/invites`;
+};
+
+/**
+ * @summary Invite a workspace member
+ */
+export const createWorkspaceInvite = async (
+  id: string,
+  createWorkspaceInviteReq: NonReadonly<CreateWorkspaceInviteReq>,
+  options?: RequestInit
+): Promise<createWorkspaceInviteResponse> => {
+  const res = await fetch(getCreateWorkspaceInviteUrl(id), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createWorkspaceInviteReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: createWorkspaceInviteResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as createWorkspaceInviteResponse;
+};
+
+export type revokeWorkspaceInviteResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type revokeWorkspaceInviteResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type revokeWorkspaceInviteResponseSuccess = revokeWorkspaceInviteResponse204 & {
+  headers: Headers;
+};
+export type revokeWorkspaceInviteResponseError = revokeWorkspaceInviteResponseDefault & {
+  headers: Headers;
+};
+
+export type revokeWorkspaceInviteResponse =
+  | revokeWorkspaceInviteResponseSuccess
+  | revokeWorkspaceInviteResponseError;
+
+export const getRevokeWorkspaceInviteUrl = (id: string, inviteId: string) => {
+  return `/api/workspaces/${id}/invites/${inviteId}`;
+};
+
+/**
+ * @summary Revoke a workspace invite
+ */
+export const revokeWorkspaceInvite = async (
+  id: string,
+  inviteId: string,
+  options?: RequestInit
+): Promise<revokeWorkspaceInviteResponse> => {
+  const res = await fetch(getRevokeWorkspaceInviteUrl(id, inviteId), {
+    ...options,
+    method: 'DELETE',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: revokeWorkspaceInviteResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as revokeWorkspaceInviteResponse;
+};
+
 export type listMaterialsResponse200 = {
   data: MaterialRef[] | null;
   status: 200;
@@ -3069,6 +3800,140 @@ export const createMaterial = async (
 
   const data: createMaterialResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as createMaterialResponse;
+};
+
+export type listWorkspaceMembersResponse200 = {
+  data: WorkspaceMember[] | null;
+  status: 200;
+};
+
+export type listWorkspaceMembersResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type listWorkspaceMembersResponseSuccess = listWorkspaceMembersResponse200 & {
+  headers: Headers;
+};
+export type listWorkspaceMembersResponseError = listWorkspaceMembersResponseDefault & {
+  headers: Headers;
+};
+
+export type listWorkspaceMembersResponse =
+  | listWorkspaceMembersResponseSuccess
+  | listWorkspaceMembersResponseError;
+
+export const getListWorkspaceMembersUrl = (id: string) => {
+  return `/api/workspaces/${id}/members`;
+};
+
+/**
+ * @summary List workspace members
+ */
+export const listWorkspaceMembers = async (
+  id: string,
+  options?: RequestInit
+): Promise<listWorkspaceMembersResponse> => {
+  const res = await fetch(getListWorkspaceMembersUrl(id), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: listWorkspaceMembersResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as listWorkspaceMembersResponse;
+};
+
+export type removeWorkspaceMemberResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type removeWorkspaceMemberResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type removeWorkspaceMemberResponseSuccess = removeWorkspaceMemberResponse204 & {
+  headers: Headers;
+};
+export type removeWorkspaceMemberResponseError = removeWorkspaceMemberResponseDefault & {
+  headers: Headers;
+};
+
+export type removeWorkspaceMemberResponse =
+  | removeWorkspaceMemberResponseSuccess
+  | removeWorkspaceMemberResponseError;
+
+export const getRemoveWorkspaceMemberUrl = (id: string, memberId: string) => {
+  return `/api/workspaces/${id}/members/${memberId}`;
+};
+
+/**
+ * @summary Remove a workspace member
+ */
+export const removeWorkspaceMember = async (
+  id: string,
+  memberId: string,
+  options?: RequestInit
+): Promise<removeWorkspaceMemberResponse> => {
+  const res = await fetch(getRemoveWorkspaceMemberUrl(id, memberId), {
+    ...options,
+    method: 'DELETE',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: removeWorkspaceMemberResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as removeWorkspaceMemberResponse;
+};
+
+export type updateWorkspaceMemberResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type updateWorkspaceMemberResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type updateWorkspaceMemberResponseSuccess = updateWorkspaceMemberResponse204 & {
+  headers: Headers;
+};
+export type updateWorkspaceMemberResponseError = updateWorkspaceMemberResponseDefault & {
+  headers: Headers;
+};
+
+export type updateWorkspaceMemberResponse =
+  | updateWorkspaceMemberResponseSuccess
+  | updateWorkspaceMemberResponseError;
+
+export const getUpdateWorkspaceMemberUrl = (id: string, memberId: string) => {
+  return `/api/workspaces/${id}/members/${memberId}`;
+};
+
+/**
+ * @summary Change a workspace member role
+ */
+export const updateWorkspaceMember = async (
+  id: string,
+  memberId: string,
+  updateWorkspaceMemberReq: NonReadonly<UpdateWorkspaceMemberReq>,
+  options?: RequestInit
+): Promise<updateWorkspaceMemberResponse> => {
+  const res = await fetch(getUpdateWorkspaceMemberUrl(id, memberId), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateWorkspaceMemberReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateWorkspaceMemberResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as updateWorkspaceMemberResponse;
 };
 
 export type getWorkspaceStatsResponse200 = {

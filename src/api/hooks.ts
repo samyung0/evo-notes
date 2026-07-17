@@ -44,8 +44,16 @@ import type {
   PublicQuiz,
   PublicWorkspace,
   CloneWorkspaceResult,
+  MaterialDiscussion,
+  MaterialRevision,
+  MaterialSuggestion,
   Privacy,
+  SuggestionStatus,
+  WorkspaceInvite,
+  WorkspaceMember,
+  WorkspaceRole,
 } from './types';
+import type { MaterialDocument, MaterialValue } from '@/features/materials/document';
 
 const USE_DIRECT_B2_UPLOAD = import.meta.env.VITE_DIRECT_B2_UPLOAD !== 'false';
 
@@ -515,7 +523,7 @@ export function useDeleteMaterial(wsId: string) {
 /** Create a user-authored note (markdown) material and reveal it in-pane. */
 export interface CreateNoteInput {
   title?: string;
-  content?: string;
+  content?: MaterialDocument;
   scopeChapters?: string[];
   scopeFileIds?: string[];
 }
@@ -534,7 +542,8 @@ export function useCreateNote(wsId: string) {
 /** Patch a material's title/content/scope (used by the note editor autosave). */
 export interface UpdateMaterialInput {
   title?: string;
-  content?: string;
+  content?: MaterialDocument;
+  expectedRevision?: number;
   scopeChapters?: string[];
   scopeFileIds?: string[];
 }
@@ -547,6 +556,133 @@ export function useUpdateMaterial(wsId: string) {
       qc.setQueryData(qk.material(mt.id), mt);
       qc.invalidateQueries({ queryKey: qk.materials(wsId) });
     },
+  });
+}
+
+/* ---------------- editor collaboration ---------------- */
+export const workspaceMembersQuery = (workspaceId: string, enabled = true) =>
+  queryOptions({
+    queryKey: qk.workspaceMembers(workspaceId),
+    queryFn: () => api.get<WorkspaceMember[]>(`/workspaces/${workspaceId}/members`),
+    enabled: !!workspaceId && enabled,
+  });
+
+export const useWorkspaceMembers = (workspaceId: string, enabled = true) =>
+  useQuery(workspaceMembersQuery(workspaceId, enabled));
+
+export const workspaceInvitesQuery = (workspaceId: string) =>
+  queryOptions({
+    queryKey: qk.workspaceInvites(workspaceId),
+    queryFn: () => api.get<WorkspaceInvite[]>(`/workspaces/${workspaceId}/invites`),
+    enabled: !!workspaceId,
+  });
+
+export const useWorkspaceInvites = (workspaceId: string) =>
+  useQuery(workspaceInvitesQuery(workspaceId));
+
+export function useCreateWorkspaceInvite(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { email: string; role: Exclude<WorkspaceRole, 'owner'> }) =>
+      api.post<WorkspaceInvite>(`/workspaces/${workspaceId}/invites`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.workspaceInvites(workspaceId) }),
+  });
+}
+
+export function useUpdateWorkspaceMember(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: Exclude<WorkspaceRole, 'owner'> }) =>
+      api.patch<void>(`/workspaces/${workspaceId}/members/${userId}`, { role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.workspaceMembers(workspaceId) }),
+  });
+}
+
+export const materialDiscussionsQuery = (materialId: string) =>
+  queryOptions({
+    queryKey: qk.materialDiscussions(materialId),
+    queryFn: () => api.get<MaterialDiscussion[]>(`/materials/${materialId}/discussions`),
+    enabled: !!materialId,
+  });
+
+export const useMaterialDiscussions = (materialId: string) =>
+  useQuery(materialDiscussionsQuery(materialId));
+
+export function useCreateMaterialDiscussion(materialId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      blockId?: string;
+      documentContent?: string;
+      anchor?: Record<string, unknown>;
+      contentRich: MaterialValue;
+    }) => api.post<MaterialDiscussion>(`/materials/${materialId}/discussions`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.materialDiscussions(materialId) }),
+  });
+}
+
+export function useCreateMaterialComment(materialId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      discussionId,
+      contentRich,
+    }: {
+      discussionId: string;
+      contentRich: MaterialValue;
+    }) => api.post(`/discussions/${discussionId}/comments`, { contentRich }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.materialDiscussions(materialId) }),
+  });
+}
+
+export function useResolveMaterialDiscussion(materialId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ discussionId, isResolved }: { discussionId: string; isResolved: boolean }) =>
+      api.patch<void>(`/discussions/${discussionId}`, { isResolved }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.materialDiscussions(materialId) }),
+  });
+}
+
+export const materialRevisionsQuery = (materialId: string) =>
+  queryOptions({
+    queryKey: qk.materialRevisions(materialId),
+    queryFn: () => api.get<MaterialRevision[]>(`/materials/${materialId}/revisions`),
+    enabled: !!materialId,
+  });
+
+export const useMaterialRevisions = (materialId: string) =>
+  useQuery(materialRevisionsQuery(materialId));
+
+export const materialSuggestionsQuery = (materialId: string) =>
+  queryOptions({
+    queryKey: qk.materialSuggestions(materialId),
+    queryFn: () => api.get<MaterialSuggestion[]>(`/materials/${materialId}/suggestions`),
+    enabled: !!materialId,
+  });
+
+export const useMaterialSuggestions = (materialId: string) =>
+  useQuery(materialSuggestionsQuery(materialId));
+
+export function useCreateMaterialSuggestion(materialId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      baseRevision: number;
+      anchor: Record<string, unknown>;
+      originalFragment: MaterialValue;
+      proposedFragment: MaterialValue;
+    }) => api.post<MaterialSuggestion>(`/materials/${materialId}/suggestions`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.materialSuggestions(materialId) }),
+  });
+}
+
+export function useUpdateMaterialSuggestionStatus(materialId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ suggestionId, status }: { suggestionId: string; status: SuggestionStatus }) =>
+      api.patch<MaterialSuggestion>(`/material-suggestions/${suggestionId}`, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.materialSuggestions(materialId) }),
   });
 }
 

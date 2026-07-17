@@ -9,8 +9,10 @@
 package apimodel
 
 import (
+	"encoding/json"
 	"time"
 
+	"github.com/evonotes/server/internal/materialdoc"
 	"github.com/evonotes/server/internal/store"
 )
 
@@ -79,28 +81,147 @@ type (
 	MaterialRef        = store.MaterialRef
 )
 
+func FromMaterial(m store.Material) Material { return m }
+
+type MaterialRevision struct {
+	MaterialID string               `json:"materialId"`
+	Revision   int64                `json:"revision"`
+	Title      string               `json:"title"`
+	Content    materialdoc.Envelope `json:"content"`
+	CreatedBy  *string              `json:"createdBy,omitempty"`
+	CreatedAt  time.Time            `json:"createdAt"`
+}
+
+func FromMaterialRevision(r store.MaterialRevision) MaterialRevision {
+	content, err := materialdoc.Parse(r.Content)
+	if err != nil {
+		content = materialdoc.Empty()
+	}
+	return MaterialRevision{
+		MaterialID: r.MaterialID, Revision: r.Revision, Title: r.Title,
+		Content: content, CreatedBy: r.CreatedBy, CreatedAt: r.CreatedAt,
+	}
+}
+
+type (
+	WorkspaceMember = store.WorkspaceMember
+	Discussion      = store.Discussion
+	Comment         = store.Comment
+)
+
+type MaterialSuggestion struct {
+	ID               string                 `json:"id"`
+	MaterialID       string                 `json:"materialId"`
+	UserID           string                 `json:"userId"`
+	BaseRevision     int64                  `json:"baseRevision"`
+	Anchor           map[string]any         `json:"anchor"`
+	OriginalFragment []map[string]any       `json:"originalFragment"`
+	ProposedFragment []map[string]any       `json:"proposedFragment"`
+	Status           store.SuggestionStatus `json:"status"`
+	ReviewedBy       *string                `json:"reviewedBy,omitempty"`
+	ReviewedAt       *time.Time             `json:"reviewedAt,omitempty"`
+	CreatedAt        time.Time              `json:"createdAt"`
+	UpdatedAt        time.Time              `json:"updatedAt"`
+}
+
+func FromMaterialSuggestion(suggestion store.MaterialSuggestion) MaterialSuggestion {
+	out := MaterialSuggestion{
+		ID: suggestion.ID, MaterialID: suggestion.MaterialID, UserID: suggestion.UserID,
+		BaseRevision: suggestion.BaseRevision, Status: suggestion.Status,
+		ReviewedBy: suggestion.ReviewedBy, ReviewedAt: suggestion.ReviewedAt,
+		CreatedAt: suggestion.CreatedAt, UpdatedAt: suggestion.UpdatedAt,
+		Anchor: map[string]any{}, OriginalFragment: []map[string]any{},
+		ProposedFragment: []map[string]any{},
+	}
+	_ = json.Unmarshal(suggestion.Anchor, &out.Anchor)
+	_ = json.Unmarshal(suggestion.OriginalFragment, &out.OriginalFragment)
+	_ = json.Unmarshal(suggestion.ProposedFragment, &out.ProposedFragment)
+	return out
+}
+
+func FromMaterialSuggestions(suggestions []store.MaterialSuggestion) []MaterialSuggestion {
+	out := make([]MaterialSuggestion, len(suggestions))
+	for i, suggestion := range suggestions {
+		out[i] = FromMaterialSuggestion(suggestion)
+	}
+	return out
+}
+
+type WorkspaceInvite struct {
+	ID          string              `json:"id"`
+	WorkspaceID string              `json:"workspaceId"`
+	Email       string              `json:"email"`
+	Role        store.WorkspaceRole `json:"role"`
+	InvitedBy   string              `json:"invitedBy"`
+	ExpiresAt   time.Time           `json:"expiresAt"`
+	AcceptedAt  *time.Time          `json:"acceptedAt,omitempty"`
+	RevokedAt   *time.Time          `json:"revokedAt,omitempty"`
+	CreatedAt   time.Time           `json:"createdAt"`
+}
+
+type CreatedWorkspaceInvite struct {
+	WorkspaceInvite
+	Token string `json:"token"`
+}
+
+func FromWorkspaceInvite(invite store.WorkspaceInvite) WorkspaceInvite {
+	return WorkspaceInvite{
+		ID: invite.ID, WorkspaceID: invite.WorkspaceID, Email: invite.Email, Role: invite.Role,
+		InvitedBy: invite.InvitedBy, ExpiresAt: invite.ExpiresAt, AcceptedAt: invite.AcceptedAt,
+		RevokedAt: invite.RevokedAt, CreatedAt: invite.CreatedAt,
+	}
+}
+
+func FromWorkspaceInvites(invites []store.WorkspaceInvite) []WorkspaceInvite {
+	out := make([]WorkspaceInvite, len(invites))
+	for i, invite := range invites {
+		out[i] = FromWorkspaceInvite(invite)
+	}
+	return out
+}
+
+func FromCreatedWorkspaceInvite(invite store.WorkspaceInvite) CreatedWorkspaceInvite {
+	return CreatedWorkspaceInvite{WorkspaceInvite: FromWorkspaceInvite(invite), Token: invite.Token}
+}
+
 // Workspace is the response contract. Tags are object-wrapped for useFieldArray.
 // IsOwner is request-scoped: false when a non-owner reads a link/public
 // workspace (the client renders it read-only with a clone action).
 type Workspace struct {
-	ID             string          `json:"id"`
-	Name           string          `json:"name"`
-	Color          store.UserColor `json:"color"`
-	Privacy        store.Privacy   `json:"privacy"`
-	Tags           []Tag           `json:"tags" nullable:"false"`
-	ChapterCount   int             `json:"chapterCount"`
-	FileCount      int             `json:"fileCount"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	LastAccessedAt time.Time       `json:"lastAccessedAt"`
-	IsOwner        bool            `json:"isOwner"`
+	ID             string                   `json:"id"`
+	Name           string                   `json:"name"`
+	Color          store.UserColor          `json:"color"`
+	Privacy        store.Privacy            `json:"privacy"`
+	Tags           []Tag                    `json:"tags" nullable:"false"`
+	ChapterCount   int                      `json:"chapterCount"`
+	FileCount      int                      `json:"fileCount"`
+	CreatedAt      time.Time                `json:"createdAt"`
+	LastAccessedAt time.Time                `json:"lastAccessedAt"`
+	IsOwner        bool                     `json:"isOwner"`
+	Role           *store.WorkspaceRole     `json:"role,omitempty"`
+	Capabilities   store.AccessCapabilities `json:"capabilities"`
 }
 
 func FromWorkspace(w store.Workspace) Workspace {
+	role := store.RoleOwner
 	return Workspace{
 		ID: w.ID, Name: w.Name, Color: w.Color, Privacy: w.Privacy,
 		Tags: WrapTags(w.Tags), ChapterCount: w.ChapterCount, FileCount: w.FileCount,
 		CreatedAt: w.CreatedAt, LastAccessedAt: w.LastAccessedAt, IsOwner: true,
+		Role: &role, Capabilities: store.CapabilitiesForRole(role, true),
 	}
+}
+
+func FromWorkspaceAccess(w store.Workspace, role store.WorkspaceRole) Workspace {
+	out := FromWorkspace(w)
+	out.IsOwner = role == store.RoleOwner
+	out.Capabilities = store.CapabilitiesForRole(role, true)
+	if role == "" {
+		out.Role = nil
+	} else {
+		out.Role = &role
+	}
+	return out
 }
 
 func FromWorkspaces(ws []store.Workspace) []Workspace {
@@ -121,7 +242,8 @@ type PublicWorkspace struct {
 func FromPublicWorkspaces(ws []store.PublicWorkspace) []PublicWorkspace {
 	out := make([]PublicWorkspace, len(ws))
 	for i, w := range ws {
-		out[i] = PublicWorkspace{Workspace: FromWorkspace(w.Workspace), Author: w.Author, Clones: w.Clones}
+		workspace := FromWorkspaceAccess(w.Workspace, "")
+		out[i] = PublicWorkspace{Workspace: workspace, Author: w.Author, Clones: w.Clones}
 	}
 	return out
 }

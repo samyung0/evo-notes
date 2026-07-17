@@ -6,9 +6,9 @@ import (
 	"io"
 	"net/http"
 
-	svix "github.com/svix/svix-webhooks/go"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/webhook"
+	svix "github.com/svix/svix-webhooks/go"
 
 	"github.com/evonotes/server/internal/billing"
 )
@@ -77,7 +77,7 @@ func (a *api) clerkWebhook(w http.ResponseWriter, r *http.Request) {
 	switch evt.Type {
 	case "user.created", "user.updated":
 		var wrapper struct {
-			ID             string `json:"id"`
+			ID             string  `json:"id"`
 			FirstName      *string `json:"first_name"`
 			LastName       *string `json:"last_name"`
 			EmailAddresses []struct {

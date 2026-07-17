@@ -1,0 +1,182 @@
+package store
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/evonotes/server/internal/materialdoc"
+)
+
+func TestWorkspaceRoleCapabilities(t *testing.T) {
+	cases := []struct {
+		role             WorkspaceRole
+		canEdit, comment bool
+	}{
+		{RoleOwner, true, true},
+		{RoleEditor, true, true},
+		{RoleCommenter, false, true},
+		{RoleViewer, false, false},
+		{"", false, false},
+	}
+	for _, tc := range cases {
+		if got := RoleCanEdit(tc.role); got != tc.canEdit {
+			t.Errorf("RoleCanEdit(%q) = %v", tc.role, got)
+		}
+		if got := RoleCanComment(tc.role); got != tc.comment {
+			t.Errorf("RoleCanComment(%q) = %v", tc.role, got)
+		}
+		capabilities := CapabilitiesForRole(tc.role, true)
+		if !capabilities.CanView || capabilities.CanEdit != tc.canEdit || capabilities.CanComment != tc.comment {
+			t.Errorf("CapabilitiesForRole(%q) = %#v", tc.role, capabilities)
+		}
+		if capabilities.CanManageMembers != (tc.role == RoleOwner) {
+			t.Errorf("CanManageMembers(%q) = %v", tc.role, capabilities.CanManageMembers)
+		}
+	}
+}
+
+func TestInviteTokensAreBearerSafe(t *testing.T) {
+	first, err := inviteToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := inviteToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) < 32 || first == second {
+		t.Fatalf("invite tokens are too weak or collided: %q %q", first, second)
+	}
+	firstHash := inviteTokenHash(first)
+	secondHash := inviteTokenHash(second)
+	if firstHash == secondHash || len(firstHash) != 32 {
+		t.Fatalf("invite token hashes are invalid: %x %x", firstHash, secondHash)
+	}
+	if string(firstHash[:]) == first {
+		t.Fatal("invite token hash retained the raw bearer token")
+	}
+}
+
+func TestSuggestionAuthorization(t *testing.T) {
+	tests := []struct {
+		name    string
+		role    WorkspaceRole
+		author  bool
+		status  SuggestionStatus
+		allowed bool
+	}{
+		{"commenter withdraws own", RoleCommenter, true, SuggestionWithdrawn, true},
+		{"commenter cannot withdraw another", RoleCommenter, false, SuggestionWithdrawn, false},
+		{"commenter cannot accept", RoleCommenter, true, SuggestionAccepted, false},
+		{"viewer cannot withdraw", RoleViewer, true, SuggestionWithdrawn, false},
+		{"editor accepts", RoleEditor, false, SuggestionAccepted, true},
+		{"owner rejects", RoleOwner, false, SuggestionRejected, true},
+		{"anonymous cannot write", "", true, SuggestionWithdrawn, false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := CanSetSuggestionStatus(test.role, test.author, test.status); got != test.allowed {
+				t.Fatalf("CanSetSuggestionStatus(%q, %v, %q) = %v, want %v",
+					test.role, test.author, test.status, got, test.allowed)
+			}
+		})
+	}
+}
+
+func TestSuggestionStatusTransitionsAreSingleShot(t *testing.T) {
+	for _, terminal := range []SuggestionStatus{
+		SuggestionAccepted,
+		SuggestionRejected,
+		SuggestionWithdrawn,
+	} {
+		if !SuggestionStatusTransitionAllowed(SuggestionPending, terminal) {
+			t.Errorf("pending -> %s should be allowed", terminal)
+		}
+		for _, next := range []SuggestionStatus{
+			SuggestionAccepted,
+			SuggestionRejected,
+			SuggestionWithdrawn,
+		} {
+			if SuggestionStatusTransitionAllowed(terminal, next) {
+				t.Errorf("terminal transition %s -> %s would permit a concurrent overwrite", terminal, next)
+			}
+		}
+	}
+}
+
+func TestSuggestionFragmentsMustBePlateNodes(t *testing.T) {
+	valid, err := json.Marshal(materialdoc.Empty().Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateRichContent(valid); err != nil {
+		t.Fatalf("valid Plate fragment was rejected: %v", err)
+	}
+	for _, invalid := range []json.RawMessage{
+		json.RawMessage(`[]`),
+		json.RawMessage(`[{"type":"p","children":[]}]`),
+		json.RawMessage(`{"type":"p"}`),
+	} {
+		if err := validateRichContent(invalid); err == nil {
+			t.Errorf("invalid Plate fragment was accepted: %s", invalid)
+		}
+	}
+}
+
+func TestMaterialJSONEmbedsPlateEnvelope(t *testing.T) {
+	content, err := materialdoc.FlashcardsDocument("Deck", []materialdoc.Card{
+		{ID: "c_1", Front: "front", Back: "back"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(Material{ID: "mat_1", Content: content, Revision: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	envelope, ok := wire["content"].(map[string]any)
+	if !ok || envelope["schemaVersion"] != float64(1) {
+		t.Fatalf("content was not an embedded envelope: %s", body)
+	}
+	if wire["revision"] != float64(3) {
+		t.Fatalf("revision missing from material: %s", body)
+	}
+}
+
+func TestRewriteCardIDsUsesStableMapAcrossRevisions(t *testing.T) {
+	first, err := materialdoc.FlashcardsDocument("Deck", []materialdoc.Card{
+		{ID: "c_old", Front: "one", Back: "answer"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := materialdoc.FlashcardsDocument("Deck", []materialdoc.Card{
+		{ID: "c_old", Front: "two", Back: "answer"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	idMap := map[string]string{}
+	rewrittenFirst, ids, err := rewriteCardIDsWithMap(first, idMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewrittenSecond, secondIDs, err := rewriteCardIDsWithMap(second, idMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || len(secondIDs) != 1 || ids[0] != secondIDs[0] || ids[0] == "c_old" {
+		t.Fatalf("card mapping is not stable: %v then %v", ids, secondIDs)
+	}
+	cards, err := materialdoc.ExtractFlashcards(rewrittenSecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cards[0].ID != ids[0] || cards[0].Front != "two" {
+		t.Fatalf("rewritten revision lost content: %s / %#v", rewrittenFirst, cards)
+	}
+}

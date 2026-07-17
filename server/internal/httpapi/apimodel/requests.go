@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/evonotes/server/internal/materialdoc"
 	"github.com/evonotes/server/internal/store"
 )
 
@@ -49,11 +50,11 @@ type UpdateFileReq struct {
 // CreateMaterialReq is the body for POST /api/workspaces/{id}/materials. Used to
 // create a user-authored note (markdown editor). Kind defaults to "note".
 type CreateMaterialReq struct {
-	Kind          string   `json:"kind,omitempty" doc:"Material kind; defaults to note"`
-	Title         string   `json:"title,omitempty"`
-	Content       string   `json:"content,omitempty" doc:"Markdown body"`
-	ScopeChapters []string `json:"scopeChapters,omitempty"`
-	ScopeFileIDs  []string `json:"scopeFileIds,omitempty"`
+	Kind          string                `json:"kind,omitempty" doc:"Material kind; defaults to note"`
+	Title         string                `json:"title,omitempty"`
+	Content       *materialdoc.Envelope `json:"content,omitempty" doc:"Versioned Plate document"`
+	ScopeChapters []string              `json:"scopeChapters,omitempty"`
+	ScopeFileIDs  []string              `json:"scopeFileIds,omitempty"`
 }
 
 // UpdateMaterialReq is the (partial) body for PATCH /api/materials/{id}.
@@ -63,12 +64,52 @@ type CreateMaterialReq struct {
 // empty-string sentinel is needed because JSON null is indistinguishable from
 // an omitted field with a single pointer.
 type UpdateMaterialReq struct {
-	Title         *string        `json:"title,omitempty"`
-	Content       *string        `json:"content,omitempty"`
-	ChapterID     *string        `json:"chapterId,omitempty" doc:"Chapter to file under; empty string unfiles; omit to leave unchanged"`
-	ScopeChapters *[]string      `json:"scopeChapters,omitempty"`
-	ScopeFileIDs  *[]string      `json:"scopeFileIds,omitempty"`
-	Privacy       *store.Privacy `json:"privacy,omitempty" doc:"Visibility (share standalone)"`
+	Title            *string               `json:"title,omitempty"`
+	Content          *materialdoc.Envelope `json:"content,omitempty"`
+	ExpectedRevision *int64                `json:"expectedRevision,omitempty" minimum:"1" doc:"Required when changing title or content"`
+	ChapterID        *string               `json:"chapterId,omitempty" doc:"Chapter to file under; empty string unfiles; omit to leave unchanged"`
+	ScopeChapters    *[]string             `json:"scopeChapters,omitempty"`
+	ScopeFileIDs     *[]string             `json:"scopeFileIds,omitempty"`
+	Privacy          *store.Privacy        `json:"privacy,omitempty" doc:"Visibility (share standalone)"`
+}
+
+type CreateWorkspaceInviteReq struct {
+	Email string              `json:"email" format:"email"`
+	Role  store.WorkspaceRole `json:"role"`
+}
+
+type UpdateWorkspaceMemberReq struct {
+	Role store.WorkspaceRole `json:"role"`
+}
+
+type CreateDiscussionReq struct {
+	BlockID         *string          `json:"blockId,omitempty"`
+	DocumentContent *string          `json:"documentContent,omitempty"`
+	Anchor          map[string]any   `json:"anchor,omitempty"`
+	ContentRich     []map[string]any `json:"contentRich"`
+}
+
+type UpdateDiscussionReq struct {
+	IsResolved bool `json:"isResolved"`
+}
+
+type CreateCommentReq struct {
+	ContentRich []map[string]any `json:"contentRich"`
+}
+
+type UpdateCommentReq struct {
+	ContentRich []map[string]any `json:"contentRich"`
+}
+
+type CreateMaterialSuggestionReq struct {
+	BaseRevision     int64            `json:"baseRevision" minimum:"1"`
+	Anchor           map[string]any   `json:"anchor,omitempty"`
+	OriginalFragment []map[string]any `json:"originalFragment" minItems:"1"`
+	ProposedFragment []map[string]any `json:"proposedFragment" minItems:"1"`
+}
+
+type UpdateMaterialSuggestionStatusReq struct {
+	Status store.SuggestionStatus `json:"status" enum:"accepted,rejected,withdrawn"`
 }
 
 type CreateQuizReq struct {

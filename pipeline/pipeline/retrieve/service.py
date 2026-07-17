@@ -27,6 +27,7 @@ from ..rag.cache import RagCache
 from ..rag.clone import clone_workspace_state
 from ..rag.factory import build_query_rag
 from ..rag.models import query_model_override
+from .ai_adapter import router as plate_ai_router
 
 log = logging.getLogger("evo.retrieve")
 
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Evo Notes retrieval", lifespan=lifespan)
+app.include_router(plate_ai_router)
 
 
 class ChatReq(BaseModel):

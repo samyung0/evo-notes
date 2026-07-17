@@ -1,7 +1,7 @@
 -- Evo Notes — persisted study materials (mindmaps & diagrams).
 --
--- Mindmaps and diagrams are markdown documents (with embedded ```mermaid
--- fences) generated from a scope of chapters and/or files. Unlike quizzes they
+-- Mindmaps and diagrams are versioned Plate JSON documents generated from a
+-- scope of chapters and/or files. Unlike quizzes they
 -- are not chapter-scoped in the UI; the left-panel materials list aggregates
 -- these rows together with the workspace's quizzes and decks.
 --
@@ -14,10 +14,16 @@ CREATE TABLE IF NOT EXISTS materials (
   workspace_name  text NOT NULL DEFAULT '',
   kind            text NOT NULL CHECK (kind IN ('mindmap','diagram')),
   title           text NOT NULL DEFAULT '',
-  content         text NOT NULL DEFAULT '',
+  content         jsonb NOT NULL DEFAULT
+    '{"schemaVersion":1,"value":[{"type":"p","children":[{"text":""}]}]}'::jsonb,
   scope_chapters  text[] NOT NULL DEFAULT '{}',
   scope_file_ids  text[] NOT NULL DEFAULT '{}',
   privacy         text NOT NULL DEFAULT 'private',
-  created_at      timestamptz NOT NULL DEFAULT now()
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT materials_content_envelope_check CHECK (
+    jsonb_typeof(content) = 'object'
+    AND content->>'schemaVersion' = '1'
+    AND jsonb_typeof(content->'value') = 'array'
+  )
 );
 CREATE INDEX IF NOT EXISTS materials_ws_idx ON materials(workspace_id, created_at DESC);

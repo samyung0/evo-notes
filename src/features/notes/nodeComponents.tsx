@@ -1,5 +1,6 @@
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { NodeApi, KEYS } from 'platejs';
 import {
   PlateElement,
   PlateLeaf,
@@ -7,6 +8,11 @@ import {
   type PlateLeafProps,
   useEditorRef,
 } from 'platejs/react';
+import { ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/cn';
+import { MediaAssetElement } from './MediaNodes';
+import { EmojiInputElement } from './EmojiInput';
+import { MentionInputElement } from './MentionInput';
 
 /* ------------------------------------------------------------- block elements */
 
@@ -84,24 +90,6 @@ function LinkElement(props: PlateElementProps) {
       className="text-action-accent underline underline-offset-2"
       attributes={{ ...props.attributes, href: url } as PlateElementProps['attributes']}
     >
-      {props.children}
-    </PlateElement>
-  );
-}
-
-function ImageElement(props: PlateElementProps) {
-  const url = String((props.element as { url?: string }).url ?? '');
-  return (
-    <PlateElement {...props}>
-      <div contentEditable={false} className="my-3">
-        {url ? (
-          <img src={url} alt="" className="max-w-full rounded-card" />
-        ) : (
-          <div className="rounded-card border border-dashed border-line p-4 text-center text-xs text-fg-muted">
-            Image
-          </div>
-        )}
-      </div>
       {props.children}
     </PlateElement>
   );
@@ -208,13 +196,39 @@ function Column(props: PlateElementProps) {
 
 /* toc — read-only outline placeholder (headings are the source of truth) */
 function Toc(props: PlateElementProps) {
+  const editor = useEditorRef();
+  const headings = editor.children
+    .map((node, index) => ({ node, index }))
+    .filter(({ node }) => KEYS.heading.includes(node.type as (typeof KEYS.heading)[number]));
   return (
     <PlateElement {...props}>
       <div
         contentEditable={false}
-        className="my-3 rounded-card border border-dashed border-line p-3 text-xs text-fg-muted"
+        className="my-3 rounded-card border border-line bg-surface-hover-bg p-3"
       >
-        Table of contents (auto-generated from headings)
+        <p className="mb-2 text-xs font-semibold tracking-wide text-fg-muted uppercase">
+          Table of contents
+        </p>
+        {headings.length ? (
+          <nav className="flex flex-col">
+            {headings.map(({ node, index }) => (
+              <button
+                key={(node.id as string | undefined) ?? index}
+                type="button"
+                className="rounded-row px-2 py-1 text-left text-sm text-fg-secondary hover:bg-surface"
+                style={{ paddingLeft: `${8 + Math.max(0, Number(node.type.slice(1)) - 1) * 12}px` }}
+                onClick={() => {
+                  editor.tf.select([index, 0]);
+                  editor.tf.focus();
+                }}
+              >
+                {NodeApi.string(node)}
+              </button>
+            ))}
+          </nav>
+        ) : (
+          <p className="text-sm text-fg-muted">Add headings to build this outline.</p>
+        )}
       </div>
       {props.children}
     </PlateElement>
@@ -247,6 +261,31 @@ function DateElement(props: PlateElementProps) {
     >
       <span contentEditable={false}>{date || 'date'}</span>
       {props.children}
+    </PlateElement>
+  );
+}
+
+function ToggleElement(props: PlateElementProps) {
+  const editor = useEditorRef();
+  const open = Boolean((props.element as { open?: boolean }).open);
+  return (
+    <PlateElement {...props} className="my-2 rounded-card border border-line bg-surface">
+      <div className="flex items-start gap-1">
+        <button
+          type="button"
+          contentEditable={false}
+          aria-label={open ? 'Collapse toggle' : 'Expand toggle'}
+          aria-expanded={open}
+          className="mt-2 rounded-row p-1 text-fg-muted hover:bg-surface-hover-bg"
+          onClick={() => {
+            const at = editor.api.findPath(props.element);
+            if (at) editor.tf.setNodes({ open: !open }, { at });
+          }}
+        >
+          <ChevronRight className={cn('size-4 transition-transform', open && 'rotate-90')} />
+        </button>
+        <div className={cn('min-w-0 flex-1 px-1', !open && 'line-clamp-1')}>{props.children}</div>
+      </div>
     </PlateElement>
   );
 }
@@ -317,6 +356,7 @@ function mark(tag: keyof HTMLElementTagNameMap, className?: string) {
 
 const Code = mark('code', 'rounded bg-surface-hover-bg px-1 py-0.5 font-mono text-[0.85em]');
 const Highlight = mark('mark', 'bg-tint-accent-2 text-tint-accent-2-fg');
+const CodeSyntax = mark('span');
 const Kbd = mark(
   'kbd',
   'rounded border border-line bg-surface-hover-bg px-1 font-mono text-[0.8em] text-fg'
@@ -336,8 +376,12 @@ export const noteComponents = {
   hr: Hr,
   code_block: CodeBlock,
   code_line: CodeLine,
+  code_syntax: CodeSyntax,
   a: LinkElement,
-  img: ImageElement,
+  img: MediaAssetElement,
+  video: MediaAssetElement,
+  audio: MediaAssetElement,
+  file: MediaAssetElement,
   ul: Ul,
   ol: Ol,
   li: Li,
@@ -350,7 +394,10 @@ export const noteComponents = {
   column_group: ColumnGroup,
   column: Column,
   toc: Toc,
+  toggle: ToggleElement,
   mention: Mention,
+  mention_input: MentionInputElement,
+  emoji_input: EmojiInputElement,
   date: DateElement,
   equation: BlockEquation,
   inline_equation: InlineEquation,

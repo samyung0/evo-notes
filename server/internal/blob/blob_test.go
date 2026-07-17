@@ -46,3 +46,10 @@ func TestNewB2BuildsB2Client(t *testing.T) {
 		t.Errorf("BaseEndpoint = %q", got)
 	}
 }
+
+func TestReadPrefixRejectsNonPositiveLimit(t *testing.T) {
+	store := &B2{}
+	if _, err := store.ReadPrefix(t.Context(), "editor-assets/asset_1/blob_1.png", 0); err == nil {
+		t.Fatal("ReadPrefix accepted a zero byte limit")
+	}
+}

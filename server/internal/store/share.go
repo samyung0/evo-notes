@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
-	"github.com/evonotes/server/internal/mdblock"
+	"github.com/evonotes/server/internal/materialdoc"
+	"github.com/jackc/pgx/v5"
 )
 
 /* -------------------------------------------------------------- access checks
@@ -31,10 +33,92 @@ func (s *Store) WorkspaceAccess(ctx context.Context, userID, wsID string) (isOwn
 	if owner != nil && *owner == userID {
 		return true, nil
 	}
+	if role, roleErr := s.WorkspaceRole(ctx, userID, wsID); roleErr == nil && role != "" {
+		return role == RoleOwner, nil
+	} else if roleErr != nil {
+		return false, roleErr
+	}
 	if privacy == PrivacyLink || privacy == PrivacyPublic {
 		return false, nil
 	}
 	return false, ErrNotFound
+}
+
+// WorkspaceRole returns a persisted membership role. The legacy
+// workspaces.user_id owner remains authoritative and is returned as owner even
+// if a membership row has not yet been backfilled.
+func (s *Store) WorkspaceRole(ctx context.Context, userID, wsID string) (WorkspaceRole, error) {
+	var role WorkspaceRole
+	err := s.pool.QueryRow(ctx, `
+		SELECT CASE WHEN w.user_id=$2 THEN 'owner' ELSE COALESCE(wm.role,'') END
+		FROM workspaces w
+		LEFT JOIN workspace_members wm ON wm.workspace_id=w.id AND wm.user_id=$2
+		WHERE w.id=$1`, wsID, userID).Scan(&role)
+	if isNoRows(err) {
+		return "", ErrNotFound
+	}
+	return role, err
+}
+
+func (s *Store) AssertWorkspaceEditor(ctx context.Context, userID, wsID string) error {
+	role, err := s.WorkspaceRole(ctx, userID, wsID)
+	if err != nil {
+		return err
+	}
+	if !RoleCanEdit(role) {
+		return ErrForbidden
+	}
+	return nil
+}
+
+func (s *Store) AssertWorkspaceCommenter(ctx context.Context, userID, wsID string) error {
+	role, err := s.WorkspaceRole(ctx, userID, wsID)
+	if err != nil {
+		return err
+	}
+	if !RoleCanComment(role) {
+		return ErrForbidden
+	}
+	return nil
+}
+
+func RoleCanEdit(role WorkspaceRole) bool {
+	return role == RoleOwner || role == RoleEditor
+}
+
+func RoleCanComment(role WorkspaceRole) bool {
+	return RoleCanEdit(role) || role == RoleCommenter
+}
+
+func CapabilitiesForRole(role WorkspaceRole, canView bool) AccessCapabilities {
+	return AccessCapabilities{
+		CanView:          canView || role != "",
+		CanEdit:          RoleCanEdit(role),
+		CanComment:       RoleCanComment(role),
+		CanManageMembers: role == RoleOwner,
+	}
+}
+
+// MaterialRole returns the requester's role inherited from the parent
+// workspace. Standalone material owners are represented as owners. An empty
+// role is returned for link/public readers.
+func (s *Store) MaterialRole(ctx context.Context, userID, matID string) (WorkspaceRole, error) {
+	var owner, wsID *string
+	err := s.pool.QueryRow(ctx, `SELECT user_id, workspace_id FROM materials WHERE id=$1`, matID).
+		Scan(&owner, &wsID)
+	if isNoRows(err) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if owner != nil && *owner == userID {
+		return RoleOwner, nil
+	}
+	if wsID != nil {
+		return s.WorkspaceRole(ctx, userID, *wsID)
+	}
+	return "", nil
 }
 
 // MaterialAccess reports whether userID may read the material. Readable when
@@ -44,9 +128,10 @@ func (s *Store) MaterialAccess(ctx context.Context, userID, matID string) (isOwn
 	var owner *string
 	var matPrivacy Privacy
 	var wsPrivacy *Privacy
-	e := s.pool.QueryRow(ctx, `SELECT m.user_id, m.privacy, w.privacy
+	var wsID *string
+	e := s.pool.QueryRow(ctx, `SELECT m.user_id, m.privacy, w.privacy, m.workspace_id
 		FROM materials m LEFT JOIN workspaces w ON w.id=m.workspace_id WHERE m.id=$1`, matID).
-		Scan(&owner, &matPrivacy, &wsPrivacy)
+		Scan(&owner, &matPrivacy, &wsPrivacy, &wsID)
 	if isNoRows(e) {
 		return false, ErrNotFound
 	}
@@ -56,11 +141,56 @@ func (s *Store) MaterialAccess(ctx context.Context, userID, matID string) (isOwn
 	if owner != nil && *owner == userID {
 		return true, nil
 	}
+	if wsID != nil {
+		role, roleErr := s.WorkspaceRole(ctx, userID, *wsID)
+		if roleErr != nil {
+			return false, roleErr
+		}
+		if role != "" {
+			return role == RoleOwner, nil
+		}
+	}
 	if matPrivacy == PrivacyLink || matPrivacy == PrivacyPublic ||
 		(wsPrivacy != nil && (*wsPrivacy == PrivacyLink || *wsPrivacy == PrivacyPublic)) {
 		return false, nil
 	}
 	return false, ErrNotFound
+}
+
+func (s *Store) AssertMaterialEditor(ctx context.Context, userID, matID string) error {
+	var owner, wsID *string
+	err := s.pool.QueryRow(ctx, `SELECT user_id, workspace_id FROM materials WHERE id=$1`, matID).Scan(&owner, &wsID)
+	if isNoRows(err) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if owner != nil && *owner == userID {
+		return nil
+	}
+	if wsID != nil {
+		return s.AssertWorkspaceEditor(ctx, userID, *wsID)
+	}
+	return ErrForbidden
+}
+
+func (s *Store) AssertMaterialCommenter(ctx context.Context, userID, matID string) error {
+	var owner, wsID *string
+	err := s.pool.QueryRow(ctx, `SELECT user_id, workspace_id FROM materials WHERE id=$1`, matID).Scan(&owner, &wsID)
+	if isNoRows(err) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if owner != nil && *owner == userID {
+		return nil
+	}
+	if wsID != nil {
+		return s.AssertWorkspaceCommenter(ctx, userID, *wsID)
+	}
+	return ErrForbidden
 }
 
 // FileWorkspaceID resolves the owning workspace of a file (for access checks).
@@ -180,18 +310,128 @@ func (s *Store) ListPublicDecks(ctx context.Context) ([]PublicDeck, error) {
 // rewriteCardIDs re-keys every card in a flashcards document. card_stats.card_id
 // is a global primary key, so a cloned deck must mint fresh card ids before
 // fresh (reset) SRS rows can be inserted for them.
-func rewriteCardIDs(title, content string) (newContent string, newIDs []string, err error) {
-	cards, err := mdblock.ParseFlashcards(content)
+func rewriteCardIDs(_ string, content string) (newContent string, newIDs []string, err error) {
+	return rewriteCardIDsWithMap(content, map[string]string{})
+}
+
+func rewriteCardIDsWithMap(content string, idMap map[string]string) (newContent string, newIDs []string, err error) {
+	return materialdoc.RewriteFlashcardIDs(content, idMap, func() string { return uid("c") })
+}
+
+func cloneMaterialRelations(
+	ctx context.Context,
+	tx pgx.Tx,
+	sourceID, targetID string,
+	rewriteContent func(string) (string, error),
+) error {
+	revisions, err := tx.Query(ctx, `SELECT revision, title, content, created_by, created_at
+		FROM material_revisions WHERE material_id=$1 ORDER BY revision`, sourceID)
 	if err != nil {
-		return "", nil, err
+		return err
 	}
-	newIDs = make([]string, len(cards))
-	for i := range cards {
-		cards[i].ID = uid("c")
-		newIDs[i] = cards[i].ID
+	type revisionRow struct {
+		revision  int64
+		title     string
+		content   string
+		createdBy *string
+		createdAt time.Time
 	}
-	newContent, err = mdblock.FlashcardsContent(title, cards)
-	return newContent, newIDs, err
+	var history []revisionRow
+	for revisions.Next() {
+		var row revisionRow
+		if err := revisions.Scan(&row.revision, &row.title, &row.content, &row.createdBy, &row.createdAt); err != nil {
+			revisions.Close()
+			return err
+		}
+		history = append(history, row)
+	}
+	revisions.Close()
+	if err := revisions.Err(); err != nil {
+		return err
+	}
+	for _, row := range history {
+		content, err := rewriteContent(row.content)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO material_revisions
+			(material_id, revision, title, content, created_by, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6)`, targetID, row.revision, row.title, json.RawMessage(content), row.createdBy, row.createdAt); err != nil {
+			return err
+		}
+	}
+
+	discussions, err := tx.Query(ctx, `SELECT id, block_id, document_content, anchor,
+		created_by, is_resolved, created_at, updated_at
+		FROM material_discussions WHERE material_id=$1 ORDER BY created_at`, sourceID)
+	if err != nil {
+		return err
+	}
+	type discussionRow struct {
+		id, createdBy            string
+		blockID, documentContent *string
+		anchor                   []byte
+		resolved                 bool
+		createdAt, updatedAt     time.Time
+	}
+	var sourceDiscussions []discussionRow
+	for discussions.Next() {
+		var row discussionRow
+		if err := discussions.Scan(&row.id, &row.blockID, &row.documentContent, &row.anchor,
+			&row.createdBy, &row.resolved, &row.createdAt, &row.updatedAt); err != nil {
+			discussions.Close()
+			return err
+		}
+		sourceDiscussions = append(sourceDiscussions, row)
+	}
+	discussions.Close()
+	if err := discussions.Err(); err != nil {
+		return err
+	}
+	for _, discussion := range sourceDiscussions {
+		newDiscussionID := uid("disc")
+		if _, err := tx.Exec(ctx, `INSERT INTO material_discussions
+			(id, material_id, block_id, document_content, anchor, created_by, is_resolved, created_at, updated_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, newDiscussionID, targetID,
+			discussion.blockID, discussion.documentContent, json.RawMessage(discussion.anchor), discussion.createdBy,
+			discussion.resolved, discussion.createdAt, discussion.updatedAt); err != nil {
+			return err
+		}
+		comments, err := tx.Query(ctx, `SELECT user_id, content_rich, is_edited, created_at, updated_at
+			FROM material_comments WHERE discussion_id=$1 ORDER BY created_at`, discussion.id)
+		if err != nil {
+			return err
+		}
+		type commentRow struct {
+			userID               string
+			content              []byte
+			edited               bool
+			createdAt, updatedAt time.Time
+		}
+		var sourceComments []commentRow
+		for comments.Next() {
+			var comment commentRow
+			if err := comments.Scan(&comment.userID, &comment.content, &comment.edited,
+				&comment.createdAt, &comment.updatedAt); err != nil {
+				comments.Close()
+				return err
+			}
+			sourceComments = append(sourceComments, comment)
+		}
+		comments.Close()
+		if err := comments.Err(); err != nil {
+			return err
+		}
+		for _, comment := range sourceComments {
+			if _, err := tx.Exec(ctx, `INSERT INTO material_comments
+				(id, discussion_id, user_id, content_rich, is_edited, created_at, updated_at)
+				VALUES ($1,$2,$3,$4,$5,$6,$7)`, uid("com"), newDiscussionID, comment.userID,
+				json.RawMessage(comment.content), comment.edited, comment.createdAt, comment.updatedAt); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // CloneWorkspace deep-copies a shared workspace (chapters, files, materials,
@@ -223,6 +463,10 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy) VALUES ($1,$2,$3,$4,'private')`,
 		newID, userID, name, src.Color); err != nil {
+		return Workspace{}, err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')`,
+		newID, userID); err != nil {
 		return Workspace{}, err
 	}
 	tagRefs := make([]TagRef, len(src.Tags))
@@ -352,14 +596,25 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 			}
 			content := mt.Content
 			var cardIDs []string
+			cardIDMap := map[string]string{}
 			if mt.Kind == "flashcards" {
-				if content, cardIDs, err = rewriteCardIDs(mt.Title, mt.Content); err != nil {
+				if content, cardIDs, err = rewriteCardIDsWithMap(mt.Content, cardIDMap); err != nil {
 					return Workspace{}, err
 				}
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'private',$11)`,
-				nid, userID, newID, name, mt.Kind, mt.Title, content, chapterID, mt.ScopeChapters, scopeFiles, mt.Color); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color, updated_at, revision, updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'private',$11,$12,$13,$2)`,
+				nid, userID, newID, name, mt.Kind, mt.Title, json.RawMessage(content), chapterID, mt.ScopeChapters, scopeFiles, mt.Color, mt.UpdatedAt, mt.Revision); err != nil {
+				return Workspace{}, err
+			}
+			rewrite := func(value string) (string, error) { return value, nil }
+			if mt.Kind == "flashcards" {
+				rewrite = func(value string) (string, error) {
+					rewritten, _, err := rewriteCardIDsWithMap(value, cardIDMap)
+					return rewritten, err
+				}
+			}
+			if err := cloneMaterialRelations(ctx, tx, mt.ID, nid, rewrite); err != nil {
 				return Workspace{}, err
 			}
 			for _, cid := range cardIDs {
@@ -393,8 +648,9 @@ func (s *Store) CloneMaterial(ctx context.Context, userID, matID string) (Materi
 
 	content := src.Content
 	var cardIDs []string
+	cardIDMap := map[string]string{}
 	if src.Kind == "flashcards" {
-		if content, cardIDs, err = rewriteCardIDs(src.Title, src.Content); err != nil {
+		if content, cardIDs, err = rewriteCardIDsWithMap(src.Content, cardIDMap); err != nil {
 			return Material{}, err
 		}
 	}
@@ -406,9 +662,19 @@ func (s *Store) CloneMaterial(ctx context.Context, userID, matID string) (Materi
 	defer tx.Rollback(ctx)
 
 	nid := uid("mat")
-	if _, err := tx.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, scope_chapters, scope_file_ids, privacy, color)
-		VALUES ($1,$2,NULL,'',$3,$4,$5,$6,'{}','private',$7)`,
-		nid, userID, src.Kind, src.Title, content, src.ScopeChapters, src.Color); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, scope_chapters, scope_file_ids, privacy, color, updated_at, revision, updated_by)
+		VALUES ($1,$2,NULL,'',$3,$4,$5,$6,'{}','private',$7,$8,$9,$2)`,
+		nid, userID, src.Kind, src.Title, json.RawMessage(content), src.ScopeChapters, src.Color, src.UpdatedAt, src.Revision); err != nil {
+		return Material{}, err
+	}
+	rewrite := func(value string) (string, error) { return value, nil }
+	if src.Kind == "flashcards" {
+		rewrite = func(value string) (string, error) {
+			rewritten, _, err := rewriteCardIDsWithMap(value, cardIDMap)
+			return rewritten, err
+		}
+	}
+	if err := cloneMaterialRelations(ctx, tx, src.ID, nid, rewrite); err != nil {
 		return Material{}, err
 	}
 	for _, cid := range cardIDs {
@@ -436,7 +702,7 @@ type DeckPatch struct {
 }
 
 // UpdateDeck renames/recolours a deck and/or changes its visibility. Renames
-// rebuild the markdown document so the embedded title stays in sync.
+// preserve the Plate document while updating the relational title.
 func (s *Store) UpdateDeck(ctx context.Context, id string, p DeckPatch) (Deck, error) {
 	mt, err := s.GetMaterial(ctx, id)
 	if err != nil {
@@ -449,11 +715,11 @@ func (s *Store) UpdateDeck(ctx context.Context, id string, p DeckPatch) (Deck, e
 	content := mt.Content
 	if p.Name != nil && *p.Name != mt.Title {
 		title = *p.Name
-		cards, err := mdblock.ParseFlashcards(mt.Content)
+		cards, err := materialdoc.ExtractFlashcards(mt.Content)
 		if err != nil {
 			return Deck{}, err
 		}
-		if content, err = mdblock.FlashcardsContent(title, cards); err != nil {
+		if content, err = materialdoc.ReplaceFlashcards(mt.Content, cards); err != nil {
 			return Deck{}, err
 		}
 	}
@@ -463,8 +729,15 @@ func (s *Store) UpdateDeck(ctx context.Context, id string, p DeckPatch) (Deck, e
 	if p.Privacy != nil {
 		privacy = *p.Privacy
 	}
-	if _, err := s.pool.Exec(ctx, `UPDATE materials SET title=$2, content=$3, color=$4, privacy=$5 WHERE id=$1`,
-		id, title, content, color, privacy); err != nil {
+	materialPatch := MaterialPatch{Privacy: &privacy}
+	if p.Name != nil && *p.Name != mt.Title {
+		materialPatch.Title = &title
+		materialPatch.Content = &content
+	}
+	if _, err := s.UpdateMaterial(ctx, id, materialPatch); err != nil {
+		return Deck{}, err
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE materials SET color=$2 WHERE id=$1`, id, color); err != nil {
 		return Deck{}, err
 	}
 	return s.GetDeck(ctx, id)

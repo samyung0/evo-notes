@@ -4,6 +4,7 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { Envelope } from './envelope.ts';
 import type { Privacy } from './privacy.ts';
 
 export interface UpdateMaterialReq {
@@ -11,7 +12,12 @@ export interface UpdateMaterialReq {
   readonly $schema?: string;
   /** Chapter to file under; empty string unfiles; omit to leave unchanged */
   chapterId?: string;
-  content?: string;
+  content?: Envelope;
+  /**
+   * Required when changing title or content
+   * @minimum 1
+   */
+  expectedRevision?: number;
   /** Visibility (share standalone) */
   privacy?: Privacy;
   scopeChapters?: string[];

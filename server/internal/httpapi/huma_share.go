@@ -143,8 +143,7 @@ func (a *api) cloneMaterial(ctx context.Context, in *materialIDInput) (*material
 	if err != nil {
 		return nil, hErr(err)
 	}
-	mt.IsOwner = true
-	return &materialOutput{Body: mt}, nil
+	return &materialOutput{Body: materialWithAccess(mt, store.RoleOwner)}, nil
 }
 
 /* -------------------------------------------------------------------- decks */

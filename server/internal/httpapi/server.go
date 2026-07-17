@@ -74,6 +74,7 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 		PublicReadPrefix: []string{
 			"/api/workspaces/",
 			"/api/files/",
+			"/api/editor-assets/",
 			"/api/materials/",
 			"/api/quizzes/",
 			"/api/decks/",
@@ -93,12 +94,16 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 	r.Post("/api/workspaces/{id}/sources", a.addSource)
 	r.Post("/api/workspaces/{id}/sources/uploads", a.createSourceUpload)
 	r.Post("/api/workspaces/{id}/sources/uploads/{uploadId}/complete", a.completeSourceUpload)
+	r.Post("/api/workspaces/{id}/editor-assets/uploads", a.reserveEditorAsset)
+	r.Post("/api/workspaces/{id}/editor-assets/uploads/{uploadId}/complete", a.completeEditorAssetUpload)
 	r.Post("/api/workspaces/{id}/sources/import", a.importSources)
 	r.Get("/api/workspaces/{id}/ingest-events", a.ingestEvents)
+	r.Get("/api/editor-assets/{assetId}/resolve", a.resolveEditorAsset)
 	r.Post("/api/workspaces/{id}/chat", a.chat)
 	r.Post("/api/workspaces/{id}/chat/stream", a.chatStream)
 	r.Post("/api/workspaces/{id}/complete/stream", a.completeStream)
 	r.Post("/api/workspaces/{id}/ai/command", a.aiCommand)
+	r.Post("/api/workspaces/{id}/ai/copilot", a.aiCopilot)
 	r.Post("/api/workspaces/{id}/generate", a.generate)
 	r.Post("/api/transcribe", a.transcribe)
 	r.Get("/api/files/{id}/raw", a.getFileRaw)
@@ -656,13 +661,25 @@ func (a *api) persistDeck(ctx context.Context, userID, wsID, wsName string, card
 	if err != nil {
 		return nil, err
 	}
-	out := make([]store.Flashcard, 0, len(cards))
-	for _, c := range cards {
-		card, err := a.s.CreateCard(ctx, deck.ID, c[0], c[1])
-		if err != nil {
+	existing, err := a.s.ListCards(ctx, deck.ID)
+	if err != nil {
+		return nil, err
+	}
+	for i, c := range cards {
+		if i == 0 && len(existing) == 1 && existing[0].Front == "" && existing[0].Back == "" {
+			front, back := c[0], c[1]
+			if _, err := a.s.UpdateCard(ctx, existing[0].ID, store.CardPatch{Front: &front, Back: &back}); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if _, err := a.s.CreateCard(ctx, deck.ID, c[0], c[1]); err != nil {
 			return nil, err
 		}
-		out = append(out, card)
+	}
+	out, err := a.s.ListCards(ctx, deck.ID)
+	if err != nil {
+		return nil, err
 	}
 	deck, _ = a.s.GetDeck(ctx, deck.ID)
 	return map[string]any{"kind": "flashcards", "deck": deck, "cards": out}, nil

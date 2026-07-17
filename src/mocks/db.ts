@@ -27,12 +27,17 @@ import type {
   Workspace,
 } from '@/api/types';
 import { isDue, isKnown, newSrsState, reviewSrs } from '@/lib/srs';
+import { parseFlashcardsBlock, parseQuizBlock } from '@/features/materials/blocks';
 import {
-  flashcardsMarkdown,
-  parseFlashcardsBlock,
-  parseQuizBlock,
-  quizMarkdown,
-} from '@/features/materials/blocks';
+  createMaterialDocument,
+  flashcardsNode,
+  flashcardsElementToCards,
+  mermaidNode,
+  quizNode,
+  quizElementToBlock,
+  type FlashcardsElement,
+  type QuizElement,
+} from '@/features/materials/document';
 
 export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -123,6 +128,8 @@ export const workspaces: Workspace[] = [
   {
     id: 'ws_bio',
     name: 'Biology 101',
+    role: 'owner',
+    capabilities: { canView: true, canEdit: true, canComment: true, canManageMembers: true },
     color: 'green',
     privacy: 'private',
     tags: ct('tag_1', 'tag_2'),
@@ -134,6 +141,8 @@ export const workspaces: Workspace[] = [
   {
     id: 'ws_calc',
     name: 'Calculus II',
+    role: 'owner',
+    capabilities: { canView: true, canEdit: true, canComment: true, canManageMembers: true },
     color: 'purple',
     privacy: 'private',
     tags: ct('tag_3', 'tag_4'),
@@ -145,6 +154,8 @@ export const workspaces: Workspace[] = [
   {
     id: 'ws_hist',
     name: 'World History',
+    role: 'owner',
+    capabilities: { canView: true, canEdit: true, canComment: true, canManageMembers: true },
     color: 'amber',
     privacy: 'link',
     tags: ct('tag_5', 'tag_6', 'tag_war'),
@@ -156,6 +167,8 @@ export const workspaces: Workspace[] = [
   {
     id: 'ws_chem',
     name: 'Organic Chemistry',
+    role: 'owner',
+    capabilities: { canView: true, canEdit: true, canComment: true, canManageMembers: true },
     color: 'blue',
     privacy: 'private',
     tags: ct('tag_7'),
@@ -167,6 +180,8 @@ export const workspaces: Workspace[] = [
   {
     id: 'ws_eng',
     name: 'English Literature',
+    role: 'owner',
+    capabilities: { canView: true, canEdit: true, canComment: true, canManageMembers: true },
     color: 'coral',
     privacy: 'public',
     tags: ct('tag_8', 'tag_9'),
@@ -835,33 +850,28 @@ export const canvases: ThinkingCanvas[] = [
 ];
 
 /* ---------------- study materials (mindmaps / diagrams) ---------------- */
+const ownerCapabilities = {
+  canView: true,
+  canEdit: true,
+  canComment: true,
+  canManageMembers: true,
+};
+
 export const materials: Material[] = [
   {
     id: 'mat_1',
     workspaceId: 'ws_bio',
     workspaceName: 'Biology 101',
+    role: 'owner',
+    capabilities: ownerCapabilities,
     kind: 'mindmap',
     title: 'Cell biology mindmap',
-    content: [
-      '# Cell biology mindmap',
-      '',
-      '```mermaid',
-      'mindmap',
-      '  root((Cell))',
-      '    Membrane',
-      '      Phospholipid bilayer',
-      '      Transport',
-      '        Diffusion',
-      '        Osmosis',
-      '    Organelles',
-      '      Nucleus',
-      '      Mitochondria',
-      '      Ribosome',
-      '    Energy',
-      '      ATP',
-      '      Respiration',
-      '```',
-    ].join('\n'),
+    content: createMaterialDocument([
+      { type: 'h1', children: [{ text: 'Cell biology mindmap' }] },
+      mermaidNode(
+        'mindmap\n  root((Cell))\n    Membrane\n      Phospholipid bilayer\n      Transport\n        Diffusion\n        Osmosis\n    Organelles\n      Nucleus\n      Mitochondria\n      Ribosome\n    Energy\n      ATP\n      Respiration'
+      ),
+    ]),
     chapterId: 'ch_1',
     scopeChapters: ['Cell structure', 'Membranes & transport'],
     scopeFileIds: [],
@@ -872,21 +882,20 @@ export const materials: Material[] = [
     id: 'mat_2',
     workspaceId: 'ws_bio',
     workspaceName: 'Biology 101',
+    role: 'owner',
+    capabilities: ownerCapabilities,
     kind: 'diagram',
     title: 'Protein secretion pathway',
-    content: [
-      '# Protein secretion pathway',
-      '',
-      'The path a secreted protein takes through the cell:',
-      '',
-      '```mermaid',
-      'flowchart LR',
-      '  Ribosome --> RoughER',
-      '  RoughER --> Golgi',
-      '  Golgi --> Vesicle',
-      '  Vesicle --> Membrane[Cell membrane]',
-      '```',
-    ].join('\n'),
+    content: createMaterialDocument([
+      { type: 'h1', children: [{ text: 'Protein secretion pathway' }] },
+      {
+        type: 'p',
+        children: [{ text: 'The path a secreted protein takes through the cell:' }],
+      },
+      mermaidNode(
+        'flowchart LR\n  Ribosome --> RoughER\n  RoughER --> Golgi\n  Golgi --> Vesicle\n  Vesicle --> Membrane[Cell membrane]'
+      ),
+    ]),
     chapterId: null,
     scopeChapters: [],
     scopeFileIds: ['f_1'],
@@ -897,18 +906,42 @@ export const materials: Material[] = [
     id: 'mat_note_1',
     workspaceId: 'ws_bio',
     workspaceName: 'Biology 101',
+    role: 'owner',
+    capabilities: ownerCapabilities,
     kind: 'note',
     title: 'Lecture notes — the cell',
-    content: [
-      '# Lecture notes — the cell',
-      '',
-      'The **cell** is the basic unit of life. Key points from today:',
-      '',
-      '- Prokaryotes lack a membrane-bound nucleus',
-      '- Eukaryotes have organelles',
-      '',
-      '> Remember: mitochondria is the powerhouse of the cell.',
-    ].join('\n'),
+    content: createMaterialDocument([
+      { type: 'h1', children: [{ text: 'Lecture notes - the cell' }] },
+      {
+        type: 'p',
+        children: [
+          { text: 'The ' },
+          { text: 'cell', bold: true },
+          { text: ' is the basic unit of life. Key points from today:' },
+        ],
+      },
+      {
+        type: 'p',
+        indent: 1,
+        listStyleType: 'disc',
+        children: [{ text: 'Prokaryotes lack a membrane-bound nucleus' }],
+      },
+      {
+        type: 'p',
+        indent: 1,
+        listStyleType: 'disc',
+        children: [{ text: 'Eukaryotes have organelles' }],
+      },
+      {
+        type: 'blockquote',
+        children: [
+          {
+            type: 'p',
+            children: [{ text: 'Remember: mitochondria is the powerhouse of the cell.' }],
+          },
+        ],
+      },
+    ]),
     chapterId: null,
     scopeChapters: [],
     scopeFileIds: [],
@@ -1031,9 +1064,13 @@ seedQuizzes.forEach((q) => {
     id: q.id,
     workspaceId: q.workspaceId,
     workspaceName: q.workspaceName,
+    role: 'owner',
+    capabilities: ownerCapabilities,
     kind: 'quiz',
     title: q.name,
-    content: quizMarkdown(q.name, { questions: q.questions, timeLimitMin: q.timeLimitMin }),
+    content: createMaterialDocument([
+      quizNode({ questions: q.questions, timeLimitMin: q.timeLimitMin }, q.id),
+    ]),
     chapterId: null,
     scopeChapters: q.chapters,
     scopeFileIds: [],
@@ -1047,13 +1084,17 @@ seedDecks.forEach((d, i) => {
     id: d.id,
     workspaceId: d.workspaceId,
     workspaceName: d.workspaceName,
+    role: 'owner',
+    capabilities: ownerCapabilities,
     kind: 'flashcards',
     title: d.name,
     color: d.color,
-    content: flashcardsMarkdown(
-      d.name,
-      deckCards.map((c) => ({ id: c.id, front: c.front, back: c.back }))
-    ),
+    content: createMaterialDocument([
+      flashcardsNode(
+        deckCards.map((c) => ({ id: c.id, front: c.front, back: c.back })),
+        d.id
+      ),
+    ]),
     chapterId: null,
     scopeChapters: [],
     scopeFileIds: [],
@@ -1064,7 +1105,10 @@ seedDecks.forEach((d, i) => {
 
 /** Derive the typed Quiz view from a quiz material (questions from the fence). */
 export function quizFromMaterial(mt: Material): Quiz {
-  const { questions, timeLimitMin } = parseQuizBlock(mt.content);
+  const { questions, timeLimitMin } =
+    typeof mt.content === 'string'
+      ? parseQuizBlock(mt.content)
+      : quizElementToBlock(mt.content.value.find((node) => node.type === 'quiz') as QuizElement);
   return {
     id: mt.id,
     name: mt.title,
@@ -1081,7 +1125,13 @@ export function quizFromMaterial(mt: Material): Quiz {
 
 /** Derive the typed cards for a flashcards material (fence + cardStats join). */
 export function cardsFromMaterial(mt: Material): Flashcard[] {
-  return parseFlashcardsBlock(mt.content).cards.map((c) => {
+  const cards =
+    typeof mt.content === 'string'
+      ? parseFlashcardsBlock(mt.content).cards
+      : flashcardsElementToCards(
+          mt.content.value.find((node) => node.type === 'flashcards') as FlashcardsElement
+        );
+  return cards.map((c) => {
     const st = cardStats[c.id];
     const srs = st?.srs ?? newSrsState();
     return {

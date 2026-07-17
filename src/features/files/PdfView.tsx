@@ -23,7 +23,7 @@ export default function PdfView({ url }: { url: string }) {
       <Document
         file={url}
         onLoadSuccess={({ numPages: n }) => setNumPages(n)}
-        loading={<Skeleton className="h-[680px] w-[680px] max-w-full" />}
+        loading={<Skeleton style={{ height: DEFAULT_PAGE_HEIGHT }} className="w-full" />}
         error={<p className="t-body py-8 text-tint-error-fg">Couldn't load this PDF.</p>}
       >
         <div className="flex flex-col items-center gap-4">

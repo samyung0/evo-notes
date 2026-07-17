@@ -1,6 +1,6 @@
 -- Evo Notes — add the user-authored `note` material kind.
 --
--- Notes are full markdown documents written in the Plate editor. They live in
+-- Notes are full Plate JSON documents written in the Plate editor. They live in
 -- the unified `materials` table alongside generated artifacts and, unlike
 -- mindmaps/diagrams, are editable after creation (PATCH /api/materials/{id}).
 

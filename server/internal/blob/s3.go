@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -99,14 +100,19 @@ func (s *B2) Put(id string, r io.Reader) (string, int64, error) {
 // PresignGet mints a time-limited GET URL so the gateway can redirect the
 // browser straight to the bucket instead of streaming bytes through itself.
 func (s *B2) PresignGet(ctx context.Context, path string) (string, error) {
+	req, err := s.PresignGetWithExpiry(ctx, path)
+	return req.URL, err
+}
+
+func (s *B2) PresignGetWithExpiry(ctx context.Context, path string) (PresignedGet, error) {
 	req, err := s.presign.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
 	}, s3.WithPresignExpires(s.presignTTL))
 	if err != nil {
-		return "", err
+		return PresignedGet{}, err
 	}
-	return req.URL, nil
+	return PresignedGet{URL: req.URL, ExpiresAt: time.Now().UTC().Add(s.presignTTL)}, nil
 }
 
 func (s *B2) PresignPut(ctx context.Context, path, contentType string) (PresignedPut, error) {
@@ -137,6 +143,26 @@ func (s *B2) Head(ctx context.Context, path string) (ObjectInfo, error) {
 		ContentType: aws.ToString(out.ContentType),
 		ETag:        strings.Trim(aws.ToString(out.ETag), `"`),
 	}, nil
+}
+
+func (s *B2) ReadPrefix(ctx context.Context, path string, maxBytes int64) ([]byte, error) {
+	if maxBytes <= 0 {
+		return nil, errors.New("blob: prefix size must be positive")
+	}
+	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(path),
+		Range:  aws.String("bytes=0-" + strconv.FormatInt(maxBytes-1, 10)),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer out.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(out.Body, maxBytes))
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 // Promote copies an upload from the short-lived incoming prefix to its stable

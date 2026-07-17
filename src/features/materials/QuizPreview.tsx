@@ -6,18 +6,20 @@ import { QuestionRunner } from '@/features/quizzes/QuestionRunner';
 import { emptyAnswer } from '@/features/quizzes/grade';
 import { QuizForm } from '@/features/quizzes/QuizForm';
 import type { Question } from '@/api/types';
+import { FileError, FileLoading } from './CenterContent';
 
 /** In-pane, read-only preview of a quiz: shows every question with its correct
  * answer and explanations (review mode), plus Edit / Start actions. */
 export function QuizPreview({ quizId, readOnly = false }: { quizId: string; readOnly?: boolean }) {
-  const { data: quiz, isLoading } = useQuiz(quizId);
+  const { data: quiz, isLoading, isError } = useQuiz(quizId);
   const update = useUpdateQuiz();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [questions, setQuestions] = useState<Question[]>([]);
 
-  if (isLoading || !quiz) return <Skeleton className="h-full min-h-[40vh] w-full" />;
+  if (isLoading) return <FileLoading />;
+  if (!isLoading && (isError || !quiz)) return <FileError />;
 
   function beginEdit() {
     if (!quiz) return;
@@ -46,7 +48,7 @@ export function QuizPreview({ quizId, readOnly = false }: { quizId: string; read
 
   if (editing) {
     return (
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 flex-col p-6">
         <div className="flex items-center justify-end gap-2 border-b border-divider px-1 pb-3">
           <Button
             size="sm"
@@ -75,14 +77,14 @@ export function QuizPreview({ quizId, readOnly = false }: { quizId: string; read
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col p-6">
       <div className="flex items-center gap-2 border-b border-divider px-1 pb-3">
         <div className="flex-1">
           <Text variant="meta" tone="muted">
-            {quiz.questions.length} questions
+            {quiz!.questions.length} questions
           </Text>
         </div>
-        {!readOnly && quiz.isOwner !== false && (
+        {!readOnly && quiz!.isOwner !== false && (
           <Button size="sm" variant="outline" iconLeft="notes" onClick={beginEdit}>
             Edit
           </Button>
@@ -98,16 +100,14 @@ export function QuizPreview({ quizId, readOnly = false }: { quizId: string; read
       </div>
 
       <div className="flex flex-col gap-4 overflow-auto pt-4">
-        {quiz.questions.map((q, i) => (
+        {quiz!.questions.map((q, i) => (
           <div key={q.id} className="rounded-card border border-line bg-surface p-4">
-            <Text variant="meta" tone="muted" className="mb-2">
-              Question {i + 1}
-            </Text>
+            <p className="t-meta mb-2 text-fg-muted">Question {i + 1}</p>
             <QuestionRunner question={q} answer={emptyAnswer(q)} onChange={() => {}} review />
             {q.explanation && (
-              <Text variant="meta" tone="muted" className="mt-3 border-t border-divider pt-3">
+              <p className="t-meta mt-3 border-t border-divider pt-3 text-fg-muted">
                 {q.explanation}
-              </Text>
+              </p>
             )}
           </div>
         ))}

@@ -238,11 +238,12 @@ export interface Material {
   id: string;
   workspaceId: string;
   workspaceName: string;
+  capabilities: import('./gen/model').AccessCapabilities;
+  role?: WorkspaceRole;
   kind: MaterialKind;
   title: string;
-  /** Markdown body. Mindmaps/diagrams embed ```mermaid fences; quizzes and
-   * flashcards embed ```quiz / ```flashcards fences (YAML payload). */
-  content: string;
+  /** Versioned Universal Plate document. */
+  content: import('@/features/materials/document').MaterialDocument;
   /** Chapter this material is filed under (membership). null = unfiled.
    * Orthogonal to scopeChapters (provenance of the generated content). */
   chapterId: string | null;
@@ -252,8 +253,87 @@ export interface Material {
   /** Presentation tint; only meaningful for flashcards decks. */
   color?: UserColor;
   createdAt: string;
+  updatedAt?: string;
+  revision?: number;
   /** Request-scoped: false when viewing someone else's shared material. */
   isOwner?: boolean;
+}
+
+/* ---------------- Plate collaboration (temporary hand-written contracts) ----------------
+   These mirror the new backend models. Keep them isolated here until the next
+   OpenAPI generation can replace them without touching editor components. */
+export type WorkspaceRole = 'owner' | 'editor' | 'commenter' | 'viewer';
+
+export interface WorkspaceMember {
+  workspaceId: string;
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+  role: WorkspaceRole;
+  createdAt: string;
+}
+
+export interface WorkspaceInvite {
+  id: string;
+  workspaceId: string;
+  email: string;
+  role: Exclude<WorkspaceRole, 'owner'>;
+  token?: string;
+  invitedBy: string;
+  expiresAt: string;
+  acceptedAt?: string;
+  revokedAt?: string;
+  createdAt: string;
+}
+
+export interface MaterialComment {
+  id: string;
+  discussionId: string;
+  userId: string;
+  contentRich: import('@/features/materials/document').MaterialValue;
+  isEdited: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MaterialDiscussion {
+  id: string;
+  materialId: string;
+  blockId?: string;
+  documentContent?: string;
+  anchor?: Record<string, unknown>;
+  userId: string;
+  isResolved: boolean;
+  createdAt: string;
+  updatedAt: string;
+  comments: MaterialComment[];
+}
+
+export interface MaterialRevision {
+  materialId: string;
+  revision: number;
+  title: string;
+  content: import('@/features/materials/document').MaterialDocument;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export type SuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+
+export interface MaterialSuggestion {
+  id: string;
+  materialId: string;
+  userId: string;
+  baseRevision: number;
+  anchor: Record<string, unknown>;
+  originalFragment: import('@/features/materials/document').MaterialValue | null;
+  proposedFragment: import('@/features/materials/document').MaterialValue | null;
+  status: SuggestionStatus;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** A row in the left-panel materials list. Aggregates markdown materials plus

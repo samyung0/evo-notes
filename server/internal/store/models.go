@@ -2,7 +2,11 @@ package store
 
 import (
 	"encoding/json"
+	"reflect"
 	"time"
+
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/evonotes/server/internal/materialdoc"
 )
 
 // JSON tags match src/api/types.ts exactly so responses are drop-in for the
@@ -29,6 +33,15 @@ type Workspace struct {
 	FileCount      int       `json:"fileCount"`
 	CreatedAt      time.Time `json:"createdAt"`
 	LastAccessedAt time.Time `json:"lastAccessedAt"`
+}
+
+// AccessCapabilities is request-scoped authorization metadata. It is never
+// persisted and must be derived from the requester's workspace role.
+type AccessCapabilities struct {
+	CanView          bool `json:"canView"`
+	CanEdit          bool `json:"canEdit"`
+	CanComment       bool `json:"canComment"`
+	CanManageMembers bool `json:"canManageMembers"`
 }
 
 // Tag is a catalog tag as read back for an entity: a stable catalog id plus its
@@ -138,29 +151,143 @@ type Flashcard struct {
 	Srs    SrsState `json:"srs"`
 }
 
-// Material is a persisted mindmap/diagram: a markdown document (mermaid fences)
-// scoped to chapters and/or files.
+// Material is a persisted versioned Plate document scoped to chapters and/or
+// files. Every material kind shares this universal envelope.
 //
 // ScopeChapters/ScopeFileIDs record *provenance* (what a generated artifact was
 // built from). ChapterID is the orthogonal *membership* link — which chapter
 // the material is filed under in the tree (null = unfiled), mirroring File.
 type Material struct {
-	ID            string    `json:"id"`
-	UserID        string    `json:"-"`
-	WorkspaceID   string    `json:"workspaceId"`
-	WorkspaceName string    `json:"workspaceName"`
-	Kind          string    `json:"kind"` // mindmap | diagram | quiz | flashcards
-	Title         string    `json:"title"`
-	Content       string    `json:"content"`
+	ID            string `json:"id"`
+	UserID        string `json:"-"`
+	WorkspaceID   string `json:"workspaceId"`
+	WorkspaceName string `json:"workspaceName"`
+	Kind          string `json:"kind"` // mindmap | diagram | quiz | flashcards
+	Title         string `json:"title"`
+	// Content is the encoded materialdoc.Envelope stored as jsonb. The API
+	// model decodes it so clients receive an object rather than a JSON string.
+	Content       string    `json:"-"`
 	ChapterID     *string   `json:"chapterId"` // null = unfiled (not omitempty)
 	ScopeChapters []string  `json:"scopeChapters" nullable:"false"`
 	ScopeFileIDs  []string  `json:"scopeFileIds" nullable:"false"`
 	Privacy       Privacy   `json:"privacy"`
 	Color         UserColor `json:"color,omitempty"` // decks only; presentation tint
 	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+	Revision      int64     `json:"revision"`
 	// IsOwner is request-scoped (not persisted): true when the requester owns
 	// the parent workspace, false for link/public shared reads.
-	IsOwner bool `json:"isOwner"`
+	IsOwner      bool               `json:"isOwner"`
+	Role         *WorkspaceRole     `json:"role,omitempty"`
+	Capabilities AccessCapabilities `json:"capabilities"`
+}
+
+// MarshalJSON exposes the stored jsonb bytes as a Plate envelope object rather
+// than a quoted JSON string. Content stays a string internally so legacy
+// generator call sites can cross the store boundary without owning the
+// persistence contract.
+func (m Material) MarshalJSON() ([]byte, error) {
+	content, err := materialdoc.Parse(m.Content)
+	if err != nil {
+		return nil, err
+	}
+	type materialFields Material
+	return json.Marshal(struct {
+		materialFields
+		Content materialdoc.Envelope `json:"content"`
+	}{
+		materialFields: materialFields(m),
+		Content:        content,
+	})
+}
+
+func (Material) TransformSchema(r huma.Registry, schema *huma.Schema) *huma.Schema {
+	schema.Properties["content"] = huma.SchemaFromType(r, reflect.TypeOf(materialdoc.Envelope{}))
+	schema.Required = append(schema.Required, "content")
+	return schema
+}
+
+type MaterialRevision struct {
+	MaterialID string    `json:"materialId"`
+	Revision   int64     `json:"revision"`
+	Title      string    `json:"title"`
+	Content    string    `json:"-"`
+	CreatedBy  *string   `json:"createdBy,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+type WorkspaceMember struct {
+	WorkspaceID string        `json:"workspaceId"`
+	UserID      string        `json:"userId"`
+	Name        string        `json:"name"`
+	Email       string        `json:"email"`
+	AvatarURL   string        `json:"avatarUrl,omitempty"`
+	Role        WorkspaceRole `json:"role"`
+	CreatedAt   time.Time     `json:"createdAt"`
+}
+
+type WorkspaceInvite struct {
+	ID          string        `json:"id"`
+	WorkspaceID string        `json:"workspaceId"`
+	Email       string        `json:"email"`
+	Role        WorkspaceRole `json:"role"`
+	Token       string        `json:"token,omitempty"`
+	InvitedBy   string        `json:"invitedBy"`
+	ExpiresAt   time.Time     `json:"expiresAt"`
+	AcceptedAt  *time.Time    `json:"acceptedAt,omitempty"`
+	RevokedAt   *time.Time    `json:"revokedAt,omitempty"`
+	CreatedAt   time.Time     `json:"createdAt"`
+}
+
+type SuggestionStatus string
+
+const (
+	SuggestionPending   SuggestionStatus = "pending"
+	SuggestionAccepted  SuggestionStatus = "accepted"
+	SuggestionRejected  SuggestionStatus = "rejected"
+	SuggestionWithdrawn SuggestionStatus = "withdrawn"
+)
+
+func (SuggestionStatus) Schema(r huma.Registry) *huma.Schema {
+	return enumRef(r, "SuggestionStatus", "pending", "accepted", "rejected", "withdrawn")
+}
+
+type MaterialSuggestion struct {
+	ID               string           `json:"id"`
+	MaterialID       string           `json:"materialId"`
+	UserID           string           `json:"userId"`
+	BaseRevision     int64            `json:"baseRevision"`
+	Anchor           json.RawMessage  `json:"anchor"`
+	OriginalFragment json.RawMessage  `json:"originalFragment"`
+	ProposedFragment json.RawMessage  `json:"proposedFragment"`
+	Status           SuggestionStatus `json:"status"`
+	ReviewedBy       *string          `json:"reviewedBy,omitempty"`
+	ReviewedAt       *time.Time       `json:"reviewedAt,omitempty"`
+	CreatedAt        time.Time        `json:"createdAt"`
+	UpdatedAt        time.Time        `json:"updatedAt"`
+}
+
+type Discussion struct {
+	ID              string          `json:"id"`
+	MaterialID      string          `json:"materialId"`
+	BlockID         *string         `json:"blockId,omitempty"`
+	DocumentContent *string         `json:"documentContent,omitempty"`
+	Anchor          json.RawMessage `json:"anchor"`
+	CreatedBy       string          `json:"userId"`
+	IsResolved      bool            `json:"isResolved"`
+	CreatedAt       time.Time       `json:"createdAt"`
+	UpdatedAt       time.Time       `json:"updatedAt"`
+	Comments        []Comment       `json:"comments" nullable:"false"`
+}
+
+type Comment struct {
+	ID           string          `json:"id"`
+	DiscussionID string          `json:"discussionId"`
+	UserID       string          `json:"userId"`
+	ContentRich  json.RawMessage `json:"contentRich"`
+	IsEdited     bool            `json:"isEdited"`
+	CreatedAt    time.Time       `json:"createdAt"`
+	UpdatedAt    time.Time       `json:"updatedAt"`
 }
 
 // MaterialRef is one row in the unified left-panel materials list, aggregating

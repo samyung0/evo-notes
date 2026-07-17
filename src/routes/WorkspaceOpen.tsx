@@ -140,7 +140,7 @@ export default function WorkspaceOpen() {
   const { data: chapters } = useChapters(workspaceId);
   const { data: files } = useFiles(workspaceId);
   const { data: materials } = useMaterials(workspaceId);
-  const readOnly = ws?.isOwner !== true;
+  const readOnly = ws ? !ws.capabilities.canEdit : true;
   useIngestProgress(workspaceId, !readOnly);
   const addChapter = useAddChapter(workspaceId);
   const updateChapter = useUpdateChapter(workspaceId);
@@ -162,13 +162,6 @@ export default function WorkspaceOpen() {
   // Drop-target highlight while dragging a material. 'unfiled' = the flat list.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-
-  // Auto-open the first ready file when nothing is selected yet.
-  useEffect(() => {
-    if (openItem || !files?.length) return;
-    const first = files.find((f) => f.status !== 'processing' && f.status !== 'failed') ?? files[0];
-    setOpenItem({ kind: 'file', id: first.id });
-  }, [files, openItem]);
 
   const pair = userColorPair(ws?.color);
   const unfiled = files?.filter((f) => f.chapterId === null) ?? [];
@@ -544,8 +537,8 @@ export default function WorkspaceOpen() {
           className="overflow-visible!"
         >
           {/* Center: content viewer */}
-          <Panel className="w-full" sectionClassName="h-full">
-            <CenterContent item={openItem} readOnly={readOnly} />
+          <Panel className="w-full" sectionClassName="h-full gap-0">
+            <CenterContent color={ws?.color} item={openItem} readOnly={readOnly} />
           </Panel>
         </ResizablePanel>
         {!readOnly && (

@@ -4,28 +4,31 @@ import { Button, IconButton, Skeleton, Text } from '@/components/ui';
 import { useCards, useDeck, useDeleteCard } from '@/api/hooks';
 import { CardEditModal } from '@/features/flashcards/CardEditModal';
 import type { Flashcard } from '@/api/types';
+import { FileError, FileLoading } from './CenterContent';
 
 /** In-pane, read-only preview of a flashcard deck: lists front/back of each
  * card with a Study action that launches the full study session. */
 export function DeckPreview({ deckId, readOnly = false }: { deckId: string; readOnly?: boolean }) {
-  const { data: deck } = useDeck(deckId);
-  const { data: cards, isLoading } = useCards(deckId);
+  const { data: deck, isLoading: isLoadingDeck, isError: isErrorDeck } = useDeck(deckId);
+  const { data: cards, isLoading: isLoadingCards, isError: isErrorCards } = useCards(deckId);
   const deleteCard = useDeleteCard(deckId);
   const navigate = useNavigate();
   const [managing, setManaging] = useState(false);
   const [editing, setEditing] = useState<Flashcard | 'new' | null>(null);
 
-  if (isLoading || !deck) return <Skeleton className="h-full min-h-[40vh] w-full" />;
+  if (isLoadingDeck || isLoadingCards) return <FileLoading />;
+  if (!isLoadingDeck && !isLoadingCards && (isErrorDeck || isErrorCards || !deck || !cards))
+    return <FileError />;
 
-  const canEdit = !readOnly && deck.isOwner !== false;
+  const canEdit = !readOnly && deck!.isOwner !== false;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col p-6">
       <div className="flex items-center gap-2 border-b border-divider px-1 pb-3">
         <div className="flex-1">
-          <Text variant="meta" tone="muted">
-            {deck.cardCount} cards · {deck.knownPct}% known
-          </Text>
+          <span className="t-meta text-fg-muted">
+            {deck!.cardCount} cards · {deck!.knownPct}% known
+          </span>
         </div>
         {canEdit && managing && (
           <Button size="sm" variant="outline" iconLeft="plus" onClick={() => setEditing('new')}>
@@ -86,9 +89,7 @@ export function DeckPreview({ deckId, readOnly = false }: { deckId: string; read
         ))}
         {!cards?.length && (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <Text variant="body" tone="muted">
-              This deck has no cards yet.
-            </Text>
+            <p>This deck has no cards yet.</p>
             {managing && (
               <Button size="sm" variant="outline" iconLeft="plus" onClick={() => setEditing('new')}>
                 Add card

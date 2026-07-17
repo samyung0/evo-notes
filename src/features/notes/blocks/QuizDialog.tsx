@@ -63,7 +63,9 @@ export function QuizDialog({
 
   useEffect(() => {
     if (!open) return;
-    const parsed = initialCode ? parseQuizFenceBody(initialCode) : { questions: [], timeLimitMin: undefined };
+    const parsed = initialCode
+      ? parseQuizFenceBody(initialCode)
+      : { questions: [], timeLimitMin: undefined };
     setQuestions(parsed.questions.length ? parsed.questions.map(toDraft) : [newDraft()]);
     setTimeLimit(parsed.timeLimitMin != null ? String(parsed.timeLimitMin) : '');
   }, [open, initialCode]);

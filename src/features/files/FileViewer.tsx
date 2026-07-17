@@ -1,7 +1,8 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { Icon, Skeleton } from '@/components/ui';
+import { Icon, Skeleton, Spinner } from '@/components/ui';
 import type { SourceFile } from '@/api/types';
 import { PlateMarkdown } from '@/features/materials/PlateMarkdown';
+import { FileLoading } from '../materials/CenterContent';
 
 const PdfView = lazy(() => import('./PdfView'));
 const SheetView = lazy(() => import('./SheetView'));
@@ -17,7 +18,7 @@ function fileExt(name: string) {
 }
 
 function lazyView(node: ReactNode) {
-  return <Suspense fallback={<Skeleton className="h-full min-h-[50vh] w-full" />}>{node}</Suspense>;
+  return <Suspense fallback={<FileLoading />}>{node}</Suspense>;
 }
 
 function UnsupportedPreview({ file }: { file: SourceFile }) {
@@ -82,7 +83,7 @@ export function FileViewer({ file }: { file: SourceFile | null }) {
   if ((file.kind === 'audio' || AUDIO_EXTS.has(ext)) && file.url) {
     return (
       <div className="grid h-full place-items-center">
-        <div className="flex w-full max-w-[560px] flex-col items-center gap-3">
+        <div className="flex w-full max-w-140 flex-col items-center gap-3">
           <p className="t-subtitle">{file.name}</p>
           <audio controls src={file.url} className="w-full" />
         </div>
@@ -101,13 +102,13 @@ export function FileViewer({ file }: { file: SourceFile | null }) {
 
   // Markdown — render with PlateJS.
   if (file.kind === 'md' && file.content) {
-    return <PlateMarkdown content={file.content} className="mx-auto max-w-[700px]" />;
+    return <PlateMarkdown content={file.content} className="mx-auto max-w-175" />;
   }
 
   // Plain text (or extracted text content from other kinds).
   if ((file.kind === 'txt' || file.content) && file.content != null) {
     return (
-      <article className="mx-auto max-w-[700px] text-[0.95rem] leading-relaxed whitespace-pre-wrap text-fg">
+      <article className="mx-auto max-w-175 p-6 text-[0.95rem] leading-relaxed whitespace-pre-wrap text-fg">
         {file.content}
       </article>
     );

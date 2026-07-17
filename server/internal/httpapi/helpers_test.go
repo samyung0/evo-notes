@@ -8,19 +8,19 @@ import (
 
 func TestKindFromName(t *testing.T) {
 	cases := map[string]string{
-		"notes.pdf":      "pdf",
-		"paper.PDF":      "pdf",
-		"report.docx":    "doc",
-		"report.doc":     "doc",
-		"readme.md":      "md",
+		"notes.pdf":       "pdf",
+		"paper.PDF":       "pdf",
+		"report.docx":     "doc",
+		"report.doc":      "doc",
+		"readme.md":       "md",
 		"readme.markdown": "md",
-		"figure.png":     "image",
-		"photo.JPEG":     "image",
-		"data.csv":       "sheet",
-		"deck.pptx":      "slides",
-		"clip.mp4":       "video",
-		"talk.mp3":       "audio",
-		"noext":          "txt",
+		"figure.png":      "image",
+		"photo.JPEG":      "image",
+		"data.csv":        "sheet",
+		"deck.pptx":       "slides",
+		"clip.mp4":        "video",
+		"talk.mp3":        "audio",
+		"noext":           "txt",
 	}
 	for name, want := range cases {
 		if got := kindFromName(name); got != want {

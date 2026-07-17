@@ -4,7 +4,7 @@ import { FlashcardsDialog } from './FlashcardsDialog';
 
 type SaveFn = (code: string) => void;
 
-interface NoteBlockDialogsApi {
+export interface NoteBlockDialogsApi {
   openQuiz: (initialCode: string | undefined, onSave: SaveFn) => void;
   openFlashcards: (initialCode: string | undefined, onSave: SaveFn) => void;
 }
@@ -28,7 +28,10 @@ export function NoteBlockDialogsProvider({ children }: { children: React.ReactNo
     setFlash({ code: initialCode });
   }, []);
 
-  const api = useMemo<NoteBlockDialogsApi>(() => ({ openQuiz, openFlashcards }), [openQuiz, openFlashcards]);
+  const api = useMemo<NoteBlockDialogsApi>(
+    () => ({ openQuiz, openFlashcards }),
+    [openQuiz, openFlashcards]
+  );
 
   return (
     <Ctx.Provider value={api}>
@@ -59,4 +62,9 @@ export function useNoteBlockDialogs(): NoteBlockDialogsApi {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error('useNoteBlockDialogs must be used within NoteBlockDialogsProvider');
   return ctx;
+}
+
+/** Static material renderers do not mount authoring dialogs. */
+export function useOptionalNoteBlockDialogs(): NoteBlockDialogsApi | null {
+  return useContext(Ctx);
 }

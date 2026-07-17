@@ -3,9 +3,8 @@ import { persist } from 'zustand/middleware';
 
 /* ============================================================
    Per-user note-editor widget preferences. Users choose which optional Plate
-   widget groups are active; the editor rebuilds its plugin list from the enabled
-   set (see plugins.ts) and remounts when it changes. Core editing (paragraphs,
-   headings, marks, markdown, history, AI, slash menu) is always on.
+   widget groups are visible in command surfaces. All parser and renderer
+   plugins remain registered so hiding a command can never hide document data.
    ============================================================ */
 
 export type WidgetGroupId =
@@ -55,14 +54,14 @@ interface NoteEditorPrefsState {
   enabled: EnabledMap;
   toggle: (id: WidgetGroupId) => void;
   setAll: (value: boolean) => void;
+  setEnabled: (enabled: EnabledMap) => void;
 }
 
 export const useNoteEditorPrefs = create<NoteEditorPrefsState>()(
   persist(
     (set) => ({
       enabled: { ...ALL_ENABLED },
-      toggle: (id) =>
-        set((s) => ({ enabled: { ...s.enabled, [id]: !s.enabled[id] } })),
+      toggle: (id) => set((s) => ({ enabled: { ...s.enabled, [id]: !s.enabled[id] } })),
       setAll: (value) =>
         set(() => ({
           enabled: WIDGET_GROUPS.reduce((acc, g) => {
@@ -70,6 +69,7 @@ export const useNoteEditorPrefs = create<NoteEditorPrefsState>()(
             return acc;
           }, {} as EnabledMap),
         })),
+      setEnabled: (enabled) => set({ enabled: { ...enabled } }),
     }),
     {
       name: 'evo-note-editor-prefs',
@@ -86,8 +86,7 @@ export const useNoteEditorPrefs = create<NoteEditorPrefsState>()(
   )
 );
 
-/** Stable key that changes whenever the enabled set changes — used to remount
- * the editor so the plugin list is rebuilt. */
+/** Stable preference summary used by diagnostics and tests. */
 export function enabledKey(enabled: EnabledMap): string {
   return WIDGET_GROUPS.filter((g) => enabled[g.id])
     .map((g) => g.id)

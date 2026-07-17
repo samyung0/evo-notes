@@ -1,10 +1,10 @@
 [
   {
-    "corsRuleName": "evo-browser-upload",
+    "corsRuleName": "evo-editor-assets",
     "allowedOrigins": ["https://YOUR_APP_ORIGIN"],
-    "allowedHeaders": ["content-type"],
-    "allowedOperations": ["s3_put"],
-    "exposeHeaders": ["etag"],
+    "allowedHeaders": ["content-type", "range"],
+    "allowedOperations": ["s3_put", "s3_get", "s3_head"],
+    "exposeHeaders": ["etag", "content-length", "content-range", "accept-ranges"],
     "maxAgeSeconds": 3600
   }
 ]

@@ -18,6 +18,13 @@ import (
 // ErrNotFound is returned by Get-style methods when a row is absent.
 var ErrNotFound = errors.New("not found")
 
+// ErrConflict reports a failed optimistic revision comparison.
+var ErrConflict = errors.New("revision conflict")
+
+// ErrForbidden reports authenticated access without the required workspace
+// role. Shared-resource probing still uses ErrNotFound.
+var ErrForbidden = errors.New("forbidden")
+
 type Store struct{ pool *pgxpool.Pool }
 
 func New(ctx context.Context, dsn string) (*Store, error) {

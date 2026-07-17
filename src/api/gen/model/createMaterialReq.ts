@@ -4,12 +4,13 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { Envelope } from './envelope.ts';
 
 export interface CreateMaterialReq {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
-  /** Markdown body */
-  content?: string;
+  /** Versioned Plate document */
+  content?: Envelope;
   /** Material kind; defaults to note */
   kind?: string;
   /** @nullable */

@@ -1,163 +1,240 @@
-import { useRef, useState } from 'react';
-import { NodeApi } from 'platejs';
-import { useEditorRef } from 'platejs/react';
+import { useEffect, useMemo, useState } from 'react';
+import { AIChatPlugin, AIPlugin } from '@platejs/ai/react';
+import { useEditorRef, usePluginOption } from 'platejs/react';
 import {
-  Button,
-  Icon,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Spinner,
-  Text,
-} from '@/components/ui';
-import { streamComplete } from '@/api/completeStream';
+  Check,
+  Feather,
+  ListMinus,
+  ListPlus,
+  LoaderCircle,
+  MessageSquareText,
+  PenLine,
+  RotateCcw,
+  Sparkles,
+  WandSparkles,
+  X,
+} from 'lucide-react';
+import { Button } from '@/components/ui';
+import { cn } from '@/lib/cn';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyEditor = any;
-
-const MAX_CONTEXT = 6000;
-
-function docText(editor: AnyEditor): string {
-  try {
-    return editor.children
-      .map((n: unknown) => NodeApi.string(n as Parameters<typeof NodeApi.string>[0]))
-      .join('\n')
-      .slice(-MAX_CONTEXT);
-  } catch {
-    return '';
-  }
+interface AiAction {
+  id: string;
+  label: string;
+  icon: typeof Sparkles;
+  prompt: string;
+  toolName: 'comment' | 'edit' | 'generate';
+  mode?: 'chat' | 'insert';
 }
 
-function selectionText(editor: AnyEditor): string {
-  try {
-    if (!editor.selection || editor.api.isCollapsed()) return '';
-    const frag = editor.api.fragment(editor.selection) as unknown[];
-    return frag
-      .map((n) => NodeApi.string(n as Parameters<typeof NodeApi.string>[0]))
-      .join('\n');
-  } catch {
-    return '';
-  }
-}
+const ACTIONS: AiAction[] = [
+  {
+    id: 'continue',
+    label: 'Continue writing',
+    icon: PenLine,
+    prompt: 'Continue writing after the current block with one concise sentence.',
+    toolName: 'generate',
+    mode: 'insert',
+  },
+  {
+    id: 'improve',
+    label: 'Improve writing',
+    icon: WandSparkles,
+    prompt: 'Improve clarity and flow without changing the meaning or adding new information.',
+    toolName: 'edit',
+  },
+  {
+    id: 'grammar',
+    label: 'Fix spelling and grammar',
+    icon: Check,
+    prompt: 'Fix spelling, grammar, and punctuation without changing the meaning or tone.',
+    toolName: 'edit',
+  },
+  {
+    id: 'shorter',
+    label: 'Make shorter',
+    icon: ListMinus,
+    prompt: 'Reduce verbosity while preserving all essential information.',
+    toolName: 'edit',
+  },
+  {
+    id: 'longer',
+    label: 'Make longer',
+    icon: ListPlus,
+    prompt: 'Elaborate on existing ideas without introducing unsupported information.',
+    toolName: 'edit',
+  },
+  {
+    id: 'simplify',
+    label: 'Simplify language',
+    icon: Feather,
+    prompt: 'Use clearer, more direct language while preserving the meaning.',
+    toolName: 'edit',
+  },
+  {
+    id: 'comment',
+    label: 'Add AI feedback',
+    icon: MessageSquareText,
+    prompt: 'Add a concise, constructive comment to the selected content.',
+    toolName: 'comment',
+    mode: 'insert',
+  },
+];
 
-/** Backend-powered AI menu for the note editor: run an instruction over the
- * document/selection, or continue writing from the cursor. Streams tokens and
- * inserts them inline; Esc/Stop aborts. */
-export function AiMenu({ workspaceId }: { workspaceId: string }) {
+export function AiMenu() {
   const editor = useEditorRef();
-  const [open, setOpen] = useState(false);
-  const [prompt, setPrompt] = useState('');
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const savedSel = useRef<unknown>(null);
+  const open = usePluginOption(AIChatPlugin, 'open');
+  const chat = usePluginOption(AIChatPlugin, 'chat');
+  const mode = usePluginOption(AIChatPlugin, 'mode');
+  const toolName = usePluginOption(AIChatPlugin, 'toolName');
+  const streaming = usePluginOption(AIChatPlugin, 'streaming');
+  const [input, setInput] = useState('');
+  const [position, setPosition] = useState({ left: 24, top: 96 });
+  const loading = chat.status === 'streaming' || chat.status === 'submitted' || streaming;
 
-  function stop() {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setRunning(false);
-  }
+  useEffect(() => {
+    if (!open) return;
+    const selection = window.getSelection();
+    const rect =
+      selection && selection.rangeCount > 0
+        ? selection.getRangeAt(0).getBoundingClientRect()
+        : undefined;
+    setPosition({
+      left: Math.min(window.innerWidth - 360, Math.max(16, rect?.left ?? 24)),
+      top: Math.min(window.innerHeight - 420, Math.max(72, (rect?.bottom ?? 80) + 8)),
+    });
+  }, [open]);
 
-  async function run(mode: 'command' | 'continue') {
-    if (running) return;
-    setError(null);
-    const selText = selectionText(editor);
-    const context = mode === 'continue' ? docText(editor) : selText || docText(editor);
-    if (mode === 'command' && !prompt.trim()) return;
+  const hasPreview = useMemo(
+    () =>
+      editor.getTransforms(AIPlugin).ai.hasPreview() ||
+      (!loading && toolName === 'edit' && mode === 'chat' && chat.messages.length > 0),
+    [chat.messages.length, editor, loading, mode, toolName]
+  );
 
-    editor.tf.focus();
-    if (savedSel.current) {
-      try {
-        editor.tf.select(savedSel.current as Parameters<typeof editor.tf.select>[0]);
-      } catch {
-        /* stale selection; insert at current caret */
-      }
-    }
-    // Command over a selection replaces it.
-    if (mode === 'command' && selText && !editor.api.isCollapsed()) {
-      editor.tf.delete();
-    }
+  if (!open) return null;
 
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setRunning(true);
-
-    await streamComplete(
-      workspaceId,
-      { mode, prompt: prompt.trim() || undefined, context },
-      {
-        onToken: (t) => {
-          try {
-            editor.tf.insertText(t);
-          } catch {
-            /* selection gone; ignore token */
-          }
-        },
-        onDone: () => {
-          setRunning(false);
-          abortRef.current = null;
-          setOpen(false);
-          setPrompt('');
-        },
-        onError: (m) => {
-          setError(m);
-          setRunning(false);
-          abortRef.current = null;
-        },
-      },
-      controller.signal
-    );
-  }
+  const submit = (
+    prompt: string,
+    options: { toolName?: AiAction['toolName']; mode?: AiAction['mode'] } = {}
+  ) => {
+    if (!prompt.trim() || loading) return;
+    void editor.getApi(AIChatPlugin).aiChat.submit('', {
+      prompt,
+      toolName: options.toolName ?? 'generate',
+      mode: options.mode,
+    });
+    setInput('');
+  };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(o) => {
-        if (o) savedSel.current = editor.selection;
-        if (!o) stop();
-        setOpen(o);
-      }}
+    <div
+      role="dialog"
+      aria-label="AI commands"
+      className="fixed z-50 w-[min(360px,calc(100vw-32px))] overflow-hidden rounded-card border border-line bg-surface shadow-pop"
+      style={position}
+      onMouseDown={(event) => event.stopPropagation()}
     >
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" title="AI">
-          <Icon name="sparkles" size={15} /> AI
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 border border-line bg-surface shadow-pop">
-        <Text variant="label" tone="muted">
-          Ask AI
-        </Text>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="e.g. Summarize this, or improve the writing…"
-          rows={3}
-          disabled={running}
-          className="w-full resize-none rounded-input border border-line bg-transparent px-2 py-1.5 text-sm text-fg outline-none placeholder:text-placeholder"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) run('command');
+      <div className="flex items-center border-b border-divider px-2">
+        <Sparkles className="size-4 text-action-accent" />
+        <input
+          autoFocus
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="Ask AI anything"
+          disabled={loading}
+          className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-fg outline-none placeholder:text-placeholder"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              submit(input);
+            }
+            if (event.key === 'Escape') editor.getApi(AIChatPlugin).aiChat.hide();
           }}
         />
-        {error && (
-          <Text variant="meta" className="text-solid-error">
-            {error}
-          </Text>
-        )}
-        <div className="flex items-center justify-between gap-2">
-          <Button variant="outline" size="sm" onClick={() => run('continue')} disabled={running}>
-            Continue writing
+        <button
+          type="button"
+          aria-label="Close AI commands"
+          className="rounded-row p-1 text-fg-muted hover:bg-surface-hover-bg"
+          onClick={() => editor.getApi(AIChatPlugin).aiChat.hide()}
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-between gap-2 p-3 text-sm text-fg-muted">
+          <span className="flex items-center gap-2">
+            <LoaderCircle className="size-4 animate-spin" />
+            {chat.status === 'submitted' ? 'Thinking…' : 'Writing…'}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => editor.getApi(AIChatPlugin).aiChat.stop()}
+          >
+            Stop
           </Button>
-          {running ? (
-            <Button variant="ghost" size="sm" onClick={stop}>
-              <Spinner /> Stop
+        </div>
+      ) : hasPreview ? (
+        <div className="flex items-center justify-between gap-2 p-2">
+          <span className="px-1 text-sm text-fg-muted">Review the AI preview</span>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                editor.getTransforms(AIPlugin).ai.undo();
+                editor.getApi(AIChatPlugin).aiChat.hide();
+              }}
+            >
+              Reject
             </Button>
-          ) : (
-            <Button size="sm" onClick={() => run('command')} disabled={!prompt.trim()}>
-              Run
+            <Button
+              variant="accent"
+              size="sm"
+              onClick={() => {
+                editor.getTransforms(AIChatPlugin).aiChat.accept();
+                editor.getTransforms(AIPlugin).ai.acceptPreview();
+                editor.getApi(AIChatPlugin).aiChat.hide();
+              }}
+            >
+              Accept
             </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="max-h-72 overflow-auto p-1">
+          {ACTIONS.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.id}
+                type="button"
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-row px-2 py-2 text-left text-sm text-fg',
+                  'hover:bg-surface-hover-bg'
+                )}
+                onClick={() =>
+                  submit(action.prompt, { toolName: action.toolName, mode: action.mode })
+                }
+              >
+                <Icon className="size-4 text-fg-muted" />
+                {action.label}
+              </button>
+            );
+          })}
+          {chat.messages.length > 0 && (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 rounded-row px-2 py-2 text-left text-sm text-fg hover:bg-surface-hover-bg"
+              onClick={() => void editor.getApi(AIChatPlugin).aiChat.reload()}
+            >
+              <RotateCcw className="size-4 text-fg-muted" />
+              Try again
+            </button>
           )}
         </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }

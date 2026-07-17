@@ -4,13 +4,16 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { AccessCapabilities } from './accessCapabilities.ts';
 import type { Privacy } from './privacy.ts';
 import type { Tag } from './tag.ts';
 import type { UserColor } from './userColor.ts';
+import type { WorkspaceRole } from './workspaceRole.ts';
 
 export interface Workspace {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
+  capabilities: AccessCapabilities;
   chapterCount: number;
   color: UserColor;
   createdAt: string;
@@ -20,5 +23,6 @@ export interface Workspace {
   lastAccessedAt: string;
   name: string;
   privacy: Privacy;
+  role?: WorkspaceRole;
   tags: Tag[];
 }

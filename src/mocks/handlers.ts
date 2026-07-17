@@ -4,8 +4,10 @@ import type {
   Flashcard,
   GenerateOptions,
   Material,
+  MaterialDiscussion,
   MaterialRef,
   MaterialRefType,
+  MaterialSuggestion,
   Question,
   Quiz,
   SearchResult,
@@ -16,11 +18,16 @@ import type {
   UserColor,
   Workspace,
 } from '@/api/types';
+import { parseFlashcardsBlock } from '@/features/materials/blocks';
 import {
-  flashcardsMarkdown,
-  parseFlashcardsBlock,
-  quizMarkdown,
-} from '@/features/materials/blocks';
+  createMaterialDocument,
+  emptyMaterialDocument,
+  flashcardsElementToCards,
+  flashcardsNode,
+  mermaidNode,
+  quizNode,
+  type FlashcardsElement,
+} from '@/features/materials/document';
 import { isKnown, newSrsState } from '@/lib/srs';
 import { delay, http, HttpResponse } from 'msw';
 import * as db from './db';
@@ -31,6 +38,39 @@ const refType = (kind: Material['kind']): MaterialRefType =>
   kind === 'flashcards' ? 'deck' : kind;
 
 const latency = () => delay(1000 + Math.random() * 220);
+const ownerMaterialAccess = {
+  role: 'owner' as const,
+  capabilities: {
+    canView: true,
+    canEdit: true,
+    canComment: true,
+    canManageMembers: true,
+  },
+};
+const mockDiscussions: MaterialDiscussion[] = [];
+const mockSuggestions: MaterialSuggestion[] = [];
+
+const mockNodeText = (node: unknown): string => {
+  if (!node || typeof node !== 'object') return '';
+  const value = node as { text?: unknown; children?: unknown[] };
+  if (typeof value.text === 'string') return value.text;
+  return (value.children ?? []).map(mockNodeText).join('');
+};
+
+const materialCards = (material: Material) =>
+  typeof material.content === 'string'
+    ? parseFlashcardsBlock(material.content).cards
+    : flashcardsElementToCards(
+        material.content.value.find((node) => node.type === 'flashcards') as FlashcardsElement
+      );
+
+const quizDocument = (questions: Question[], timeLimitMin?: number, id = uid('quiz')) =>
+  createMaterialDocument([quizNode({ questions, timeLimitMin }, id)]);
+
+const flashcardsDocument = (
+  cards: { id: string; front: string; back: string }[],
+  id = uid('flashcards')
+) => createMaterialDocument([flashcardsNode(cards, id)]);
 
 /** Resolve incoming tag refs against the catalog: reuse by id (preserving the
  * row), else match by value, else create a new catalog entry. Mirrors the
@@ -210,6 +250,8 @@ export const handlers = [
     const ws: Workspace = {
       id: uid('ws'),
       name: body.name ?? 'Untitled workspace',
+      role: 'owner',
+      capabilities: { canView: true, canEdit: true, canComment: true, canManageMembers: true },
       color: (body.color as UserColor) ?? 'green',
       privacy: body.privacy ?? 'private',
       tags: resolveTags('workspace', body.tags),
@@ -230,6 +272,18 @@ export const handlers = [
     Object.assign(ws, rest);
     return HttpResponse.json(ws);
   }),
+  http.get('/api/workspaces/:id/members', async ({ params }) =>
+    HttpResponse.json([
+      {
+        workspaceId: String(params.id),
+        userId: db.user.id,
+        name: db.user.name,
+        email: db.user.email,
+        role: 'owner' as const,
+        createdAt: db.workspaces.find((workspace) => workspace.id === params.id)?.createdAt ?? '',
+      },
+    ])
+  ),
   http.delete('/api/workspaces/:id', async ({ params }) => {
     const i = db.workspaces.findIndex((w) => w.id === params.id);
     if (i >= 0) db.workspaces.splice(i, 1);
@@ -401,22 +455,24 @@ export const handlers = [
     const body = (await request.json().catch(() => ({}))) as {
       kind?: Material['kind'];
       title?: string;
-      content?: string;
+      content?: Material['content'];
       scopeChapters?: string[];
       scopeFileIds?: string[];
     };
     const mt: Material = {
+      ...ownerMaterialAccess,
       id: uid('mat'),
       workspaceId: wsId,
       workspaceName: ws?.name ?? '',
       kind: body.kind ?? 'note',
       title: body.title || 'Untitled note',
-      content: body.content ?? '',
+      content: body.content ?? emptyMaterialDocument(),
       chapterId: null,
       scopeChapters: body.scopeChapters ?? [],
       scopeFileIds: body.scopeFileIds ?? [],
       privacy: 'private',
       createdAt: new Date().toISOString(),
+      revision: 1,
     };
     db.materials.unshift(mt);
     return HttpResponse.json(mt, { status: 201 });
@@ -432,13 +488,22 @@ export const handlers = [
     if (!mt) return new HttpResponse(null, { status: 404 });
     const body = (await request.json().catch(() => ({}))) as {
       title?: string;
-      content?: string;
+      content?: Material['content'];
+      expectedRevision?: number;
       chapterId?: string;
       scopeChapters?: string[];
       scopeFileIds?: string[];
     };
+    if (
+      (body.title != null || body.content != null) &&
+      body.expectedRevision != null &&
+      body.expectedRevision !== (mt.revision ?? 1)
+    ) {
+      return HttpResponse.json({ message: 'material revision is stale' }, { status: 409 });
+    }
     if (body.title != null) mt.title = body.title;
     if (body.content != null) mt.content = body.content;
+    if (body.title != null || body.content != null) mt.revision = (mt.revision ?? 1) + 1;
     // Empty-string sentinel unfiles; a real id files it; omitted leaves it.
     if (body.chapterId != null) mt.chapterId = body.chapterId === '' ? null : body.chapterId;
     if (body.scopeChapters != null) mt.scopeChapters = body.scopeChapters;
@@ -449,6 +514,101 @@ export const handlers = [
     const i = db.materials.findIndex((x) => x.id === params.id);
     if (i >= 0) db.materials.splice(i, 1);
     return new HttpResponse(null, { status: 204 });
+  }),
+  http.get('/api/materials/:id/discussions', async ({ params }) =>
+    HttpResponse.json(mockDiscussions.filter((item) => item.materialId === params.id))
+  ),
+  http.post('/api/materials/:id/discussions', async ({ params, request }) => {
+    const body = (await request.json()) as {
+      blockId?: string;
+      documentContent?: string;
+      anchor?: Record<string, unknown>;
+      contentRich: MaterialDiscussion['comments'][number]['contentRich'];
+    };
+    const now = new Date().toISOString();
+    const discussion: MaterialDiscussion = {
+      id: uid('discussion'),
+      materialId: String(params.id),
+      blockId: body.blockId,
+      documentContent: body.documentContent,
+      anchor: body.anchor,
+      userId: db.user.id,
+      isResolved: false,
+      createdAt: now,
+      updatedAt: now,
+      comments: [
+        {
+          id: uid('comment'),
+          discussionId: '',
+          userId: db.user.id,
+          contentRich: body.contentRich,
+          isEdited: false,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    };
+    discussion.comments[0].discussionId = discussion.id;
+    mockDiscussions.unshift(discussion);
+    return HttpResponse.json(discussion, { status: 201 });
+  }),
+  http.post('/api/discussions/:id/comments', async ({ params, request }) => {
+    const discussion = mockDiscussions.find((item) => item.id === params.id);
+    if (!discussion) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as {
+      contentRich: MaterialDiscussion['comments'][number]['contentRich'];
+    };
+    const now = new Date().toISOString();
+    discussion.comments.push({
+      id: uid('comment'),
+      discussionId: discussion.id,
+      userId: db.user.id,
+      contentRich: body.contentRich,
+      isEdited: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    discussion.updatedAt = now;
+    return HttpResponse.json(discussion.comments.at(-1), { status: 201 });
+  }),
+  http.patch('/api/discussions/:id', async ({ params, request }) => {
+    const discussion = mockDiscussions.find((item) => item.id === params.id);
+    if (!discussion) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as { isResolved: boolean };
+    discussion.isResolved = body.isResolved;
+    discussion.updatedAt = new Date().toISOString();
+    return HttpResponse.json(discussion);
+  }),
+  http.get('/api/materials/:id/suggestions', async ({ params }) =>
+    HttpResponse.json(mockSuggestions.filter((item) => item.materialId === params.id))
+  ),
+  http.post('/api/materials/:id/suggestions', async ({ params, request }) => {
+    const body = (await request.json()) as Pick<
+      MaterialSuggestion,
+      'baseRevision' | 'anchor' | 'originalFragment' | 'proposedFragment'
+    >;
+    const now = new Date().toISOString();
+    const suggestion: MaterialSuggestion = {
+      id: uid('suggestion'),
+      materialId: String(params.id),
+      userId: db.user.id,
+      ...body,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockSuggestions.unshift(suggestion);
+    return HttpResponse.json(suggestion, { status: 201 });
+  }),
+  http.patch('/api/material-suggestions/:id', async ({ params, request }) => {
+    const suggestion = mockSuggestions.find((item) => item.id === params.id);
+    if (!suggestion) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as { status: MaterialSuggestion['status'] };
+    suggestion.status = body.status;
+    suggestion.reviewedBy = db.user.id;
+    suggestion.reviewedAt = new Date().toISOString();
+    suggestion.updatedAt = suggestion.reviewedAt;
+    return HttpResponse.json(suggestion);
   }),
   http.post('/api/workspaces/:id/sources', async ({ params, request }) => {
     await delay(500);
@@ -663,6 +823,103 @@ export const handlers = [
     });
   }),
 
+  /* Plate/@ai-sdk UI-message stream. This mirrors the production protocol so
+     editor integration can be developed under MSW without provider calls. */
+  http.post('/api/workspaces/:id/ai/command', async ({ request }) => {
+    const body = (await request.json()) as {
+      messages?: Array<{ role: string; parts?: Array<{ type: string; text?: string }> }>;
+      ctx?: {
+        children?: Array<{ id?: string; children?: unknown[] }>;
+        toolName?: 'generate' | 'edit' | 'comment';
+      };
+    };
+    const instruction =
+      [...(body.messages ?? [])]
+        .reverse()
+        .find((message) => message.role === 'user')
+        ?.parts?.filter((part) => part.type === 'text')
+        .map((part) => part.text ?? '')
+        .join('') ?? '';
+    const toolName =
+      body.ctx?.toolName ??
+      (/\b(comment|feedback|review|annotat)/i.test(instruction) ? 'comment' : 'generate');
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const send = (event: unknown) =>
+          controller.enqueue(
+            encoder.encode(`data: ${typeof event === 'string' ? event : JSON.stringify(event)}\n\n`)
+          );
+        send({ type: 'start' });
+        send({ type: 'start-step' });
+        send({ type: 'data-toolName', data: toolName });
+
+        if (toolName === 'comment') {
+          const block = body.ctx?.children?.[0];
+          const content = mockNodeText(block).trim();
+          if (block?.id && content) {
+            await delay(40);
+            send({
+              id: uid('ai'),
+              type: 'data-comment',
+              data: {
+                comment: {
+                  blockId: block.id,
+                  content,
+                  comment: 'Consider making this point more specific.',
+                },
+                status: 'streaming',
+              },
+            });
+          }
+          send({
+            id: uid('ai'),
+            type: 'data-comment',
+            data: { comment: null, status: 'finished' },
+          });
+        } else {
+          const text =
+            toolName === 'edit'
+              ? 'This revised passage is clearer and more concise.'
+              : `A concise response to: ${instruction || 'your request'}.`;
+          const textId = uid('ai');
+          send({ type: 'text-start', id: textId });
+          for (const word of text.split(' ')) {
+            if (request.signal.aborted) {
+              controller.close();
+              return;
+            }
+            await delay(25);
+            send({ type: 'text-delta', id: textId, delta: `${word} ` });
+          }
+          send({ type: 'text-end', id: textId });
+        }
+        send({ type: 'finish-step' });
+        send({ type: 'finish', finishReason: 'stop' });
+        send('[DONE]');
+        controller.close();
+      },
+    });
+    return new HttpResponse(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'x-vercel-ai-ui-message-stream': 'v1',
+      },
+    });
+  }),
+
+  http.post('/api/workspaces/:id/ai/copilot', async ({ request }) => {
+    const body = (await request.json()) as { prompt?: string };
+    if (request.signal.aborted) return HttpResponse.json(null, { status: 408 });
+    await delay(80);
+    return HttpResponse.json({
+      text: body.prompt?.trim() ? ' with a natural continuation.' : '0',
+      finishReason: 'stop',
+      usage: { promptTokens: 8, completionTokens: 5 },
+    });
+  }),
+
   http.post('/api/transcribe', async () => {
     await delay(600);
     return HttpResponse.json({ text: 'This is a mock voice transcription.' });
@@ -697,13 +954,14 @@ export const handlers = [
         back: `Definition for term ${i + 1}.`,
       }));
       const material: Material = {
+        ...ownerMaterialAccess,
         id,
         workspaceId: wsId,
         workspaceName: wsName,
         kind: 'flashcards',
         title: name,
         color: 'green',
-        content: flashcardsMarkdown(name, cardContents),
+        content: flashcardsDocument(cardContents, id),
         chapterId: null,
         scopeChapters: scopeChapterNames,
         scopeFileIds: opts.fileIds,
@@ -722,41 +980,21 @@ export const handlers = [
 
     if (opts.kind === 'mindmap' || opts.kind === 'diagram') {
       const material: Material = {
+        ...ownerMaterialAccess,
         id: uid('mat'),
         workspaceId: wsId,
         workspaceName: wsName,
         kind: opts.kind,
         title: `${wsName} ${opts.kind}`,
-        content:
-          opts.kind === 'mindmap'
-            ? [
-                `# ${wsName} mindmap`,
-                '',
-                `Generated from ${scopeLabel}.`,
-                '',
-                '```mermaid',
-                'mindmap',
-                '  root((Topic))',
-                '    Key idea A',
-                '      Detail 1',
-                '      Detail 2',
-                '    Key idea B',
-                '      Detail 3',
-                '```',
-              ].join('\n')
-            : [
-                `# ${wsName} diagram`,
-                '',
-                `Generated from ${scopeLabel}.`,
-                '',
-                '```mermaid',
-                'flowchart LR',
-                '  A[Start] --> B[Process]',
-                '  B --> C{Decision}',
-                '  C -->|Yes| D[Outcome 1]',
-                '  C -->|No| E[Outcome 2]',
-                '```',
-              ].join('\n'),
+        content: createMaterialDocument([
+          { type: 'h1', children: [{ text: `${wsName} ${opts.kind}` }] },
+          { type: 'p', children: [{ text: `Generated from ${scopeLabel}.` }] },
+          mermaidNode(
+            opts.kind === 'mindmap'
+              ? 'mindmap\n  root((Topic))\n    Key idea A\n      Detail 1\n      Detail 2\n    Key idea B\n      Detail 3'
+              : 'flowchart LR\n  A[Start] --> B[Process]\n  B --> C{Decision}\n  C -->|Yes| D[Outcome 1]\n  C -->|No| E[Outcome 2]'
+          ),
+        ]),
         chapterId: null,
         scopeChapters: scopeChapterNames,
         scopeFileIds: opts.fileIds,
@@ -835,12 +1073,13 @@ export const handlers = [
     });
     const name = `${wsName} quiz`;
     const quizMat: Material = {
+      ...ownerMaterialAccess,
       id: uid('qz'),
       workspaceId: wsId,
       workspaceName: wsName,
       kind: 'quiz',
       title: name,
-      content: quizMarkdown(name, { questions: qs, timeLimitMin: opts.timeLimitMin }),
+      content: quizDocument(qs, opts.timeLimitMin),
       chapterId: null,
       scopeChapters: scopeChapterNames,
       scopeFileIds: opts.fileIds,
@@ -861,15 +1100,13 @@ export const handlers = [
     const ws = db.workspaces.find((w) => w.id === body.workspaceId);
     const name = body.name ?? 'Untitled quiz';
     const material: Material = {
+      ...ownerMaterialAccess,
       id: uid('qz'),
       workspaceId: body.workspaceId ?? '',
       workspaceName: ws?.name ?? '',
       kind: 'quiz',
       title: name,
-      content: quizMarkdown(name, {
-        questions: body.questions ?? [],
-        timeLimitMin: body.timeLimitMin,
-      }),
+      content: quizDocument(body.questions ?? [], body.timeLimitMin),
       chapterId: null,
       scopeChapters: body.chapters ?? [],
       scopeFileIds: [],
@@ -925,7 +1162,7 @@ export const handlers = [
     if (body.privacy !== undefined) mt.privacy = body.privacy;
     mt.title = name;
     mt.scopeChapters = chapters;
-    mt.content = quizMarkdown(name, { questions, timeLimitMin });
+    mt.content = quizDocument(questions, timeLimitMin, mt.id);
     return HttpResponse.json(db.quizFromMaterial(mt));
   }),
   http.delete('/api/quizzes/:id', async ({ params }) => {
@@ -942,15 +1179,13 @@ export const handlers = [
     if (!sourceMaterial && !publicQuiz) return new HttpResponse(null, { status: 404 });
     const source = sourceMaterial ? db.quizFromMaterial(sourceMaterial) : publicQuiz!;
     const material: Material = {
+      ...ownerMaterialAccess,
       id: uid('qz'),
       workspaceId: '',
       workspaceName: '',
       kind: 'quiz',
       title: source.name,
-      content: quizMarkdown(source.name, {
-        questions: source.questions,
-        timeLimitMin: source.timeLimitMin,
-      }),
+      content: quizDocument(source.questions, source.timeLimitMin),
       chapterId: null,
       scopeChapters: source.chapters,
       scopeFileIds: [],
@@ -1028,14 +1263,16 @@ export const handlers = [
     const body = (await request.json()) as Partial<Deck>;
     const ws = db.workspaces.find((w) => w.id === body.workspaceId);
     const name = body.name ?? 'Untitled deck';
+    const id = uid('dk');
     const material: Material = {
-      id: uid('dk'),
+      ...ownerMaterialAccess,
+      id,
       workspaceId: body.workspaceId ?? '',
       workspaceName: ws?.name ?? body.workspaceName ?? '',
       kind: 'flashcards',
       title: name,
       color: body.color ?? 'green',
-      content: flashcardsMarkdown(name, []),
+      content: flashcardsDocument([], id),
       chapterId: null,
       scopeChapters: [],
       scopeFileIds: [],
@@ -1073,7 +1310,7 @@ export const handlers = [
       source = index >= 0 ? db.deckMaterials()[index] : undefined;
     }
     if (!source) return new HttpResponse(null, { status: 404 });
-    const cards = parseFlashcardsBlock(source.content).cards.map((card) => ({
+    const cards = materialCards(source).map((card) => ({
       ...card,
       id: uid('c'),
     }));
@@ -1083,7 +1320,7 @@ export const handlers = [
       id,
       workspaceId: '',
       workspaceName: '',
-      content: flashcardsMarkdown(source.title, cards),
+      content: flashcardsDocument(cards, id),
       chapterId: null,
       scopeFileIds: [],
       privacy: 'private',
@@ -1108,9 +1345,9 @@ export const handlers = [
     if (!mt) return new HttpResponse(null, { status: 404 });
     const body = (await request.json()) as { front: string; back: string };
     const id = uid('c');
-    const cards = parseFlashcardsBlock(mt.content).cards;
+    const cards = materialCards(mt);
     cards.push({ id, front: body.front ?? '', back: body.back ?? '' });
-    mt.content = flashcardsMarkdown(mt.title, cards);
+    mt.content = flashcardsDocument(cards, mt.id);
     db.cardStats[id] = { materialId: mt.id, srs: newSrsState(), known: false };
     return HttpResponse.json(db.cardsFromMaterial(mt).find((c) => c.id === id)!, { status: 201 });
   }),
@@ -1123,12 +1360,12 @@ export const handlers = [
       Pick<Flashcard, 'front' | 'back' | 'known' | 'srs'>
     >;
     if (body.front !== undefined || body.back !== undefined) {
-      const cards = parseFlashcardsBlock(mt.content).cards;
+      const cards = materialCards(mt);
       const card = cards.find((c) => c.id === params.id);
       if (card) {
         if (body.front !== undefined) card.front = body.front;
         if (body.back !== undefined) card.back = body.back;
-        mt.content = flashcardsMarkdown(mt.title, cards);
+        mt.content = flashcardsDocument(cards, mt.id);
       }
     }
     if (body.srs !== undefined) stat.srs = body.srs;
@@ -1143,8 +1380,8 @@ export const handlers = [
     if (!stat) return new HttpResponse(null, { status: 404 });
     const mt = db.materials.find((x) => x.id === stat.materialId && x.kind === 'flashcards');
     if (!mt) return new HttpResponse(null, { status: 404 });
-    const kept = parseFlashcardsBlock(mt.content).cards.filter((c) => c.id !== params.id);
-    mt.content = flashcardsMarkdown(mt.title, kept);
+    const kept = materialCards(mt).filter((c) => c.id !== params.id);
+    mt.content = flashcardsDocument(kept, mt.id);
     delete db.cardStats[String(params.id)];
     return new HttpResponse(null, { status: 204 });
   }),

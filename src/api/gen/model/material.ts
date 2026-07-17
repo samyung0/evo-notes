@@ -4,24 +4,31 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { AccessCapabilities } from './accessCapabilities.ts';
+import type { MaterialContent } from './materialContent.ts';
 import type { Privacy } from './privacy.ts';
 import type { UserColor } from './userColor.ts';
+import type { WorkspaceRole } from './workspaceRole.ts';
 
 export interface Material {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
+  capabilities: AccessCapabilities;
   /** @nullable */
   chapterId: string | null;
   color?: UserColor;
-  content: string;
+  content: MaterialContent;
   createdAt: string;
   id: string;
   isOwner: boolean;
   kind: string;
   privacy: Privacy;
+  revision: number;
+  role?: WorkspaceRole;
   scopeChapters: string[];
   scopeFileIds: string[];
   title: string;
+  updatedAt: string;
   workspaceId: string;
   workspaceName: string;
 }

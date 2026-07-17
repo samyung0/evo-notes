@@ -163,6 +163,37 @@ export const UpdateChapterResponse = zod.object({
 });
 
 /**
+ * @summary Delete a discussion comment
+ */
+export const DeleteMaterialCommentParams = zod.object({
+  id: zod.string(),
+});
+
+export const DeleteMaterialCommentResponse = zod.void();
+
+/**
+ * @summary Edit a discussion comment
+ */
+export const UpdateMaterialCommentParams = zod.object({
+  id: zod.string(),
+});
+
+export const UpdateMaterialCommentBody = zod.object({
+  contentRich: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+});
+
+export const UpdateMaterialCommentResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  contentRich: zod.unknown(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  discussionId: zod.string(),
+  id: zod.string(),
+  isEdited: zod.boolean(),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  userId: zod.string(),
+});
+
+/**
  * @summary Delete a conversation
  */
 export const DeleteConversationParams = zod.object({
@@ -377,6 +408,50 @@ export const CloneDeckResponse = zod.object({
 });
 
 /**
+ * @summary Delete a discussion
+ */
+export const DeleteMaterialDiscussionParams = zod.object({
+  id: zod.string(),
+});
+
+export const DeleteMaterialDiscussionResponse = zod.void();
+
+/**
+ * @summary Resolve or reopen a discussion
+ */
+export const UpdateMaterialDiscussionParams = zod.object({
+  id: zod.string(),
+});
+
+export const UpdateMaterialDiscussionBody = zod.object({
+  isResolved: zod.boolean(),
+});
+
+export const UpdateMaterialDiscussionResponse = zod.void();
+
+/**
+ * @summary Add a discussion comment
+ */
+export const CreateMaterialCommentParams = zod.object({
+  id: zod.string(),
+});
+
+export const CreateMaterialCommentBody = zod.object({
+  contentRich: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+});
+
+export const CreateMaterialCommentResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  contentRich: zod.unknown(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  discussionId: zod.string(),
+  id: zod.string(),
+  isEdited: zod.boolean(),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  userId: zod.string(),
+});
+
+/**
  * @summary List events
  */
 export const ListEventsResponseItem = zod.object({
@@ -496,6 +571,12 @@ export const exploreWorkspacesResponseTagsItemValueMax = 50;
 
 export const ExploreWorkspacesResponseItem = zod.object({
   author: zod.string(),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterCount: zod.number(),
   clones: zod.number(),
   color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
@@ -506,6 +587,7 @@ export const ExploreWorkspacesResponseItem = zod.object({
   lastAccessedAt: zod.iso.datetime({ offset: true }),
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -671,6 +753,42 @@ export const ListLabelsResponseItem = zod.object({
 export const ListLabelsResponse = zod.array(ListLabelsResponseItem);
 
 /**
+ * @summary Withdraw a suggestion
+ */
+export const WithdrawMaterialSuggestionParams = zod.object({
+  id: zod.string(),
+});
+
+export const WithdrawMaterialSuggestionResponse = zod.void();
+
+/**
+ * @summary Accept, reject, or withdraw a suggestion
+ */
+export const UpdateMaterialSuggestionStatusParams = zod.object({
+  id: zod.string(),
+});
+
+export const UpdateMaterialSuggestionStatusBody = zod.object({
+  status: zod.enum(['accepted', 'rejected', 'withdrawn']),
+});
+
+export const UpdateMaterialSuggestionStatusResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  anchor: zod.record(zod.string(), zod.unknown()),
+  baseRevision: zod.number(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  materialId: zod.string(),
+  originalFragment: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  proposedFragment: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  reviewedAt: zod.iso.datetime({ offset: true }).optional(),
+  reviewedBy: zod.string().optional(),
+  status: zod.enum(['pending', 'accepted', 'rejected', 'withdrawn']),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  userId: zod.string(),
+});
+
+/**
  * @summary Delete a material
  */
 export const DeleteMaterialParams = zod.object({
@@ -688,19 +806,31 @@ export const GetMaterialParams = zod.object({
 
 export const GetMaterialResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterId: zod.string().nullable(),
   color: zod
     .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
     .optional(),
-  content: zod.string(),
+  content: zod.object({
+    schemaVersion: zod.number(),
+    value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  }),
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   isOwner: zod.boolean(),
   kind: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  revision: zod.number(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   scopeChapters: zod.array(zod.string()),
   scopeFileIds: zod.array(zod.string()),
   title: zod.string(),
+  updatedAt: zod.iso.datetime({ offset: true }),
   workspaceId: zod.string(),
   workspaceName: zod.string(),
 });
@@ -717,7 +847,17 @@ export const UpdateMaterialBody = zod.object({
     .string()
     .optional()
     .describe('Chapter to file under; empty string unfiles; omit to leave unchanged'),
-  content: zod.string().optional(),
+  content: zod
+    .object({
+      schemaVersion: zod.number(),
+      value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+    })
+    .optional(),
+  expectedRevision: zod
+    .number()
+    .min(1)
+    .optional()
+    .describe('Required when changing title or content'),
   privacy: zod
     .enum(['private', 'public', 'link'])
     .optional()
@@ -729,19 +869,31 @@ export const UpdateMaterialBody = zod.object({
 
 export const UpdateMaterialResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterId: zod.string().nullable(),
   color: zod
     .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
     .optional(),
-  content: zod.string(),
+  content: zod.object({
+    schemaVersion: zod.number(),
+    value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  }),
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   isOwner: zod.boolean(),
   kind: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  revision: zod.number(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   scopeChapters: zod.array(zod.string()),
   scopeFileIds: zod.array(zod.string()),
   title: zod.string(),
+  updatedAt: zod.iso.datetime({ offset: true }),
   workspaceId: zod.string(),
   workspaceName: zod.string(),
 });
@@ -755,21 +907,179 @@ export const CloneMaterialParams = zod.object({
 
 export const CloneMaterialResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterId: zod.string().nullable(),
   color: zod
     .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
     .optional(),
-  content: zod.string(),
+  content: zod.object({
+    schemaVersion: zod.number(),
+    value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  }),
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   isOwner: zod.boolean(),
   kind: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  revision: zod.number(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   scopeChapters: zod.array(zod.string()),
   scopeFileIds: zod.array(zod.string()),
   title: zod.string(),
+  updatedAt: zod.iso.datetime({ offset: true }),
   workspaceId: zod.string(),
   workspaceName: zod.string(),
+});
+
+/**
+ * @summary List material discussions
+ */
+export const ListMaterialDiscussionsParams = zod.object({
+  id: zod.string(),
+});
+
+export const ListMaterialDiscussionsResponseItem = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  anchor: zod.unknown(),
+  blockId: zod.string().optional(),
+  comments: zod.array(
+    zod.object({
+      $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+      contentRich: zod.unknown(),
+      createdAt: zod.iso.datetime({ offset: true }),
+      discussionId: zod.string(),
+      id: zod.string(),
+      isEdited: zod.boolean(),
+      updatedAt: zod.iso.datetime({ offset: true }),
+      userId: zod.string(),
+    })
+  ),
+  createdAt: zod.iso.datetime({ offset: true }),
+  documentContent: zod.string().optional(),
+  id: zod.string(),
+  isResolved: zod.boolean(),
+  materialId: zod.string(),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  userId: zod.string(),
+});
+export const ListMaterialDiscussionsResponse = zod.array(ListMaterialDiscussionsResponseItem);
+
+/**
+ * @summary Create a material discussion
+ */
+export const CreateMaterialDiscussionParams = zod.object({
+  id: zod.string(),
+});
+
+export const CreateMaterialDiscussionBody = zod.object({
+  anchor: zod.record(zod.string(), zod.unknown()).optional(),
+  blockId: zod.string().optional(),
+  contentRich: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  documentContent: zod.string().optional(),
+});
+
+export const CreateMaterialDiscussionResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  anchor: zod.unknown(),
+  blockId: zod.string().optional(),
+  comments: zod.array(
+    zod.object({
+      $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+      contentRich: zod.unknown(),
+      createdAt: zod.iso.datetime({ offset: true }),
+      discussionId: zod.string(),
+      id: zod.string(),
+      isEdited: zod.boolean(),
+      updatedAt: zod.iso.datetime({ offset: true }),
+      userId: zod.string(),
+    })
+  ),
+  createdAt: zod.iso.datetime({ offset: true }),
+  documentContent: zod.string().optional(),
+  id: zod.string(),
+  isResolved: zod.boolean(),
+  materialId: zod.string(),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  userId: zod.string(),
+});
+
+/**
+ * @summary List material revisions
+ */
+export const ListMaterialRevisionsParams = zod.object({
+  id: zod.string(),
+});
+
+export const ListMaterialRevisionsResponseItem = zod.object({
+  content: zod.object({
+    schemaVersion: zod.number(),
+    value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  }),
+  createdAt: zod.iso.datetime({ offset: true }),
+  createdBy: zod.string().optional(),
+  materialId: zod.string(),
+  revision: zod.number(),
+  title: zod.string(),
+});
+export const ListMaterialRevisionsResponse = zod.array(ListMaterialRevisionsResponseItem);
+
+/**
+ * @summary List material suggestions
+ */
+export const ListMaterialSuggestionsParams = zod.object({
+  id: zod.string(),
+});
+
+export const ListMaterialSuggestionsResponseItem = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  anchor: zod.record(zod.string(), zod.unknown()),
+  baseRevision: zod.number(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  materialId: zod.string(),
+  originalFragment: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  proposedFragment: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  reviewedAt: zod.iso.datetime({ offset: true }).optional(),
+  reviewedBy: zod.string().optional(),
+  status: zod.enum(['pending', 'accepted', 'rejected', 'withdrawn']),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  userId: zod.string(),
+});
+export const ListMaterialSuggestionsResponse = zod.array(ListMaterialSuggestionsResponseItem);
+
+/**
+ * @summary Create a material suggestion
+ */
+export const CreateMaterialSuggestionParams = zod.object({
+  id: zod.string(),
+});
+
+export const CreateMaterialSuggestionBody = zod.object({
+  anchor: zod.record(zod.string(), zod.unknown()).optional(),
+  baseRevision: zod.number().min(1),
+  originalFragment: zod.array(zod.record(zod.string(), zod.unknown())).min(1).nullable(),
+  proposedFragment: zod.array(zod.record(zod.string(), zod.unknown())).min(1).nullable(),
+});
+
+export const CreateMaterialSuggestionResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  anchor: zod.record(zod.string(), zod.unknown()),
+  baseRevision: zod.number(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  materialId: zod.string(),
+  originalFragment: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  proposedFragment: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  reviewedAt: zod.iso.datetime({ offset: true }).optional(),
+  reviewedBy: zod.string().optional(),
+  status: zod.enum(['pending', 'accepted', 'rejected', 'withdrawn']),
+  updatedAt: zod.iso.datetime({ offset: true }),
+  userId: zod.string(),
 });
 
 /**
@@ -1117,6 +1427,24 @@ export const SaveCanvasResponse = zod.object({
 });
 
 /**
+ * @summary Accept a workspace invite
+ */
+export const AcceptWorkspaceInviteParams = zod.object({
+  token: zod.string(),
+});
+
+export const AcceptWorkspaceInviteResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  avatarUrl: zod.string().optional(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  email: zod.string(),
+  name: zod.string(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
+  userId: zod.string(),
+  workspaceId: zod.string(),
+});
+
+/**
  * @summary List workspaces
  */
 export const ListWorkspacesQueryParams = zod.object({
@@ -1130,6 +1458,12 @@ export const listWorkspacesResponseTagsItemValueMax = 50;
 
 export const ListWorkspacesResponseItem = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterCount: zod.number(),
   color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
   createdAt: zod.iso.datetime({ offset: true }),
@@ -1139,6 +1473,7 @@ export const ListWorkspacesResponseItem = zod.object({
   lastAccessedAt: zod.iso.datetime({ offset: true }),
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -1177,6 +1512,12 @@ export const createWorkspaceResponseTagsItemValueMax = 50;
 
 export const CreateWorkspaceResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterCount: zod.number(),
   color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
   createdAt: zod.iso.datetime({ offset: true }),
@@ -1186,6 +1527,7 @@ export const CreateWorkspaceResponse = zod.object({
   lastAccessedAt: zod.iso.datetime({ offset: true }),
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -1214,6 +1556,12 @@ export const getWorkspaceResponseTagsItemValueMax = 50;
 
 export const GetWorkspaceResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterCount: zod.number(),
   color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
   createdAt: zod.iso.datetime({ offset: true }),
@@ -1223,6 +1571,7 @@ export const GetWorkspaceResponse = zod.object({
   lastAccessedAt: zod.iso.datetime({ offset: true }),
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -1260,6 +1609,12 @@ export const updateWorkspaceResponseTagsItemValueMax = 50;
 
 export const UpdateWorkspaceResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterCount: zod.number(),
   color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
   createdAt: zod.iso.datetime({ offset: true }),
@@ -1269,6 +1624,7 @@ export const UpdateWorkspaceResponse = zod.object({
   lastAccessedAt: zod.iso.datetime({ offset: true }),
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -1341,6 +1697,12 @@ export const CloneWorkspaceResponse = zod.object({
   ragCloned: zod.boolean(),
   workspace: zod.object({
     $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+    capabilities: zod.object({
+      canComment: zod.boolean(),
+      canEdit: zod.boolean(),
+      canManageMembers: zod.boolean(),
+      canView: zod.boolean(),
+    }),
     chapterCount: zod.number(),
     color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
     createdAt: zod.iso.datetime({ offset: true }),
@@ -1350,6 +1712,7 @@ export const CloneWorkspaceResponse = zod.object({
     lastAccessedAt: zod.iso.datetime({ offset: true }),
     name: zod.string(),
     privacy: zod.enum(['private', 'public', 'link']),
+    role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
     tags: zod.array(
       zod.object({
         id: zod.string(),
@@ -1437,6 +1800,62 @@ export const ListWorkspaceFilesResponseItem = zod.object({
 export const ListWorkspaceFilesResponse = zod.array(ListWorkspaceFilesResponseItem);
 
 /**
+ * @summary List workspace invites
+ */
+export const ListWorkspaceInvitesParams = zod.object({
+  id: zod.string(),
+});
+
+export const ListWorkspaceInvitesResponseItem = zod.object({
+  acceptedAt: zod.iso.datetime({ offset: true }).optional(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  email: zod.string(),
+  expiresAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  invitedBy: zod.string(),
+  revokedAt: zod.iso.datetime({ offset: true }).optional(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
+  workspaceId: zod.string(),
+});
+export const ListWorkspaceInvitesResponse = zod.array(ListWorkspaceInvitesResponseItem);
+
+/**
+ * @summary Invite a workspace member
+ */
+export const CreateWorkspaceInviteParams = zod.object({
+  id: zod.string(),
+});
+
+export const CreateWorkspaceInviteBody = zod.object({
+  email: zod.email(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
+});
+
+export const CreateWorkspaceInviteResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  acceptedAt: zod.iso.datetime({ offset: true }).optional(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  email: zod.string(),
+  expiresAt: zod.iso.datetime({ offset: true }),
+  id: zod.string(),
+  invitedBy: zod.string(),
+  revokedAt: zod.iso.datetime({ offset: true }).optional(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
+  token: zod.string(),
+  workspaceId: zod.string(),
+});
+
+/**
+ * @summary Revoke a workspace invite
+ */
+export const RevokeWorkspaceInviteParams = zod.object({
+  id: zod.string(),
+  inviteId: zod.string(),
+});
+
+export const RevokeWorkspaceInviteResponse = zod.void();
+
+/**
  * @summary List study materials
  */
 export const ListMaterialsParams = zod.object({
@@ -1460,7 +1879,13 @@ export const CreateMaterialParams = zod.object({
 });
 
 export const CreateMaterialBody = zod.object({
-  content: zod.string().optional().describe('Markdown body'),
+  content: zod
+    .object({
+      schemaVersion: zod.number(),
+      value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+    })
+    .optional()
+    .describe('Versioned Plate document'),
   kind: zod.string().optional().describe('Material kind; defaults to note'),
   scopeChapters: zod.array(zod.string()).nullish(),
   scopeFileIds: zod.array(zod.string()).nullish(),
@@ -1469,22 +1894,77 @@ export const CreateMaterialBody = zod.object({
 
 export const CreateMaterialResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
   chapterId: zod.string().nullable(),
   color: zod
     .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
     .optional(),
-  content: zod.string(),
+  content: zod.object({
+    schemaVersion: zod.number(),
+    value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+  }),
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   isOwner: zod.boolean(),
   kind: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
+  revision: zod.number(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
   scopeChapters: zod.array(zod.string()),
   scopeFileIds: zod.array(zod.string()),
   title: zod.string(),
+  updatedAt: zod.iso.datetime({ offset: true }),
   workspaceId: zod.string(),
   workspaceName: zod.string(),
 });
+
+/**
+ * @summary List workspace members
+ */
+export const ListWorkspaceMembersParams = zod.object({
+  id: zod.string(),
+});
+
+export const ListWorkspaceMembersResponseItem = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  avatarUrl: zod.string().optional(),
+  createdAt: zod.iso.datetime({ offset: true }),
+  email: zod.string(),
+  name: zod.string(),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
+  userId: zod.string(),
+  workspaceId: zod.string(),
+});
+export const ListWorkspaceMembersResponse = zod.array(ListWorkspaceMembersResponseItem);
+
+/**
+ * @summary Remove a workspace member
+ */
+export const RemoveWorkspaceMemberParams = zod.object({
+  id: zod.string(),
+  memberId: zod.string(),
+});
+
+export const RemoveWorkspaceMemberResponse = zod.void();
+
+/**
+ * @summary Change a workspace member role
+ */
+export const UpdateWorkspaceMemberParams = zod.object({
+  id: zod.string(),
+  memberId: zod.string(),
+});
+
+export const UpdateWorkspaceMemberBody = zod.object({
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
+});
+
+export const UpdateWorkspaceMemberResponse = zod.void();
 
 /**
  * @summary Workspace stats

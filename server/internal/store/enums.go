@@ -57,6 +57,21 @@ func (Privacy) Schema(r huma.Registry) *huma.Schema {
 	return enumRef(r, "Privacy", "private", "public", "link")
 }
 
+// WorkspaceRole controls collaborative access. Public/link visibility is
+// separate and always read-only for users without a membership.
+type WorkspaceRole string
+
+const (
+	RoleOwner     WorkspaceRole = "owner"
+	RoleEditor    WorkspaceRole = "editor"
+	RoleCommenter WorkspaceRole = "commenter"
+	RoleViewer    WorkspaceRole = "viewer"
+)
+
+func (WorkspaceRole) Schema(r huma.Registry) *huma.Schema {
+	return enumRef(r, "WorkspaceRole", "owner", "editor", "commenter", "viewer")
+}
+
 // PlanTier is the account subscription tier.
 type PlanTier string
 

@@ -9,8 +9,8 @@ export const API_BASE = '/api';
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await authHeaders();
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...auth, ...(init?.headers ?? {}) },
     ...init,
+    headers: { 'Content-Type': 'application/json', ...auth, ...(init?.headers ?? {}) },
   });
   if (!res.ok) {
     let detail = '';
@@ -54,48 +54,65 @@ function putFile(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const abort = () => xhr.abort();
+    const cleanup = () => signal?.removeEventListener('abort', abort);
+    const succeed = () => {
+      cleanup();
+      onProgress?.(100);
+      resolve();
+    };
+    const fail = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
     xhr.open('PUT', url);
     for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
     };
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`B2 upload failed: ${xhr.status} ${xhr.statusText}`));
+      if (xhr.status >= 200 && xhr.status < 300) succeed();
+      else fail(new Error(`B2 upload failed: ${xhr.status} ${xhr.statusText}`));
     };
-    xhr.onerror = () => reject(new Error('B2 upload failed: network error'));
-    xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+    xhr.onerror = () => fail(new Error('B2 upload failed: network error'));
+    xhr.onabort = () => fail(new DOMException('Upload cancelled', 'AbortError'));
     if (signal) {
       if (signal.aborted) {
-        reject(new DOMException('Upload cancelled', 'AbortError'));
+        fail(new DOMException('Upload cancelled', 'AbortError'));
         return;
       }
-      signal.addEventListener('abort', () => xhr.abort(), { once: true });
+      signal.addEventListener('abort', abort, { once: true });
     }
     xhr.send(file);
   });
 }
 
+type RequestOptions = Pick<RequestInit, 'signal'>;
+
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string, options?: RequestOptions) => request<T>(path, options),
   upload: <T>(path: string, form: FormData) => upload<T>(path, form),
   putFile,
-  post: <T>(path: string, body?: unknown) =>
+  post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>(path, {
+      ...options,
       method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
     }),
-  patch: <T>(path: string, body?: unknown) =>
+  patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>(path, {
+      ...options,
       method: 'PATCH',
-      body: body ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
     }),
-  put: <T>(path: string, body?: unknown) =>
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>(path, {
+      ...options,
       method: 'PUT',
-      body: body ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
     }),
-  del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  del: <T>(path: string, options?: RequestOptions) =>
+    request<T>(path, { ...options, method: 'DELETE' }),
 };
 
 /** Central query-key registry for TanStack Query. */
@@ -115,6 +132,11 @@ export const qk = {
   quiz: (id: string) => ['quiz', id] as const,
   materials: (wsId: string) => ['workspace', wsId, 'materials'] as const,
   material: (id: string) => ['material', id] as const,
+  materialRevisions: (id: string) => ['material', id, 'revisions'] as const,
+  materialDiscussions: (id: string) => ['material', id, 'discussions'] as const,
+  materialSuggestions: (id: string) => ['material', id, 'suggestions'] as const,
+  workspaceMembers: (id: string) => ['workspace', id, 'members'] as const,
+  workspaceInvites: (id: string) => ['workspace', id, 'invites'] as const,
   attempts: ['attempts'] as const,
   attempt: (id: string) => ['attempt', id] as const,
   mistakes: ['mistakes'] as const,

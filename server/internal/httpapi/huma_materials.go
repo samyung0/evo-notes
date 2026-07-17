@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/evonotes/server/internal/httpapi/apimodel"
+	"github.com/evonotes/server/internal/materialdoc"
 	"github.com/evonotes/server/internal/store"
 )
 
@@ -35,19 +37,31 @@ func (a *api) registerMaterials(api huma.API) {
 	reg(api, http.MethodGet, "/api/materials/{id}", "getMaterial", tag, "Get a material", http.StatusOK, a.getMaterial)
 	reg(api, http.MethodPatch, "/api/materials/{id}", "updateMaterial", tag, "Update a material", http.StatusOK, a.updateMaterial)
 	reg(api, http.MethodDelete, "/api/materials/{id}", "deleteMaterial", tag, "Delete a material", http.StatusNoContent, a.deleteMaterial)
+	a.registerMembership(api)
+	a.registerCollaboration(api)
 }
 
 // assertMaterialOwner checks direct material ownership. This supports both
 // workspace-contained and truly standalone quizzes/decks.
 func (a *api) assertMaterialOwner(ctx context.Context, matID string) error {
-	isOwner, err := a.s.MaterialAccess(ctx, userID(ctx), matID)
-	if err != nil || !isOwner {
-		if err != nil {
-			return err
-		}
+	err := a.s.AssertMaterialEditor(ctx, userID(ctx), matID)
+	if errors.Is(err, store.ErrForbidden) {
+		// Existing quiz/deck handlers map only not-found; keep unauthorized
+		// mutation indistinguishable from a missing private resource.
 		return store.ErrNotFound
 	}
-	return nil
+	return err
+}
+
+func materialWithAccess(material store.Material, role store.WorkspaceRole) apimodel.Material {
+	material.IsOwner = role == store.RoleOwner
+	material.Capabilities = store.CapabilitiesForRole(role, true)
+	if role == "" {
+		material.Role = nil
+	} else {
+		material.Role = &role
+	}
+	return apimodel.FromMaterial(material)
 }
 
 func (a *api) listMaterials(ctx context.Context, in *workspaceIDInput) (*materialRefsOutput, error) {
@@ -62,10 +76,10 @@ func (a *api) listMaterials(ctx context.Context, in *workspaceIDInput) (*materia
 }
 
 func (a *api) createMaterial(ctx context.Context, in *createMaterialInput) (*materialOutput, error) {
-	if err := a.assertOwner(ctx, in.ID); err != nil {
-		return nil, hErr(err)
+	if err := a.s.AssertWorkspaceEditor(ctx, userID(ctx), in.ID); err != nil {
+		return nil, collaborationError(err)
 	}
-	ws, err := a.s.GetWorkspace(ctx, userID(ctx), in.ID, false)
+	ws, err := a.s.GetWorkspaceShared(ctx, in.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
@@ -73,16 +87,32 @@ func (a *api) createMaterial(ctx context.Context, in *createMaterialInput) (*mat
 	if kind == "" {
 		kind = "note"
 	}
+	switch kind {
+	case "note", "quiz", "flashcards", "mindmap", "diagram":
+	default:
+		return nil, huma.Error400BadRequest("unsupported material kind")
+	}
 	title := in.Body.Title
 	if title == "" {
 		title = "Untitled note"
+	}
+	content := materialdoc.Empty()
+	if in.Body.Content != nil {
+		content = *in.Body.Content
+	}
+	raw, err := materialdoc.Marshal(content)
+	if err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
+	}
+	if err := materialdoc.ValidateKind(raw, kind); err != nil {
+		return nil, huma.Error400BadRequest(err.Error())
 	}
 	res, err := a.s.CreateMaterial(ctx, store.Material{
 		WorkspaceID:   in.ID,
 		WorkspaceName: ws.Name,
 		Kind:          kind,
 		Title:         title,
-		Content:       in.Body.Content,
+		Content:       raw,
 		ScopeChapters: in.Body.ScopeChapters,
 		ScopeFileIDs:  in.Body.ScopeFileIDs,
 		Privacy:       "private",
@@ -90,12 +120,18 @@ func (a *api) createMaterial(ctx context.Context, in *createMaterialInput) (*mat
 	if err != nil {
 		return nil, hErr(err)
 	}
-	res.IsOwner = true
-	return &materialOutput{Body: res}, nil
+	role, err := a.s.MaterialRole(ctx, userID(ctx), res.ID)
+	if err != nil {
+		return nil, hErr(err)
+	}
+	return &materialOutput{Body: materialWithAccess(res, role)}, nil
 }
 
 func (a *api) getMaterial(ctx context.Context, in *materialIDInput) (*materialOutput, error) {
-	isOwner, err := a.materialRead(ctx, in.ID)
+	if _, err := a.materialRead(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
+	role, err := a.s.MaterialRole(ctx, userID(ctx), in.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
@@ -103,20 +139,39 @@ func (a *api) getMaterial(ctx context.Context, in *materialIDInput) (*materialOu
 	if err != nil {
 		return nil, hErr(err)
 	}
-	res.IsOwner = isOwner
-	return &materialOutput{Body: res}, nil
+	return &materialOutput{Body: materialWithAccess(res, role)}, nil
 }
 
 func (a *api) updateMaterial(ctx context.Context, in *updateMaterialInput) (*materialOutput, error) {
 	if err := a.assertMaterialOwner(ctx, in.ID); err != nil {
-		return nil, hErr(err)
+		return nil, collaborationError(err)
+	}
+	if (in.Body.Title != nil || in.Body.Content != nil) && in.Body.ExpectedRevision == nil {
+		return nil, huma.Error400BadRequest("expectedRevision is required when changing title or content")
+	}
+	var content *string
+	if in.Body.Content != nil {
+		raw, err := materialdoc.Marshal(*in.Body.Content)
+		if err != nil {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
+		current, err := a.s.GetMaterial(ctx, in.ID)
+		if err != nil {
+			return nil, hErr(err)
+		}
+		if err := materialdoc.ValidateKind(raw, current.Kind); err != nil {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
+		content = &raw
 	}
 	patch := store.MaterialPatch{
-		Title:         in.Body.Title,
-		Content:       in.Body.Content,
-		ScopeChapters: in.Body.ScopeChapters,
-		ScopeFileIDs:  in.Body.ScopeFileIDs,
-		Privacy:       in.Body.Privacy,
+		Title:            in.Body.Title,
+		Content:          content,
+		ScopeChapters:    in.Body.ScopeChapters,
+		ScopeFileIDs:     in.Body.ScopeFileIDs,
+		Privacy:          in.Body.Privacy,
+		ExpectedRevision: in.Body.ExpectedRevision,
+		UpdatedBy:        userID(ctx),
 	}
 	// chapterId: "" unfiles (NULL), a real id files it, omitted leaves it.
 	if in.Body.ChapterID != nil {
@@ -131,15 +186,24 @@ func (a *api) updateMaterial(ctx context.Context, in *updateMaterialInput) (*mat
 	}
 	res, err := a.s.UpdateMaterial(ctx, in.ID, patch)
 	if err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			return nil, huma.Error409Conflict("material revision is stale")
+		}
+		if errors.Is(err, materialdoc.ErrInvalid) {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
 		return nil, hErr(err)
 	}
-	res.IsOwner = true
-	return &materialOutput{Body: res}, nil
+	role, err := a.s.MaterialRole(ctx, userID(ctx), res.ID)
+	if err != nil {
+		return nil, hErr(err)
+	}
+	return &materialOutput{Body: materialWithAccess(res, role)}, nil
 }
 
 func (a *api) deleteMaterial(ctx context.Context, in *materialIDInput) (*Empty, error) {
 	if err := a.assertMaterialOwner(ctx, in.ID); err != nil {
-		return nil, hErr(err)
+		return nil, collaborationError(err)
 	}
 	if err := a.s.DeleteMaterial(ctx, in.ID); err != nil {
 		return nil, hErr(err)

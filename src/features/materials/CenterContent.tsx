@@ -1,11 +1,21 @@
-import { Icon, Skeleton, type IconName, ProgressBar, Text } from '@/components/ui';
+import { useState } from 'react';
+import {
+  Icon,
+  Skeleton,
+  type IconName,
+  ProgressBar,
+  SegmentedControl,
+  Text,
+  Spinner,
+} from '@/components/ui';
 import { useFile, useMaterial } from '@/api/hooks';
 import { FileViewer } from '@/features/files/FileViewer';
 import { NoteEditor } from '@/features/notes/NoteEditor';
-import { MaterialView } from './MaterialView';
 import { QuizPreview } from './QuizPreview';
 import { DeckPreview } from './DeckPreview';
 import type { OpenItem } from './openItem';
+import { UserColor } from '@/api/types';
+import { cn } from '@/lib/cn';
 
 /** The center pane. Dispatches on the currently-open item — a source file or a
  * study material — and renders a consistent header plus the item body. Quiz and
@@ -14,21 +24,21 @@ import type { OpenItem } from './openItem';
 export function CenterContent({
   item,
   readOnly = false,
+  color,
 }: {
   item: OpenItem | null;
   readOnly?: boolean;
+  color?: UserColor;
 }) {
   if (!item) {
     return <EmptyCenter />;
   }
-  if (item.kind === 'material') {
-    return <MaterialCenter materialId={item.id} readOnly={readOnly} />;
-  }
   return (
     <>
       <Header item={item} />
-      <div className="flex-1 overflow-auto p-6">
-        <Body item={item} />
+      <div className="relative h-full flex-1 overflow-auto">
+        {item.kind === 'material' && <MaterialBody materialId={item.id} readOnly={readOnly} />}
+        {item.kind === 'file' && <FileBody color={color} fileId={item.id} />}
       </div>
     </>
   );
@@ -36,35 +46,43 @@ export function CenterContent({
 
 /** Notes render full-bleed (own title + toolbar + scroll); other materials keep
  * the shared header + padded body. */
-function MaterialCenter({ materialId, readOnly }: { materialId: string; readOnly: boolean }) {
-  const { data: material, isLoading } = useMaterial(materialId);
-  if (isLoading || !material) {
-    return (
-      <>
-        <div className="flex items-center gap-3 border-b border-divider px-5 py-4">
-          <Icon name="workspaces" className="size-5.5" />
-          <h2 className="t-subtitle translate-y-px truncate">--</h2>
-        </div>
-        <div className="flex-1 overflow-auto p-6">
-          <Skeleton className="h-full min-h-[40vh] w-full" />
-        </div>
-      </>
-    );
+function MaterialBody({ materialId, readOnly }: { materialId: string; readOnly: boolean }) {
+  const { data: material, isLoading, isError } = useMaterial(materialId);
+  const [mode, setMode] = useState<'study' | 'document'>('study');
+  if (isLoading) {
+    return <FileLoading />;
   }
-  if (material.kind === 'note') {
-    return (
-      <div className="h-full min-h-0">
-        <NoteEditor materialId={materialId} readOnly={readOnly} />
-      </div>
-    );
+  if (isError || !material) {
+    return <FileError />;
   }
+  const hasStudyView = material.kind === 'quiz' || material.kind === 'flashcards';
+  const showDocument = !hasStudyView || mode === 'document';
+
   return (
-    <>
-      <Header item={{ kind: 'material', id: materialId }} />
-      <div className="flex-1 overflow-auto p-6">
-        <MaterialBody materialId={materialId} readOnly={readOnly} />
+    <div className="flex h-full min-h-0 flex-col">
+      {hasStudyView && (
+        <div className="flex justify-end border-b border-divider px-3 py-2">
+          <SegmentedControl
+            size="sm"
+            options={[
+              { value: 'study', label: material.kind === 'quiz' ? 'Take quiz' : 'Study cards' },
+              { value: 'document', label: 'Edit & annotate' },
+            ]}
+            value={mode}
+            onChange={(value) => setMode(value as 'study' | 'document')}
+          />
+        </div>
+      )}
+      <div className="min-h-0 flex-1">
+        {showDocument && <NoteEditor materialId={materialId} readOnly={readOnly} />}
+        {!showDocument && material.kind === 'quiz' && (
+          <QuizPreview quizId={materialId} readOnly={readOnly} />
+        )}
+        {!showDocument && material.kind === 'flashcards' && (
+          <DeckPreview deckId={materialId} readOnly={readOnly} />
+        )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -77,7 +95,7 @@ function EmptyCenter() {
       </div>
       <div className="grid flex-1 place-items-center p-6">
         <div className="flex flex-col items-center gap-2">
-          <Icon name="files" size={32} />
+          <Icon name="files" className="size-8" />
           <p>Select a file or material to view it here.</p>
         </div>
       </div>
@@ -114,43 +132,42 @@ function useHeader(item: OpenItem): { icon: IconName; title?: string } {
   }
 }
 
-function Body({ item }: { item: OpenItem }) {
-  if (item.kind === 'file') return <FileBody fileId={item.id} />;
-  return <MaterialBody materialId={item.id} />;
+export function FileLoading() {
+  return (
+    <div className="flex h-full flex-1 flex-col items-center justify-center gap-3">
+      <Spinner />
+      <p>Loading preview...</p>
+    </div>
+  );
 }
 
-function MaterialBody({
-  materialId,
-  readOnly = false,
-}: {
-  materialId: string;
-  readOnly?: boolean;
-}) {
-  const { data: material, isLoading } = useMaterial(materialId);
-  if (isLoading || !material) return <Skeleton className="h-full min-h-[40vh] w-full" />;
-  if (material.kind === 'quiz') return <QuizPreview quizId={materialId} readOnly={readOnly} />;
-  if (material.kind === 'flashcards')
-    return <DeckPreview deckId={materialId} readOnly={readOnly} />;
-  return <MaterialView materialId={materialId} />;
+export function FileError() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
+      <p className="mt-3">Unable to Load file. Please refresh and try again.</p>
+    </div>
+  );
 }
 
-function FileBody({ fileId }: { fileId: string }) {
-  const { data: file } = useFile(fileId);
+function FileBody({ fileId, color }: { fileId: string; color?: UserColor }) {
+  const { data: file, isLoading, isError } = useFile(fileId);
+  if (isLoading) return <FileLoading />;
+  if (!isLoading && isError) return <FileError />;
   if (file?.status === 'processing') {
     return (
-      <div className="grid h-full place-items-center text-fg-muted">
+      <div className="grid h-full place-items-center">
         <div className="flex w-64 -translate-y-1/2 flex-col items-center gap-3">
-          <Icon name="sparkles" size={28} />
-          <p className="t-body text-fg-muted">Processing {file.name}…</p>
-          <ProgressBar value={file.ingestPct ?? 0} showLabel className="w-full" />
+          <Icon name="sparkles" className="size-7" />
+          <p>Processing {file.name}…</p>
+          <ProgressBar tone={color} value={file.ingestPct ?? 0} showLabel className="w-full" />
         </div>
       </div>
     );
   }
   if (file?.status === 'failed') {
     return (
-      <div className="grid h-full -translate-y-1/2 place-items-center text-solid-error">
-        <p className="t-body">Processing failed for {file.name}.</p>
+      <div className="flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
+        <p className="mt-3">Unable to process file {file.name}.</p>
       </div>
     );
   }

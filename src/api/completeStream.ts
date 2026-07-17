@@ -13,7 +13,6 @@ export interface CompleteStreamBody {
   mode: 'command' | 'continue';
   prompt?: string;
   context?: string;
-  model?: string;
 }
 
 export interface CompleteStreamHandlers {
@@ -46,7 +45,10 @@ export async function streamComplete(
   }
 
   if (!res.ok || !res.body) {
-    handlers.onError?.(`${res.status} ${res.statusText}`);
+    const payload = (await res.json().catch(() => null)) as
+      | { error?: { message?: string } }
+      | null;
+    handlers.onError?.(payload?.error?.message || `${res.status} ${res.statusText}`);
     return;
   }
 

@@ -51,7 +51,15 @@ func (a *api) listWorkspaces(ctx context.Context, in *listWorkspacesInput) (*wor
 	if err != nil {
 		return nil, hErr(err)
 	}
-	return &workspacesOutput{Body: apimodel.FromWorkspaces(res)}, nil
+	out := make([]apimodel.Workspace, len(res))
+	for i, workspace := range res {
+		role, err := a.s.WorkspaceRole(ctx, userID(ctx), workspace.ID)
+		if err != nil {
+			return nil, hErr(err)
+		}
+		out[i] = apimodel.FromWorkspaceAccess(workspace, role)
+	}
+	return &workspacesOutput{Body: out}, nil
 }
 
 func (a *api) getWorkspace(ctx context.Context, in *workspaceIDInput) (*workspaceOutput, error) {
@@ -61,19 +69,22 @@ func (a *api) getWorkspace(ctx context.Context, in *workspaceIDInput) (*workspac
 	if err != nil {
 		return nil, hErr(err)
 	}
+	role, err := a.s.WorkspaceRole(ctx, userID(ctx), in.ID)
+	if err != nil {
+		return nil, hErr(err)
+	}
 	if isOwner {
 		res, err := a.s.GetWorkspace(ctx, userID(ctx), in.ID, true)
 		if err != nil {
 			return nil, hErr(err)
 		}
-		return &workspaceOutput{Body: apimodel.FromWorkspace(res)}, nil
+		return &workspaceOutput{Body: apimodel.FromWorkspaceAccess(res, role)}, nil
 	}
 	res, err := a.s.GetWorkspaceShared(ctx, in.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
-	body := apimodel.FromWorkspace(res)
-	body.IsOwner = false
+	body := apimodel.FromWorkspaceAccess(res, role)
 	return &workspaceOutput{Body: body}, nil
 }
 

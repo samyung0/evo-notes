@@ -1,5 +1,22 @@
 components:
   schemas:
+    AccessCapabilities:
+      additionalProperties: false
+      properties:
+        canComment:
+          type: boolean
+        canEdit:
+          type: boolean
+        canManageMembers:
+          type: boolean
+        canView:
+          type: boolean
+      required:
+        - canView
+        - canEdit
+        - canComment
+        - canManageMembers
+      type: object
     AccessTokenResp:
       additionalProperties: false
       properties:
@@ -247,6 +264,39 @@ components:
         - workspace
         - ragCloned
       type: object
+    Comment:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/Comment.json
+          format: uri
+          readOnly: true
+          type: string
+        contentRich: {}
+        createdAt:
+          format: date-time
+          type: string
+        discussionId:
+          type: string
+        id:
+          type: string
+        isEdited:
+          type: boolean
+        updatedAt:
+          format: date-time
+          type: string
+        userId:
+          type: string
+      required:
+        - id
+        - discussionId
+        - userId
+        - contentRich
+        - isEdited
+        - createdAt
+        - updatedAt
+      type: object
     Conversation:
       additionalProperties: false
       properties:
@@ -338,6 +388,24 @@ components:
         front:
           type: string
       type: object
+    CreateCommentReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/CreateCommentReq.json
+          format: uri
+          readOnly: true
+          type: string
+        contentRich:
+          items:
+            additionalProperties: {}
+            type: object
+          nullable: true
+          type: array
+      required:
+        - contentRich
+      type: object
     CreateConversationReq:
       additionalProperties: false
       properties:
@@ -367,6 +435,31 @@ components:
           type: string
         workspaceId:
           type: string
+      type: object
+    CreateDiscussionReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/CreateDiscussionReq.json
+          format: uri
+          readOnly: true
+          type: string
+        anchor:
+          additionalProperties: {}
+          type: object
+        blockId:
+          type: string
+        contentRich:
+          items:
+            additionalProperties: {}
+            type: object
+          nullable: true
+          type: array
+        documentContent:
+          type: string
+      required:
+        - contentRich
       type: object
     CreateEventReq:
       additionalProperties: false
@@ -410,8 +503,8 @@ components:
           readOnly: true
           type: string
         content:
-          description: Markdown body
-          type: string
+          $ref: "#/components/schemas/Envelope"
+          description: Versioned Plate document
         kind:
           description: Material kind; defaults to note
           type: string
@@ -427,6 +520,41 @@ components:
           type: array
         title:
           type: string
+      type: object
+    CreateMaterialSuggestionReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/CreateMaterialSuggestionReq.json
+          format: uri
+          readOnly: true
+          type: string
+        anchor:
+          additionalProperties: {}
+          type: object
+        baseRevision:
+          format: int64
+          minimum: 1
+          type: integer
+        originalFragment:
+          items:
+            additionalProperties: {}
+            type: object
+          minItems: 1
+          nullable: true
+          type: array
+        proposedFragment:
+          items:
+            additionalProperties: {}
+            type: object
+          minItems: 1
+          nullable: true
+          type: array
+      required:
+        - baseRevision
+        - originalFragment
+        - proposedFragment
       type: object
     CreateQuizReq:
       additionalProperties: false
@@ -458,6 +586,24 @@ components:
         workspaceId:
           type: string
       type: object
+    CreateWorkspaceInviteReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/CreateWorkspaceInviteReq.json
+          format: uri
+          readOnly: true
+          type: string
+        email:
+          format: email
+          type: string
+        role:
+          $ref: "#/components/schemas/WorkspaceRole"
+      required:
+        - email
+        - role
+      type: object
     CreateWorkspaceReq:
       additionalProperties: false
       properties:
@@ -487,6 +633,49 @@ components:
       required:
         - name
         - privacy
+      type: object
+    CreatedWorkspaceInvite:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/CreatedWorkspaceInvite.json
+          format: uri
+          readOnly: true
+          type: string
+        acceptedAt:
+          format: date-time
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        email:
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        invitedBy:
+          type: string
+        revokedAt:
+          format: date-time
+          type: string
+        role:
+          $ref: "#/components/schemas/WorkspaceRole"
+        token:
+          type: string
+        workspaceId:
+          type: string
+      required:
+        - token
+        - id
+        - workspaceId
+        - email
+        - role
+        - invitedBy
+        - expiresAt
+        - createdAt
       type: object
     Deck:
       additionalProperties: false
@@ -531,6 +720,64 @@ components:
         - knownPct
         - dueCount
         - isOwner
+      type: object
+    Discussion:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/Discussion.json
+          format: uri
+          readOnly: true
+          type: string
+        anchor: {}
+        blockId:
+          type: string
+        comments:
+          items:
+            $ref: "#/components/schemas/Comment"
+          type: array
+        createdAt:
+          format: date-time
+          type: string
+        documentContent:
+          type: string
+        id:
+          type: string
+        isResolved:
+          type: boolean
+        materialId:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+        userId:
+          type: string
+      required:
+        - id
+        - materialId
+        - anchor
+        - userId
+        - isResolved
+        - createdAt
+        - updatedAt
+        - comments
+      type: object
+    Envelope:
+      additionalProperties: false
+      properties:
+        schemaVersion:
+          format: int64
+          type: integer
+        value:
+          items:
+            additionalProperties: {}
+            type: object
+          nullable: true
+          type: array
+      required:
+        - schemaVersion
+        - value
       type: object
     ErrorDetail:
       additionalProperties: false
@@ -748,13 +995,29 @@ components:
           format: uri
           readOnly: true
           type: string
+        capabilities:
+          $ref: "#/components/schemas/AccessCapabilities"
         chapterId:
           nullable: true
           type: string
         color:
           $ref: "#/components/schemas/UserColor"
         content:
-          type: string
+          additionalProperties: false
+          properties:
+            schemaVersion:
+              format: int64
+              type: integer
+            value:
+              items:
+                additionalProperties: {}
+                type: object
+              nullable: true
+              type: array
+          required:
+            - schemaVersion
+            - value
+          type: object
         createdAt:
           format: date-time
           type: string
@@ -766,6 +1029,11 @@ components:
           type: string
         privacy:
           $ref: "#/components/schemas/Privacy"
+        revision:
+          format: int64
+          type: integer
+        role:
+          $ref: "#/components/schemas/WorkspaceRole"
         scopeChapters:
           items:
             type: string
@@ -775,6 +1043,9 @@ components:
             type: string
           type: array
         title:
+          type: string
+        updatedAt:
+          format: date-time
           type: string
         workspaceId:
           type: string
@@ -786,13 +1057,16 @@ components:
         - workspaceName
         - kind
         - title
-        - content
         - chapterId
         - scopeChapters
         - scopeFileIds
         - privacy
         - createdAt
+        - updatedAt
+        - revision
         - isOwner
+        - capabilities
+        - content
       type: object
     MaterialRef:
       additionalProperties: false
@@ -815,6 +1089,88 @@ components:
         - title
         - chapterId
         - createdAt
+      type: object
+    MaterialRevision:
+      additionalProperties: false
+      properties:
+        content:
+          $ref: "#/components/schemas/Envelope"
+        createdAt:
+          format: date-time
+          type: string
+        createdBy:
+          type: string
+        materialId:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        title:
+          type: string
+      required:
+        - materialId
+        - revision
+        - title
+        - content
+        - createdAt
+      type: object
+    MaterialSuggestion:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/MaterialSuggestion.json
+          format: uri
+          readOnly: true
+          type: string
+        anchor:
+          additionalProperties: {}
+          type: object
+        baseRevision:
+          format: int64
+          type: integer
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        materialId:
+          type: string
+        originalFragment:
+          items:
+            additionalProperties: {}
+            type: object
+          nullable: true
+          type: array
+        proposedFragment:
+          items:
+            additionalProperties: {}
+            type: object
+          nullable: true
+          type: array
+        reviewedAt:
+          format: date-time
+          type: string
+        reviewedBy:
+          type: string
+        status:
+          $ref: "#/components/schemas/SuggestionStatus"
+        updatedAt:
+          format: date-time
+          type: string
+        userId:
+          type: string
+      required:
+        - id
+        - materialId
+        - userId
+        - baseRevision
+        - anchor
+        - originalFragment
+        - proposedFragment
+        - status
+        - createdAt
+        - updatedAt
       type: object
     Message:
       additionalProperties: false
@@ -985,6 +1341,8 @@ components:
       properties:
         author:
           type: string
+        capabilities:
+          $ref: "#/components/schemas/AccessCapabilities"
         chapterCount:
           format: int64
           type: integer
@@ -1010,6 +1368,8 @@ components:
           type: string
         privacy:
           $ref: "#/components/schemas/Privacy"
+        role:
+          $ref: "#/components/schemas/WorkspaceRole"
         tags:
           items:
             $ref: "#/components/schemas/Tag"
@@ -1027,6 +1387,7 @@ components:
         - createdAt
         - lastAccessedAt
         - isOwner
+        - capabilities
       type: object
     Quiz:
       additionalProperties: false
@@ -1193,6 +1554,13 @@ components:
         - canceled
         - trialing
       type: string
+    SuggestionStatus:
+      enum:
+        - pending
+        - accepted
+        - rejected
+        - withdrawn
+      type: string
     Tag:
       additionalProperties: false
       properties:
@@ -1291,6 +1659,24 @@ components:
           format: int64
           type: integer
       type: object
+    UpdateCommentReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/UpdateCommentReq.json
+          format: uri
+          readOnly: true
+          type: string
+        contentRich:
+          items:
+            additionalProperties: {}
+            type: object
+          nullable: true
+          type: array
+      required:
+        - contentRich
+      type: object
     UpdateDeckReq:
       additionalProperties: false
       properties:
@@ -1307,6 +1693,20 @@ components:
         privacy:
           $ref: "#/components/schemas/Privacy"
           description: Visibility (share standalone)
+      type: object
+    UpdateDiscussionReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/UpdateDiscussionReq.json
+          format: uri
+          readOnly: true
+          type: string
+        isResolved:
+          type: boolean
+      required:
+        - isResolved
       type: object
     UpdateEventReq:
       additionalProperties: false
@@ -1361,7 +1761,12 @@ components:
           description: Chapter to file under; empty string unfiles; omit to leave unchanged
           type: string
         content:
-          type: string
+          $ref: "#/components/schemas/Envelope"
+        expectedRevision:
+          description: Required when changing title or content
+          format: int64
+          minimum: 1
+          type: integer
         privacy:
           $ref: "#/components/schemas/Privacy"
           description: Visibility (share standalone)
@@ -1375,6 +1780,24 @@ components:
           type: array
         title:
           type: string
+      type: object
+    UpdateMaterialSuggestionStatusReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/UpdateMaterialSuggestionStatusReq.json
+          format: uri
+          readOnly: true
+          type: string
+        status:
+          $ref: "#/components/schemas/SuggestionStatus"
+          enum:
+            - accepted
+            - rejected
+            - withdrawn
+      required:
+        - status
       type: object
     UpdateQuizReq:
       additionalProperties: false
@@ -1417,6 +1840,20 @@ components:
           type: string
         title:
           type: string
+      type: object
+    UpdateWorkspaceMemberReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/UpdateWorkspaceMemberReq.json
+          format: uri
+          readOnly: true
+          type: string
+        role:
+          $ref: "#/components/schemas/WorkspaceRole"
+      required:
+        - role
       type: object
     UpdateWorkspaceReq:
       additionalProperties: false
@@ -1491,6 +1928,8 @@ components:
           format: uri
           readOnly: true
           type: string
+        capabilities:
+          $ref: "#/components/schemas/AccessCapabilities"
         chapterCount:
           format: int64
           type: integer
@@ -1513,6 +1952,8 @@ components:
           type: string
         privacy:
           $ref: "#/components/schemas/Privacy"
+        role:
+          $ref: "#/components/schemas/WorkspaceRole"
         tags:
           items:
             $ref: "#/components/schemas/Tag"
@@ -1528,7 +1969,81 @@ components:
         - createdAt
         - lastAccessedAt
         - isOwner
+        - capabilities
       type: object
+    WorkspaceInvite:
+      additionalProperties: false
+      properties:
+        acceptedAt:
+          format: date-time
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        email:
+          type: string
+        expiresAt:
+          format: date-time
+          type: string
+        id:
+          type: string
+        invitedBy:
+          type: string
+        revokedAt:
+          format: date-time
+          type: string
+        role:
+          $ref: "#/components/schemas/WorkspaceRole"
+        workspaceId:
+          type: string
+      required:
+        - id
+        - workspaceId
+        - email
+        - role
+        - invitedBy
+        - expiresAt
+        - createdAt
+      type: object
+    WorkspaceMember:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/WorkspaceMember.json
+          format: uri
+          readOnly: true
+          type: string
+        avatarUrl:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/WorkspaceRole"
+        userId:
+          type: string
+        workspaceId:
+          type: string
+      required:
+        - workspaceId
+        - userId
+        - name
+        - email
+        - role
+        - createdAt
+      type: object
+    WorkspaceRole:
+      enum:
+        - owner
+        - editor
+        - commenter
+        - viewer
+      type: string
     WorkspaceStats:
       additionalProperties: false
       properties:
@@ -1777,6 +2292,57 @@ paths:
       summary: Update a chapter
       tags:
         - Content
+  /api/comments/{id}:
+    delete:
+      operationId: deleteMaterialComment
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a discussion comment
+      tags:
+        - Material collaboration
+    patch:
+      operationId: updateMaterialComment
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCommentReq"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Edit a discussion comment
+      tags:
+        - Material collaboration
   /api/conversations/{id}:
     delete:
       operationId: deleteConversation
@@ -2014,6 +2580,84 @@ paths:
       summary: Clone a shared deck
       tags:
         - Sharing
+  /api/discussions/{id}:
+    delete:
+      operationId: deleteMaterialDiscussion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Delete a discussion
+      tags:
+        - Material collaboration
+    patch:
+      operationId: updateMaterialDiscussion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDiscussionReq"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Resolve or reopen a discussion
+      tags:
+        - Material collaboration
+  /api/discussions/{id}/comments:
+    post:
+      operationId: createMaterialComment
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentReq"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Add a discussion comment
+      tags:
+        - Material collaboration
   /api/events:
     get:
       operationId: listEvents
@@ -2377,6 +3021,57 @@ paths:
       summary: List labels
       tags:
         - Schedule
+  /api/material-suggestions/{id}:
+    delete:
+      operationId: withdrawMaterialSuggestion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Withdraw a suggestion
+      tags:
+        - Material collaboration
+    patch:
+      operationId: updateMaterialSuggestionStatus
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMaterialSuggestionStatusReq"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaterialSuggestion"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Accept, reject, or withdraw a suggestion
+      tags:
+        - Material collaboration
   /api/materials/{id}:
     delete:
       operationId: deleteMaterial
@@ -2477,6 +3172,150 @@ paths:
       summary: Clone a shared material
       tags:
         - Sharing
+  /api/materials/{id}/discussions:
+    get:
+      operationId: listMaterialDiscussions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/Discussion"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List material discussions
+      tags:
+        - Material collaboration
+    post:
+      operationId: createMaterialDiscussion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDiscussionReq"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Discussion"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create a material discussion
+      tags:
+        - Material collaboration
+  /api/materials/{id}/revisions:
+    get:
+      operationId: listMaterialRevisions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/MaterialRevision"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List material revisions
+      tags:
+        - Material collaboration
+  /api/materials/{id}/suggestions:
+    get:
+      operationId: listMaterialSuggestions
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/MaterialSuggestion"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List material suggestions
+      tags:
+        - Material collaboration
+    post:
+      operationId: createMaterialSuggestion
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMaterialSuggestionReq"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MaterialSuggestion"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Create a material suggestion
+      tags:
+        - Material collaboration
   /api/me:
     get:
       operationId: getMe
@@ -2942,6 +3781,31 @@ paths:
       summary: Save a canvas
       tags:
         - Thinking
+  /api/workspace-invites/{token}/accept:
+    post:
+      operationId: acceptWorkspaceInvite
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceMember"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Accept a workspace invite
+      tags:
+        - Workspace collaboration
   /api/workspaces:
     get:
       operationId: listWorkspaces
@@ -3284,6 +4148,90 @@ paths:
       summary: List workspace files
       tags:
         - Content
+  /api/workspaces/{id}/invites:
+    get:
+      operationId: listWorkspaceInvites
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/WorkspaceInvite"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List workspace invites
+      tags:
+        - Workspace collaboration
+    post:
+      operationId: createWorkspaceInvite
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkspaceInviteReq"
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedWorkspaceInvite"
+          description: Created
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Invite a workspace member
+      tags:
+        - Workspace collaboration
+  /api/workspaces/{id}/invites/{inviteId}:
+    delete:
+      operationId: revokeWorkspaceInvite
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: inviteId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Revoke a workspace invite
+      tags:
+        - Workspace collaboration
   /api/workspaces/{id}/materials:
     get:
       operationId: listMaterials
@@ -3342,6 +4290,91 @@ paths:
       summary: Create a note material
       tags:
         - Materials
+  /api/workspaces/{id}/members:
+    get:
+      operationId: listWorkspaceMembers
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/WorkspaceMember"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: List workspace members
+      tags:
+        - Workspace collaboration
+  /api/workspaces/{id}/members/{memberId}:
+    delete:
+      operationId: removeWorkspaceMember
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: memberId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Remove a workspace member
+      tags:
+        - Workspace collaboration
+    patch:
+      operationId: updateWorkspaceMember
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: memberId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWorkspaceMemberReq"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Change a workspace member role
+      tags:
+        - Workspace collaboration
   /api/workspaces/{id}/stats:
     get:
       operationId: getWorkspaceStats

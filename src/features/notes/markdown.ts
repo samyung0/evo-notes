@@ -8,13 +8,22 @@ import { MarkdownPlugin, remarkMdx } from '@platejs/markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkEmoji from 'remark-emoji';
-import { isCustomBlockLang } from './blocks/shared';
+import {
+  customBlockCode,
+  customBlockNode,
+  isCustomBlockLang,
+  type CustomBlockLang,
+} from './blocks/shared';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyNode = any;
 
 function serializeCustomBlock(lang: string) {
-  return (node: AnyNode) => ({ type: 'code', lang, value: String(node.code ?? '') });
+  return (node: AnyNode) => ({
+    type: 'code',
+    lang,
+    value: customBlockCode(node),
+  });
 }
 
 export const noteMarkdownPlugin = MarkdownPlugin.configure({
@@ -27,7 +36,7 @@ export const noteMarkdownPlugin = MarkdownPlugin.configure({
         deserialize: (node: AnyNode) => {
           const lang = node.lang ?? undefined;
           if (isCustomBlockLang(lang)) {
-            return { type: lang, code: String(node.value ?? ''), children: [{ text: '' }] };
+            return customBlockNode(lang as CustomBlockLang, String(node.value ?? ''));
           }
           const lines = String(node.value ?? '').split('\n');
           return {

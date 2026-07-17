@@ -35,10 +35,12 @@ high PRIORITIES:
 6. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
 7. inject script in head to set light/dark to prevent flashing
 8. add icons for common file format
-9. user can highlight words in workspace to reveal actions (summarize/copy to text)
+9. user can select any markdown contents (notes/quiz/mermaid) and then apply non-layout shifting operations (e.g. highlight/bold/underline), only layout shifting operation allowed is suggestion edit?, also they can like comment ask ai to summarize
 10. export to diff files
 11. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
 12. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
+13. tie workspace opened file to the queryParams
+14. check that shared workspaces (both link + public) file cannot be modified except from its owner (user needs to clone to edit)
 
 rag system caution
 chapter scoped query/filtering is only soft steered using prompt, underlying reason why hard filtering during query is quite impossible is because after ingestion, an entity can be pointed to by multiple documents
