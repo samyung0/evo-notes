@@ -83,12 +83,6 @@
   --color-solid-graphite: var(--solid-graphite);
   --color-solid-graphite-fg: var(--solid-graphite-fg);
 
-  /* Note surfaces */
-  --color-note-green: var(--note-green-bg);
-  --color-note-green-fg: var(--note-green-fg);
-  --color-note-purple: var(--note-purple-bg);
-  --color-note-purple-fg: var(--note-purple-fg);
-
   /* Radii → rounded-* */
   --radius-input: var(--radius-input);
   --radius-button: var(--radius-button);

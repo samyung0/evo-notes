@@ -1,0 +1,10 @@
+[
+  {
+    "corsRuleName": "evo-browser-upload",
+    "allowedOrigins": ["https://YOUR_APP_ORIGIN"],
+    "allowedHeaders": ["content-type"],
+    "allowedOperations": ["s3_put"],
+    "exposeHeaders": ["etag"],
+    "maxAgeSeconds": 3600
+  }
+]

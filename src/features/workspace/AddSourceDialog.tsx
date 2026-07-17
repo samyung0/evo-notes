@@ -1,11 +1,22 @@
-import { useRef, useState } from 'react';
+import { USE_MSW } from '@/api/auth';
+import { api } from '@/api/client';
 import {
-  SimpleDialog,
+  useAddChapter,
+  useChapters,
+  useImportSources,
+  useIntegrations,
+  useUploadSource,
+} from '@/api/hooks';
+import type { Chapter, FileKind, SourceFile } from '@/api/types';
+import {
   Button,
+  ConfirmDialog,
+  DialogClose,
+  DialogFooter,
   Icon,
   IconButton,
-  Text,
-  Tabs,
+  Input,
+  ProgressBar,
   Select,
   SelectContent,
   SelectGroup,
@@ -13,28 +24,18 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-  DialogClose,
-  DialogFooter,
+  SimpleDialog,
   Spinner,
-  Input,
+  Tabs,
+  Text,
+  userToast,
 } from '@/components/ui';
-import { toast } from 'sonner';
-import {
-  useAddChapter,
-  useChapters,
-  useImportSources,
-  useIntegrations,
-  useMicrosoftRecentFiles,
-  useUploadSource,
-} from '@/api/hooks';
-import { api } from '@/api/client';
-import { USE_MSW } from '@/api/auth';
-import { useProviderConnect } from '@/lib/useProviderConnect';
-import type { Chapter, FileKind, PlanTier, SourceFile } from '@/api/types';
-import { useDialogs } from '@/stores/dialogs';
-import { InputTitle } from '@/components/ui/Input';
-import { useForm } from 'react-hook-form';
 import { m } from '@/i18n';
+import { cn } from '@/lib/cn';
+import { useProviderConnect } from '@/lib/useProviderConnect';
+import { useDialogs } from '@/stores/dialogs';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 const KIND_BY_EXT: Record<string, FileKind> = {
   pdf: 'pdf',
@@ -42,6 +43,7 @@ const KIND_BY_EXT: Record<string, FileKind> = {
   docx: 'doc',
   md: 'md',
   markdown: 'md',
+  mdx: 'md',
   txt: 'txt',
   png: 'image',
   jpg: 'image',
@@ -69,7 +71,120 @@ const KIND_BY_EXT: Record<string, FileKind> = {
   ogg: 'audio',
   flac: 'audio',
   aac: 'audio',
+  json: 'json',
+  map: 'json',
 };
+
+const TEXT_EXT = [
+  '3dml',
+  'appcache',
+  'asm',
+  'c',
+  'cc',
+  'coffee',
+  'conf',
+  'cpp',
+  'css',
+  'csv',
+  'curl',
+  'cxx',
+  'dcurl',
+  'def',
+  'dic',
+  'dsc',
+  'etx',
+  'f',
+  'f77',
+  'f90',
+  'flx',
+  'fly',
+  'for',
+  'ged',
+  'gv',
+  'h',
+  'hbs',
+  'hh',
+  'htm',
+  'html',
+  'htc',
+  'ics',
+  'ifb',
+  'in',
+  'ini',
+  'jad',
+  'jade',
+  'java',
+  'js',
+  'jsx',
+  'less',
+  'list',
+  'litcoffee',
+  'log',
+  'lua',
+  'man',
+  'manifest',
+  'markdown',
+  'mcurl',
+  'md',
+  'mdx',
+  'me',
+  'mjs',
+  'mkd',
+  'mml',
+  'ms',
+  'n3',
+  'nfo',
+  'opml',
+  'org',
+  'p',
+  'pas',
+  'pde',
+  'roff',
+  'rtf',
+  'rtx',
+  's',
+  'sass',
+  'scss',
+  'scurl',
+  'sgm',
+  'sgml',
+  'shex',
+  'shtml',
+  'slim',
+  'slm',
+  'spdx',
+  'spot',
+  'styl',
+  'stylus',
+  'sub',
+  't',
+  'text',
+  'tr',
+  'tsv',
+  'ttl',
+  'txt',
+  'uri',
+  'uris',
+  'urls',
+  'uu',
+  'vcard',
+  'vcf',
+  'vcs',
+  'vtt',
+  'wgsl',
+  'wml',
+  'wmls',
+  'xml',
+  'yaml',
+  'yml',
+];
+
+function getFileKind(name: string): FileKind {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (Object.prototype.hasOwnProperty.call(KIND_BY_EXT, ext)) return KIND_BY_EXT[ext];
+  if (TEXT_EXT.includes(ext)) return 'txt';
+  return 'unknown';
+}
 
 /* ------------------------------------------------------------ parse modes */
 
@@ -81,16 +196,38 @@ const NORMAL_MAX_PAGES = 20;
 
 // Advanced = Modal MinerU hybrid backend (pipeline _MODAL_SUFFIXES allowlist).
 const ADVANCED_EXTS = new Set([
-  'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
-  'png', 'jpg', 'jpeg', 'jp2', 'webp', 'gif', 'bmp',
+  'pdf',
+  'doc',
+  'docx',
+  'ppt',
+  'pptx',
+  'xls',
+  'xlsx',
+  'png',
+  'jpg',
+  'jpeg',
+  'jp2',
+  'webp',
+  'gif',
+  'bmp',
 ]);
 // Normal = free MinerU lightweight cloud API: PDF, images, docx/pptx/xlsx
 // only, ≤ 10 MB and ≤ 20 pages (page count enforced by the API).
 const NORMAL_EXTS = new Set([
-  'pdf', 'png', 'jpg', 'jpeg', 'jp2', 'webp', 'gif', 'bmp', 'docx', 'pptx', 'xlsx',
+  'pdf',
+  'png',
+  'jpg',
+  'jpeg',
+  'jp2',
+  'webp',
+  'gif',
+  'bmp',
+  'docx',
+  'pptx',
+  'xlsx',
 ]);
 // Plain text is indexed directly by the worker — no parse step involved.
-const TEXT_KINDS = new Set<FileKind>(['txt', 'md']);
+const TEXT_KINDS = new Set<FileKind>(['txt', 'md', 'json']);
 
 function fileExt(name: string) {
   return name.includes('.') ? (name.split('.').pop()?.toLowerCase() ?? '') : '';
@@ -122,8 +259,8 @@ function parseModeIssues(
 
 function defaultParseMode(file: File, pageCount?: number | null): ParseMode {
   const issues = parseModeIssues(file, pageCount);
-  if (!issues.advanced) return 'advanced';
   if (!issues.normal) return 'normal';
+  if (!issues.advanced) return 'advanced';
   return 'none';
 }
 
@@ -215,17 +352,19 @@ function ChapterSelect({
         onChange(v === NO_CHAPTER ? null : v);
       }}
     >
-      <SelectTrigger size="sm">
-        <SelectValue placeholder="No chapter"></SelectValue>
+      <SelectTrigger size="sm" variant="underline" className="w-fit">
+        <div className="w-fit max-w-36 min-w-28">
+          <SelectValue></SelectValue>
+        </div>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="max-w-47">
         <SelectGroup>
-          <SelectItem value={NO_CHAPTER}>
+          <SelectItem size="sm" value={NO_CHAPTER}>
             <span className="text-fg-muted">No chapter</span>
           </SelectItem>
           {chapters.map((o) => (
-            <SelectItem key={o.id} value={o.id}>
-              <span className="translate-y-px">{o.name}</span>
+            <SelectItem size="sm" key={o.id} value={o.id}>
+              <span className="line-clamp-1 translate-y-px">{o.name}</span>
             </SelectItem>
           ))}
         </SelectGroup>
@@ -233,7 +372,7 @@ function ChapterSelect({
           <>
             <SelectSeparator />
             <SelectGroup>
-              <SelectItem value={CREATE_CHAPTER}>
+              <SelectItem size="sm" value={CREATE_CHAPTER}>
                 <span className="flex items-center gap-1.5">
                   <Icon name="plus" size={14} />
                   New chapter…
@@ -255,6 +394,7 @@ interface PendingFile {
   parseMode: ParseMode;
   /** PDF page count via pdfjs; undefined = still counting, null = unknown. */
   pageCount?: number | null;
+  uploadPct?: number;
 }
 
 function ParseModeSelect({
@@ -264,50 +404,61 @@ function ParseModeSelect({
   pending: PendingFile;
   onChange: (mode: ParseMode) => void;
 }) {
-  if (TEXT_KINDS.has(pending.kind)) {
-    return <Text variant="meta" tone="muted">Indexed as text</Text>;
-  }
+  if (pending.kind === 'unknown') return;
+  if (TEXT_KINDS.has(pending.kind)) return;
   const issues = parseModeIssues(pending.file, pending.pageCount);
-  if (issues.advanced && issues.normal) {
-    return <Text variant="meta" tone="muted">Parsing not supported</Text>;
-  }
+  if (issues.advanced && issues.normal) return;
   return (
     <Select value={pending.parseMode} onValueChange={(v) => onChange(v as ParseMode)}>
-      <SelectTrigger size="sm">
+      <SelectTrigger size="sm" variant="underline" className="w-fit">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
-          <SelectItem value="advanced" disabled={!!issues.advanced}>
+          <SelectItem size="sm" value="advanced" disabled={!!issues.advanced}>
             Advanced parsing{issues.advanced ? ` (${issues.advanced})` : ''}
           </SelectItem>
-          <SelectItem value="normal" disabled={!!issues.normal}>
+          <SelectItem size="sm" value="normal" disabled={!!issues.normal}>
             Normal parsing{issues.normal ? ` (${issues.normal})` : ''}
           </SelectItem>
-          <SelectItem value="none">No parsing</SelectItem>
+          <SelectItem size="sm" value="none">
+            No parsing
+          </SelectItem>
         </SelectGroup>
       </SelectContent>
     </Select>
   );
 }
 
-function UploadFiles({ workspaceId, onClose }: { workspaceId: string; onClose?: () => void }) {
+// TODO: two-pass upload: check storage size againts upload request on first pass and validate (make sure that the file format etc is valid for normal (ocr) or advanced (vlm) parsing)
+// TODO: show file upload progress on confirm upload
+function UploadFiles({
+  workspaceId,
+  onClose,
+  className,
+}: {
+  workspaceId: string;
+  onClose?: () => void;
+  className?: string;
+}) {
   const uploadSource = useUploadSource(workspaceId);
   const addChapter = useAddChapter(workspaceId);
   const { data: chapters } = useChapters(workspaceId);
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadControllers = useRef(new Map<string, AbortController>());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [files, setFiles] = useState<PendingFile[]>([]);
   // Row currently typing a new chapter name (replaces its chapter select).
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
   const [newChapterName, setNewChapterName] = useState('');
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   function handleFiles(list: FileList | null) {
     if (!list?.length) return;
     const added = Array.from(list).map((f, i) => ({
       key: `${Date.now()}-${i}-${f.name}`,
       file: f,
-      kind: KIND_BY_EXT[fileExt(f.name)] ?? ('txt' as const),
+      kind: getFileKind(f.name),
       chapterId: null,
       parseMode: defaultParseMode(f),
     }));
@@ -336,6 +487,7 @@ function UploadFiles({ workspaceId, onClose }: { workspaceId: string; onClose?: 
     setFiles((prev) => prev.map((f) => (f.key === key ? { ...f, ...patch } : f)));
   }
 
+  // TODO: dont create the chapter in the dialog directly, send alongside the file to create in the backend
   async function confirmCreateChapter(key: string) {
     const name = newChapterName.trim();
     if (!name) return;
@@ -347,7 +499,10 @@ function UploadFiles({ workspaceId, onClose }: { workspaceId: string; onClose?: 
       setCreatingKey(null);
       setNewChapterName('');
     } catch {
-      toast.error('Could not create chapter');
+      userToast({
+        title: `Some files failed to upload`,
+        button: { label: 'Dismiss', onClick: () => {} },
+      });
     }
   }
 
@@ -355,32 +510,49 @@ function UploadFiles({ workspaceId, onClose }: { workspaceId: string; onClose?: 
     if (isSubmitting || files.length === 0) return;
     setIsSubmitting(true);
     const results = await Promise.allSettled(
-      files.map((f) =>
-        uploadSource
+      files.map((f) => {
+        const controller = new AbortController();
+        uploadControllers.current.set(f.key, controller);
+        return uploadSource
           .mutateAsync({
             file: f.file,
             kind: f.kind,
             chapterId: f.chapterId,
             parseMode: f.parseMode,
+            signal: controller.signal,
+            onUploadProgress: (uploadPct) => patchFile(f.key, { uploadPct }),
           })
           .then(() => {
             setFiles((prev) => prev.filter((pf) => pf.key !== f.key));
           })
-      )
+          .finally(() => uploadControllers.current.delete(f.key));
+      })
     );
     setIsSubmitting(false);
     if (results.every((r) => r.status === 'fulfilled')) {
       onClose?.();
     } else {
-      toast.error('Some files failed to upload');
+      userToast({
+        title: `Some files failed to upload`,
+        button: { label: 'Dismiss', onClick: () => {} },
+      });
     }
+  };
+  const formatFileSizes = () => {
+    const totalBytes = files.reduce((acc, file) => acc + file.file.size, 0);
+    if (totalBytes < 1024) return `${totalBytes} bytes`;
+    if (totalBytes < 1024 * 1024) return `${(totalBytes / 1024).toFixed(1)} KB`;
+    return `${(totalBytes / 1024 / 1024).toFixed(1)} MB`;
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn('flex flex-col gap-4', className)}>
       <button
         onClick={() => inputRef.current?.click()}
-        className="flex flex-col items-center gap-2 rounded-card border-[1.5px] border-dashed border-line-strong px-6 py-8 text-fg-secondary transition-colors hover:bg-surface-hover-bg"
+        className={cn(
+          'flex flex-col items-center gap-2 rounded-card border-2 border-dashed border-line px-6 py-8 transition-colors hover:bg-surface-hover-bg',
+          files.length > 0 && 'py-4'
+        )}
       >
         <Icon name="upload" className="size-7" />
         <p className="t-subtitle">Upload from your computer</p>
@@ -395,104 +567,135 @@ function UploadFiles({ workspaceId, onClose }: { workspaceId: string; onClose?: 
       />
 
       {files.length > 0 && (
-        <ul className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1">
+        <ul className="flex max-h-88 flex-col gap-2 overflow-y-auto pr-1">
           {files.map((f) => (
-            <li key={f.key} className="flex flex-col gap-2 rounded-card border border-line p-3">
-              <div className="flex items-center gap-2">
-                <Icon name="files" size={16} className="shrink-0 text-fg-muted" />
-                <span className="t-subtitle min-w-0 flex-1 truncate" title={f.file.name}>
-                  {f.file.name}
-                </span>
-                <span className="t-meta shrink-0 text-fg-muted">
-                  {formatSize(f.file.size)}
-                  {f.pageCount != null && ` · ${f.pageCount} ${f.pageCount === 1 ? 'page' : 'pages'}`}
-                </span>
-                <IconButton
-                  icon="x"
-                  size="xs"
-                  variant="ghost-hover"
-                  label="Remove file"
-                  onClick={() => setFiles((prev) => prev.filter((pf) => pf.key !== f.key))}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  {creatingKey === f.key ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        autoFocus
-                        value={newChapterName}
-                        placeholder="New chapter name"
-                        onChange={(e) => setNewChapterName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void confirmCreateChapter(f.key);
-                          if (e.key === 'Escape') setCreatingKey(null);
-                        }}
-                      />
-                      <IconButton
-                        icon="check"
-                        size="xs"
-                        variant="ghost-hover"
-                        label="Create chapter"
-                        disabled={!newChapterName.trim() || addChapter.isPending}
-                        onClick={() => void confirmCreateChapter(f.key)}
-                      />
-                      <IconButton
-                        icon="x"
-                        size="xs"
-                        variant="ghost-hover"
-                        label="Cancel"
-                        onClick={() => setCreatingKey(null)}
-                      />
-                    </div>
-                  ) : (
-                    <ChapterSelect
-                      chapters={chapters ?? []}
-                      value={f.chapterId}
-                      onChange={(v) => patchFile(f.key, { chapterId: v })}
-                      onCreateRequest={() => {
-                        setCreatingKey(f.key);
-                        setNewChapterName('');
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="flex min-w-0 flex-1 justify-end">
-                  <ParseModeSelect
-                    pending={f}
-                    onChange={(mode) => patchFile(f.key, { parseMode: mode })}
+            <li key={f.key} className="flex flex-col gap-2 px-1.5 pt-0.5">
+              <div className="flex flex-col gap-0">
+                <div className="flex flex-1 justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Icon name="files" className="size-4 shrink-0 -translate-y-px" />
+                    <span className="t-subtitle min-w-0 flex-1 truncate" title={f.file.name}>
+                      {f.file.name}
+                    </span>
+                  </div>
+                  <IconButton
+                    icon="x"
+                    size="xs"
+                    variant="ghost-hover"
+                    label="Remove file"
+                    onClick={() => {
+                      uploadControllers.current.get(f.key)?.abort();
+                      setFiles((prev) => prev.filter((pf) => pf.key !== f.key));
+                    }}
                   />
                 </div>
+                <div className="flex items-center gap-2">
+                  <span className="t-meta shrink-0 text-fg-muted">
+                    {formatSize(f.file.size)}
+                    {f.pageCount != null &&
+                      ` · ${f.pageCount} ${f.pageCount === 1 ? 'page' : 'pages'}`}
+                    {` · ${f.kind.toUpperCase()}`}
+                  </span>
+                  <div className="flex flex-1 items-center justify-end gap-2">
+                    <div className="min-w-0">
+                      {creatingKey === f.key ? (
+                        <div className="flex items-center gap-0">
+                          <Input
+                            autoFocus
+                            variant="underline"
+                            size="sm"
+                            value={newChapterName}
+                            placeholder="New chapter name"
+                            onChange={(e) => setNewChapterName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void confirmCreateChapter(f.key);
+                              if (e.key === 'Escape') setCreatingKey(null);
+                            }}
+                          />
+                          <IconButton
+                            icon="check"
+                            size="xs"
+                            variant="ghost-hover"
+                            label="Create chapter"
+                            className="p-1.5"
+                            disabled={!newChapterName.trim() || addChapter.isPending}
+                            onClick={() => void confirmCreateChapter(f.key)}
+                          />
+                          <IconButton
+                            icon="x"
+                            size="xs"
+                            variant="ghost-hover"
+                            className="p-1.5"
+                            label="Cancel"
+                            onClick={() => setCreatingKey(null)}
+                          />
+                        </div>
+                      ) : (
+                        <ChapterSelect
+                          chapters={chapters ?? []}
+                          value={f.chapterId}
+                          onChange={(v) => patchFile(f.key, { chapterId: v })}
+                          onCreateRequest={() => {
+                            setCreatingKey(f.key);
+                            setNewChapterName('');
+                          }}
+                        />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <ParseModeSelect
+                        pending={f}
+                        onChange={(mode) => patchFile(f.key, { parseMode: mode })}
+                      />
+                    </div>
+                  </div>
+                </div>
+                {f.uploadPct != null && (
+                  <ProgressBar value={f.uploadPct} height={4} className="mt-1.5 w-full" />
+                )}
               </div>
             </li>
           ))}
         </ul>
       )}
 
-      <Text variant="meta" tone="muted">
-        Normal parsing supports English and Chinese documents only (up to {NORMAL_MAX_MB} MB / 20
-        pages). Advanced parsing accepts files up to {ADVANCED_MAX_MB} MB.
-      </Text>
+      <p className="t-meta pt-3 text-fg-muted">
+        OCR parsing (default) supports English and Chinese documents only (up to {NORMAL_MAX_MB} MB
+        / 20 pages). VLM parsing accepts files up to {ADVANCED_MAX_MB} MB.
+      </p>
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleUpload}
+        danger={false}
+        isSubmitting={isSubmitting}
+        disabled={files.length === 0 || isSubmitting}
+        title={`Confirm Upload?`}
+        body={`This will upload ${files.length} files, total size ${formatFileSizes()}.`}
+      />
       <DialogFooter>
         <DialogClose asChild>
           <Button variant="ghost-hover" onClick={onClose}>
             Cancel
           </Button>
         </DialogClose>
-        <Button disabled={files.length === 0 || isSubmitting} onClick={handleUpload}>
-          {!isSubmitting && <span>{m.action_confirm()}</span>}
-          {isSubmitting && (
-            <span>
-              <Spinner />
-            </span>
-          )}
+        <Button disabled={files.length === 0 || isSubmitting} onClick={() => setConfirmOpen(true)}>
+          <span>{m.action_upload()}</span>
         </Button>
       </DialogFooter>
     </div>
   );
 }
 
-function ImportFiles({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
+function ImportFiles({
+  workspaceId,
+  onClose,
+  className,
+}: {
+  workspaceId: string;
+  onClose: () => void;
+  className?: string;
+}) {
   // const [chapterId, setChapterId] = useState<string | null>(null);
   const openMsImport = useDialogs((s) => s.openMsImport);
   const { data: integrations } = useIntegrations();
@@ -516,7 +719,11 @@ function ImportFiles({ workspaceId, onClose }: { workspaceId: string; onClose: (
       // consent screen and back here.
       await connectProvider(provider);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : `Could not connect ${provider}`);
+      userToast({
+        title: `Could not connect ${provider}`,
+        description: err instanceof Error ? err.message : `Something went wrong. Please try again.`,
+        button: { label: 'Dismiss', onClick: () => {} },
+      });
     }
   }
 
@@ -566,7 +773,7 @@ function ImportFiles({ workspaceId, onClose }: { workspaceId: string; onClose: (
     openMsImport(workspaceId);
   }
   return (
-    <div>
+    <div className={cn(className)}>
       <div className="grid grid-cols-2 gap-3">
         <Button
           variant="outline"
@@ -594,11 +801,19 @@ function ImportFiles({ workspaceId, onClose }: { workspaceId: string; onClose: (
   );
 }
 
-function CreateFile({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
+function CreateFile({
+  workspaceId,
+  onClose,
+  className,
+}: {
+  workspaceId: string;
+  onClose: () => void;
+  className?: string;
+}) {
   const uploadSource = useUploadSource(workspaceId);
   const [chapterId, setChapterId] = useState<string | null>(null);
 
-  return <div>dummy</div>;
+  return <div className={cn(className)}>dummy</div>;
 }
 
 export function AddSourceModal({
@@ -613,7 +828,7 @@ export function AddSourceModal({
   // TODO: i18n
   const [mode, setMode] = useState('upload');
   return (
-    <SimpleDialog open={open} onClose={onClose} title="Add file">
+    <SimpleDialog className="max-w-3xl" open={open} onClose={onClose} title="Add file">
       <div className="flex flex-col gap-4">
         <Tabs
           tabs={[
@@ -625,9 +840,21 @@ export function AddSourceModal({
           onChange={setMode}
         />
         <div className="h-full flex-1 overflow-hidden">
-          {mode === 'upload' && <UploadFiles workspaceId={workspaceId} onClose={onClose} />}
-          {mode === 'import' && <ImportFiles workspaceId={workspaceId} onClose={onClose} />}
-          {mode === 'create' && <CreateFile workspaceId={workspaceId} onClose={onClose} />}
+          <UploadFiles
+            className={cn({ hidden: mode !== 'upload' })}
+            workspaceId={workspaceId}
+            onClose={onClose}
+          />
+          <ImportFiles
+            className={cn({ hidden: mode !== 'import' })}
+            workspaceId={workspaceId}
+            onClose={onClose}
+          />
+          <CreateFile
+            className={cn({ hidden: mode !== 'create' })}
+            workspaceId={workspaceId}
+            onClose={onClose}
+          />
         </div>
       </div>
     </SimpleDialog>

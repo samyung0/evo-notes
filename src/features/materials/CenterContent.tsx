@@ -11,12 +11,18 @@ import type { OpenItem } from './openItem';
  * study material — and renders a consistent header plus the item body. Quiz and
  * flashcards materials get action-rich previews; mindmaps/diagrams render inline.
  * User-authored notes take over the whole pane with the editable Plate editor. */
-export function CenterContent({ item }: { item: OpenItem | null }) {
+export function CenterContent({
+  item,
+  readOnly = false,
+}: {
+  item: OpenItem | null;
+  readOnly?: boolean;
+}) {
   if (!item) {
     return <EmptyCenter />;
   }
   if (item.kind === 'material') {
-    return <MaterialCenter materialId={item.id} />;
+    return <MaterialCenter materialId={item.id} readOnly={readOnly} />;
   }
   return (
     <>
@@ -30,7 +36,7 @@ export function CenterContent({ item }: { item: OpenItem | null }) {
 
 /** Notes render full-bleed (own title + toolbar + scroll); other materials keep
  * the shared header + padded body. */
-function MaterialCenter({ materialId }: { materialId: string }) {
+function MaterialCenter({ materialId, readOnly }: { materialId: string; readOnly: boolean }) {
   const { data: material, isLoading } = useMaterial(materialId);
   if (isLoading || !material) {
     return (
@@ -48,7 +54,7 @@ function MaterialCenter({ materialId }: { materialId: string }) {
   if (material.kind === 'note') {
     return (
       <div className="h-full min-h-0">
-        <NoteEditor materialId={materialId} />
+        <NoteEditor materialId={materialId} readOnly={readOnly} />
       </div>
     );
   }
@@ -56,7 +62,7 @@ function MaterialCenter({ materialId }: { materialId: string }) {
     <>
       <Header item={{ kind: 'material', id: materialId }} />
       <div className="flex-1 overflow-auto p-6">
-        <MaterialBody materialId={materialId} />
+        <MaterialBody materialId={materialId} readOnly={readOnly} />
       </div>
     </>
   );
@@ -113,11 +119,18 @@ function Body({ item }: { item: OpenItem }) {
   return <MaterialBody materialId={item.id} />;
 }
 
-function MaterialBody({ materialId }: { materialId: string }) {
+function MaterialBody({
+  materialId,
+  readOnly = false,
+}: {
+  materialId: string;
+  readOnly?: boolean;
+}) {
   const { data: material, isLoading } = useMaterial(materialId);
   if (isLoading || !material) return <Skeleton className="h-full min-h-[40vh] w-full" />;
-  if (material.kind === 'quiz') return <QuizPreview quizId={materialId} />;
-  if (material.kind === 'flashcards') return <DeckPreview deckId={materialId} />;
+  if (material.kind === 'quiz') return <QuizPreview quizId={materialId} readOnly={readOnly} />;
+  if (material.kind === 'flashcards')
+    return <DeckPreview deckId={materialId} readOnly={readOnly} />;
   return <MaterialView materialId={materialId} />;
 }
 

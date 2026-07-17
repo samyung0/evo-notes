@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+from pathlib import Path
 from typing import Callable, Tuple
 
 from ..config import cfg
@@ -55,6 +56,52 @@ def fetch_local(blob_path: str) -> Tuple[str, Callable[[], None]]:
 
     log.info("downloaded blob %s -> %s", blob_path, tmp)
     return tmp, _cleanup
+
+
+def presign_get(blob_path: str, expires: int = 900) -> str:
+    return _s3_client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": cfg.b2_bucket, "Key": blob_path},
+        ExpiresIn=expires,
+    )
+
+
+def presign_put(blob_path: str, content_type: str, expires: int = 900) -> str:
+    return _s3_client().generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": cfg.b2_bucket,
+            "Key": blob_path,
+            "ContentType": content_type,
+        },
+        ExpiresIn=expires,
+    )
+
+
+def object_info(blob_path: str) -> dict | None:
+    from botocore.exceptions import ClientError
+
+    try:
+        out = _s3_client().head_object(Bucket=cfg.b2_bucket, Key=blob_path)
+    except ClientError as exc:
+        code = str(exc.response.get("Error", {}).get("Code", ""))
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            return None
+        raise
+    return {
+        "size": int(out.get("ContentLength") or 0),
+        "etag": str(out.get("ETag") or "").strip('"'),
+        "content_type": str(out.get("ContentType") or ""),
+    }
+
+
+def download_to(blob_path: str, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    _s3_client().download_file(cfg.b2_bucket, blob_path, str(destination))
+
+
+def delete(blob_path: str) -> None:
+    _s3_client().delete_object(Bucket=cfg.b2_bucket, Key=blob_path)
 
 
 def _safe_unlink(path: str) -> None:

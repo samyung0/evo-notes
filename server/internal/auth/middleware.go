@@ -18,6 +18,9 @@ type Config struct {
 	DevUserID    string
 	Store        UserStore
 	PublicPrefix []string // path prefixes that skip auth
+	// Read-only resource routes may be anonymous; handlers still enforce each
+	// resource's private/link/public visibility.
+	PublicReadPrefix []string
 }
 
 // UserStore lazily provisions users on first authenticated request.
@@ -59,6 +62,11 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if isPublic(r.URL.Path, public) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
+				isPublic(r.URL.Path, cfg.PublicReadPrefix) {
 				next.ServeHTTP(w, r)
 				return
 			}

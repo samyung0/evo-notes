@@ -550,7 +550,8 @@ func (s *Store) DeleteFile(ctx context.Context, id string) error {
 
 /* ------------------------------------------------------------- materials */
 
-const materialCols = `id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color, created_at`
+const materialCols = `id, COALESCE(workspace_id,''), workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color, created_at`
+const materialColsM = `m.id, COALESCE(m.workspace_id,''), m.workspace_name, m.kind, m.title, m.content, m.chapter_id, m.scope_chapters, m.scope_file_ids, m.privacy, m.color, m.created_at`
 
 func scanMaterial(row pgx.Row) (Material, error) {
 	var mt Material
@@ -580,9 +581,17 @@ func (s *Store) CreateMaterial(ctx context.Context, mt Material) (Material, erro
 	if mt.Color == "" {
 		mt.Color = "green"
 	}
-	_, err := s.pool.Exec(ctx, `INSERT INTO materials (id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-		mt.ID, mt.WorkspaceID, mt.WorkspaceName, mt.Kind, mt.Title, mt.Content, mt.ChapterID, mt.ScopeChapters, mt.ScopeFileIDs, mt.Privacy, mt.Color)
+	var ownerID string
+	if mt.UserID != "" {
+		ownerID = mt.UserID
+	} else if mt.WorkspaceID != "" {
+		if err := s.pool.QueryRow(ctx, `SELECT user_id FROM workspaces WHERE id=$1`, mt.WorkspaceID).Scan(&ownerID); err != nil {
+			return Material{}, err
+		}
+	}
+	_, err := s.pool.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		mt.ID, ownerID, nullStr(mt.WorkspaceID), mt.WorkspaceName, mt.Kind, mt.Title, mt.Content, mt.ChapterID, mt.ScopeChapters, mt.ScopeFileIDs, mt.Privacy, mt.Color)
 	if err != nil {
 		return Material{}, err
 	}
@@ -673,7 +682,7 @@ func (s *Store) UpdateMaterial(ctx context.Context, id string, p MaterialPatch) 
 // ownership checks on get/update/delete).
 func (s *Store) MaterialWorkspaceID(ctx context.Context, id string) (string, error) {
 	var wsID string
-	err := s.pool.QueryRow(ctx, `SELECT workspace_id FROM materials WHERE id=$1`, id).Scan(&wsID)
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(workspace_id,'') FROM materials WHERE id=$1`, id).Scan(&wsID)
 	if isNoRows(err) {
 		return "", ErrNotFound
 	}
@@ -729,9 +738,9 @@ func quizFromMaterial(mt Material) (Quiz, error) {
 }
 
 func (s *Store) ListQuizzes(ctx context.Context, userID string) ([]Quiz, error) {
-	rows, err := s.pool.Query(ctx, `SELECT m.`+strings.ReplaceAll(materialCols, ", ", ", m.")+`
-		FROM materials m JOIN workspaces w ON w.id=m.workspace_id
-		WHERE w.user_id=$1 AND m.kind='quiz' ORDER BY m.created_at DESC`, userID)
+	rows, err := s.pool.Query(ctx, `SELECT `+materialColsM+`
+		FROM materials m
+		WHERE m.user_id=$1 AND m.kind='quiz' ORDER BY m.created_at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -768,7 +777,7 @@ func (s *Store) CreateQuiz(ctx context.Context, q Quiz) (Quiz, error) {
 		return Quiz{}, err
 	}
 	mt, err := s.CreateMaterial(ctx, Material{
-		ID: q.ID, WorkspaceID: q.WorkspaceID, WorkspaceName: q.WorkspaceName, Kind: "quiz",
+		ID: q.ID, UserID: q.UserID, WorkspaceID: q.WorkspaceID, WorkspaceName: q.WorkspaceName, Kind: "quiz",
 		Title: q.Name, Content: content, ScopeChapters: q.Chapters, Privacy: q.Privacy,
 	})
 	if err != nil {
@@ -904,8 +913,8 @@ func scanDeck(row pgx.Row) (Deck, error) {
 
 func (s *Store) ListDecks(ctx context.Context, userID string) ([]Deck, error) {
 	rows, err := s.pool.Query(ctx, `SELECT m.id, m.title, COALESCE(m.workspace_id,''), m.workspace_name, m.color, m.privacy,`+deckStatsExpr+`
-		FROM materials m JOIN workspaces w ON w.id=m.workspace_id
-		WHERE w.user_id=$1 AND m.kind='flashcards' ORDER BY m.title`, userID)
+		FROM materials m
+		WHERE m.user_id=$1 AND m.kind='flashcards' ORDER BY m.title`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -931,16 +940,14 @@ func (s *Store) GetDeck(ctx context.Context, id string) (Deck, error) {
 	return d, err
 }
 
-// CreateDeck attaches to the given workspace (falling back to the user's most
-// recent one) and persists an empty flashcards markdown document.
+// CreateDeck persists an empty flashcards markdown document. An omitted
+// workspace id creates a truly standalone deck owned directly by the user.
 func (s *Store) CreateDeck(ctx context.Context, userID, name string, color UserColor, wsID string) (Deck, error) {
 	var wsName string
-	if wsID == "" {
-		if err := s.pool.QueryRow(ctx, `SELECT id, name FROM workspaces WHERE user_id=$1 ORDER BY last_accessed_at DESC LIMIT 1`, userID).Scan(&wsID, &wsName); err != nil {
+	if wsID != "" {
+		if err := s.pool.QueryRow(ctx, `SELECT name FROM workspaces WHERE id=$1 AND user_id=$2`, wsID, userID).Scan(&wsName); err != nil {
 			return Deck{}, err
 		}
-	} else {
-		_ = s.pool.QueryRow(ctx, `SELECT name FROM workspaces WHERE id=$1`, wsID).Scan(&wsName)
 	}
 	if name == "" {
 		name = "New deck"
@@ -953,7 +960,7 @@ func (s *Store) CreateDeck(ctx context.Context, userID, name string, color UserC
 		return Deck{}, err
 	}
 	mt, err := s.CreateMaterial(ctx, Material{
-		WorkspaceID: wsID, WorkspaceName: wsName, Kind: "flashcards",
+		UserID: userID, WorkspaceID: wsID, WorkspaceName: wsName, Kind: "flashcards",
 		Title: name, Content: content, Color: color,
 	})
 	if err != nil {

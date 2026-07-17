@@ -103,8 +103,13 @@ services:
       MODAL_PARSE_URL: ${MODAL_PARSE_URL:-}
       MODAL_PARSE_TOKEN: ${MODAL_PARSE_TOKEN:-}
       MODAL_PARSE_TIMEOUT: ${MODAL_PARSE_TIMEOUT:-600}
+      MODAL_B2_ARTIFACTS: ${MODAL_B2_ARTIFACTS:-true}
       EVO_PARSE_METHOD: ${EVO_PARSE_METHOD:-auto}
       MAX_PARALLEL_PARSE_MODAL: ${MAX_PARALLEL_PARSE_MODAL:-2}
+      # Cloudflare Worker that streams B2 sources into MinerU lite.
+      MINERU_RELAY_URL: ${MINERU_RELAY_URL:-}
+      MINERU_RELAY_TOKEN: ${MINERU_RELAY_TOKEN:-}
+      MINERU_RELAY_TIMEOUT: ${MINERU_RELAY_TIMEOUT:-180}
       # Embeddings (OpenRouter) — EMBEDDING_DIM is permanent for the vector store.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}

@@ -13,6 +13,9 @@ import (
 // and relay each event to the browser's EventSource. This replaces polling for
 // upload status — the UI patches its file cache as events arrive.
 func (a *api) ingestEvents(w http.ResponseWriter, r *http.Request) {
+	if !a.assertWSRead(w, r, id(r)) {
+		return
+	}
 	if a.rdb == nil {
 		http.Error(w, "redis not configured", http.StatusServiceUnavailable)
 		return

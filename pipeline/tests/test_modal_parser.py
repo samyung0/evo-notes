@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import json
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -153,3 +154,51 @@ def test_fetch_bundle_raises_on_http_error(tmp_path: Path, monkeypatch):
 
     with pytest.raises(modal_parser.ModalParseError):
         modal_parser._fetch_bundle_sync(src, "doc.pdf", raw)
+
+
+def test_remote_descriptor_has_stable_versioned_artifact(tmp_path: Path):
+    from pipeline.rag import modal_parser
+
+    src = tmp_path / "doc.pdf"
+    descriptor = modal_parser.source_descriptor(
+        blob_path="sources/blob_1.pdf",
+        file_id="f_1",
+        source_etag="etag-1",
+        source_size=123,
+    )
+    src.write_text(json.dumps(descriptor), encoding="utf-8")
+
+    key1, fingerprint1 = modal_parser.artifact_identity(descriptor)
+    key2, fingerprint2 = modal_parser.artifact_identity(descriptor)
+    assert key1 == key2
+    assert fingerprint1 == fingerprint2
+    assert key1.startswith(f"parsed/f_1/{modal_parser.PARSER_VERSION}/")
+    assert _bundle_signature(src)["source_fingerprint"] == fingerprint1
+
+
+def test_extract_artifact_rejects_path_traversal(tmp_path: Path, monkeypatch):
+    from pipeline.rag import modal_parser
+
+    archive_path = tmp_path / "malicious.zip"
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr(
+            "manifest.json",
+            json.dumps(
+                {
+                    "schema": modal_parser.ARTIFACT_SCHEMA,
+                    "parser_version": modal_parser.PARSER_VERSION,
+                }
+            ),
+        )
+        archive.writestr("content_list.json", "[]")
+        archive.writestr("../outside.txt", "owned")
+
+    def fake_download(_key: str, destination: Path):
+        destination.write_bytes(archive_path.read_bytes())
+
+    monkeypatch.setattr(modal_parser.blobstore, "download_to", fake_download)
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    with pytest.raises(modal_parser.ModalParseError, match="unsafe path"):
+        modal_parser._extract_artifact("parsed/test.zip", raw)
+    assert not (tmp_path / "outside.txt").exists()

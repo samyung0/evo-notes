@@ -17,4 +17,6 @@ export const FileKind = {
   slides: 'slides',
   video: 'video',
   audio: 'audio',
+  json: 'json',
+  unknown: 'unknown',
 } as const;

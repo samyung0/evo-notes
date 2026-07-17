@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import type { Privacy } from '@/api/types';
-import { Button, Icon, type IconName, SimpleDialog, Text, toast } from '@/components/ui';
+import { Button } from '@/components/ui/Button';
+import { SimpleDialog } from '@/components/ui/Dialog';
+import { Icon, type IconName } from '@/components/ui/Icon';
+import { userToast } from '@/components/ui/Sonner';
+import { Text } from '@/components/ui/Text';
 import {
   Select,
   SelectContent,
@@ -56,7 +60,7 @@ export function ShareDialog({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({
+      userToast({
         title: 'Could not copy link',
         description: absoluteLink,
         button: { label: 'Dismiss', onClick: () => {} },
@@ -65,12 +69,10 @@ export function ShareDialog({
   }
 
   return (
-    <SimpleDialog open={open} onClose={onClose} title={title ?? 'Share'} width={460}>
+    <SimpleDialog open={open} onClose={onClose} title={title ?? 'Share'}>
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
-          <Text variant="body" className="font-medium">
-            Visibility
-          </Text>
+          <p>Visibility</p>
           <div className="max-w-70 min-w-45">
             <Select
               value={privacy}

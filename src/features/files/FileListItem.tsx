@@ -12,7 +12,7 @@ import {
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { useDeleteFile, useMoveFile, useUpdateFile } from '@/api/hooks';
-import type { Chapter, SourceFile } from '@/api/types';
+import type { Chapter, SourceFile, UserColor } from '@/api/types';
 import { MoveToChapterDialog } from '@/features/workspace/MoveToChapterDialog';
 import { m } from '@/i18n';
 
@@ -28,8 +28,10 @@ export function FileListItem({
   active,
   onOpen,
   workspaceId,
+  color,
   chapters = [],
   onDeleted,
+  readOnly = false,
 }: {
   file: SourceFile;
   active: boolean;
@@ -37,7 +39,10 @@ export function FileListItem({
   workspaceId: string;
   /** Workspace chapters, for the "Move to chapter…" picker. */
   chapters?: Chapter[];
+  color?: UserColor;
   onDeleted?: (id: string) => void;
+  /** Shared workspace viewers can open files but cannot mutate them. */
+  readOnly?: boolean;
 }) {
   const processing = file.status === 'processing';
   const failed = file.status === 'failed';
@@ -54,19 +59,22 @@ export function FileListItem({
   return (
     <div className="flex flex-col">
       <div
-        draggable={!processing}
+        draggable={!processing && !readOnly}
         onDragStart={(e) => {
           e.dataTransfer.setData('application/x-evo-file', file.id);
           e.dataTransfer.effectAllowed = 'move';
         }}
-        className="group relative flex items-center rounded-row pr-8 hover:bg-surface-hover-bg"
+        className={cn(
+          'group relative flex items-center rounded-row pr-8 hover:bg-surface-hover-bg',
+          active && 'bg-surface-hover-bg'
+        )}
       >
         <button
           onClick={() => !processing && onOpen(file.id)}
           disabled={processing}
           className={cn(
             'flex w-full items-center gap-2 rounded-row px-1.5 py-1.5 text-left',
-            active ? 'font-medium text-fg' : 'text-fg-secondary',
+            active && 'font-bold',
             processing && 'cursor-default'
           )}
         >
@@ -80,43 +88,45 @@ export function FileListItem({
             <Spinner />
           </div>
         )}
-        <HoverActions
-          className="absolute top-1/2 right-1 -translate-y-1/2"
-          iconContainerClassName="hover:bg-unset"
-          items={[
-            {
-              label: m.action_rename(),
-              icon: 'notes',
-              onClick: () => {
-                setName(file.name);
-                setRenameOpen(true);
+        {!readOnly && (
+          <HoverActions
+            className="absolute top-1/2 right-1 -translate-y-1/2"
+            iconContainerClassName="hover:bg-unset"
+            items={[
+              {
+                label: m.action_rename(),
+                icon: 'notes',
+                onClick: () => {
+                  setName(file.name);
+                  setRenameOpen(true);
+                },
               },
-            },
-            {
-              label: 'Move to chapter…',
-              icon: 'files',
-              onClick: () => setMoveOpen(true),
-            },
-            {
-              label: 'Properties',
-              icon: 'help',
-              onClick: () => setPropsOpen(true),
-            },
-            {
-              label: m.action_delete(),
-              icon: 'trash',
-              danger: true,
-              onClick: () => setConfirmOpen(true),
-            },
-          ]}
-        />
+              {
+                label: 'Move File',
+                icon: 'files',
+                onClick: () => setMoveOpen(true),
+              },
+              {
+                label: 'Properties',
+                icon: 'help',
+                onClick: () => setPropsOpen(true),
+              },
+              {
+                label: m.action_delete(),
+                icon: 'trash',
+                danger: true,
+                onClick: () => setConfirmOpen(true),
+              },
+            ]}
+          />
+        )}
       </div>
       {failed && (
         <div className="pl-2 text-xs font-medium text-solid-error">Error Processing File</div>
       )}
       {processing && (
         <div className="mr-1.5 mb-0.5 ml-6">
-          <ProgressBar value={file.ingestPct ?? 0} height={4} />
+          <ProgressBar tone={color} value={file.ingestPct ?? 0} height={4} />
         </div>
       )}
 
@@ -124,7 +134,6 @@ export function FileListItem({
         open={renameOpen}
         onClose={() => setRenameOpen(false)}
         title="Rename file"
-        width={420}
         footer={
           <>
             <Button variant="ghost" onClick={() => setRenameOpen(false)}>
@@ -145,12 +154,7 @@ export function FileListItem({
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </SimpleDialog>
 
-      <SimpleDialog
-        open={propsOpen}
-        onClose={() => setPropsOpen(false)}
-        title="File properties"
-        width={420}
-      >
+      <SimpleDialog open={propsOpen} onClose={() => setPropsOpen(false)} title="File properties">
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
           <Row label="Name" value={file.name} />
           <Row label="Type" value={file.kind.toUpperCase()} />
@@ -175,6 +179,7 @@ export function FileListItem({
         open={moveOpen}
         onClose={() => setMoveOpen(false)}
         chapters={chapters}
+        color={color}
         currentChapterId={file.chapterId}
         onSelect={(chapterId) => moveFile.mutate({ id: file.id, chapterId })}
       />
@@ -185,12 +190,8 @@ export function FileListItem({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <>
-      <Text variant="meta" tone="muted">
-        {label}
-      </Text>
-      <Text variant="meta" className="truncate">
-        {value}
-      </Text>
+      <p className="text-fg-muted">{label}</p>
+      <p className="truncate">{value}</p>
     </>
   );
 }

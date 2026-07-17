@@ -14,8 +14,8 @@ import {
   InputError,
   Spinner,
   TagSelect,
-  toast,
   UserColorChooser,
+  userToast,
 } from '@/components/ui';
 import { InputTitle } from '@/components/ui/Input';
 import {
@@ -58,7 +58,7 @@ export function WorkspaceFormEditDialog({
       try {
         await onSubmit(v);
         setOpen(false);
-        toast({
+        userToast({
           title: workspace ? 'Workspace saved' : 'Workspace created',
           description: workspace
             ? 'Workspace saved successfully'
@@ -67,7 +67,7 @@ export function WorkspaceFormEditDialog({
         });
       } catch (err) {
         // Keep the dialog open so the user can retry without losing input.
-        toast({
+        userToast({
           title: workspace ? 'Could not save workspace' : 'Could not create workspace',
           description:
             err instanceof Error ? err.message : 'Something went wrong. Please try again.',

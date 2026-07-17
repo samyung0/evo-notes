@@ -14,7 +14,7 @@ import {
   InputError,
   Spinner,
   TagSelect,
-  toast,
+  userToast,
   UserColorChooser,
 } from '@/components/ui';
 import {
@@ -59,7 +59,7 @@ export function WorkspaceFormCreateDialog({
       try {
         await onSubmit(v);
         setOpen(false);
-        toast({
+        userToast({
           title: 'Workspace created',
           description: workspace
             ? 'Workspace saved successfully'
@@ -68,7 +68,7 @@ export function WorkspaceFormCreateDialog({
         });
       } catch (err) {
         // Keep the dialog open so the user can retry without losing input.
-        toast({
+        userToast({
           title: 'Could not create workspace',
           description:
             err instanceof Error ? err.message : 'Something went wrong. Please try again.',

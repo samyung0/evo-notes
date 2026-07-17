@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pipeline.retrieve.service as svc
+from pipeline.rag.clone import _graph_name
 
 
 class _Req:
@@ -58,6 +59,11 @@ def test_new_srs_shape():
         "due", "stability", "difficulty", "elapsed_days",
         "scheduled_days", "reps", "lapses", "state", "learning_steps",
     }
+
+
+def test_clone_graph_name_matches_lightrag_sanitizing():
+    assert _graph_name("ws_123") == "ws_123_chunk_entity_relation"
+    assert _graph_name("shared-workspace") == "shared_workspace_chunk_entity_relation"
 
 
 def test_config_seeds_input_dir():

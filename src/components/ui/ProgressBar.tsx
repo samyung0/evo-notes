@@ -1,19 +1,10 @@
 import { cn } from '@/lib/cn';
-
-type Tone = 'green' | 'purple' | 'blue' | 'amber' | 'coral' | 'dark';
-
-const FILL: Record<Tone, string> = {
-  green: 'bg-solid-accent-2/70',
-  purple: 'bg-solid-accent-1/70',
-  blue: 'bg-solid-info',
-  amber: 'bg-solid-warning',
-  coral: 'bg-solid-error',
-  dark: 'bg-action',
-};
+import { UserColor } from '@/api/types';
+import { userColorPair } from '@/lib/userColor';
 
 export interface ProgressBarProps {
   value?: number;
-  tone?: Tone;
+  tone?: UserColor;
   height?: number;
   showLabel?: boolean;
   className?: string;
@@ -21,21 +12,24 @@ export interface ProgressBarProps {
 
 export function ProgressBar({
   value = 0,
-  tone = 'purple',
+  tone = 'graphite',
   height = 6,
   showLabel,
   className,
 }: ProgressBarProps) {
+  if (tone === 'transparent') tone = 'graphite';
   const pct = Math.max(0, Math.min(100, value));
   return (
     <div className={cn('flex items-center gap-2', className)}>
       <div className="flex-1 overflow-hidden rounded-pill bg-surface-hover-bg" style={{ height }}>
         <div
           className={cn(
-            'h-full rounded-pill transition-[width] duration-400 ease-[cubic-bezier(.2,.7,.2,1)]',
-            FILL[tone]
+            'h-full rounded-pill transition-[width] duration-400 ease-[cubic-bezier(.2,.7,.2,1)]'
           )}
-          style={{ width: `${pct}%` }}
+          style={{
+            width: `${pct}%`,
+            backgroundColor: userColorPair(tone)?.bg ?? userColorPair('graphite')?.bg,
+          }}
         />
       </div>
       {showLabel && <span className="t-label text-fg-muted tabular-nums">{Math.round(pct)}%</span>}

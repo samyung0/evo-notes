@@ -2,13 +2,26 @@ import { useState } from 'react';
 import { Panel, PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
 import { Badge, Button, Card, Icon, SkeletonCardGrid, Tabs, Text } from '@/components/ui';
 import { userColorPair } from '@/lib/userColor';
-import { useExploreQuizzes, useExploreWorkspaces } from '@/api/hooks';
+import {
+  useCloneDeck,
+  useCloneQuiz,
+  useCloneWorkspace,
+  useExploreDecks,
+  useExploreQuizzes,
+  useExploreWorkspaces,
+} from '@/api/hooks';
 import { m } from '@/i18n';
+import { useNavigate } from '@tanstack/react-router';
 
 export default function Explore() {
   const [tab, setTab] = useState('workspaces');
   const ws = useExploreWorkspaces();
   const qz = useExploreQuizzes();
+  const decks = useExploreDecks();
+  const cloneWorkspace = useCloneWorkspace();
+  const cloneQuiz = useCloneQuiz();
+  const cloneDeck = useCloneDeck();
+  const navigate = useNavigate();
 
   return (
     <PanelWithInvertedRadius>
@@ -21,6 +34,7 @@ export default function Explore() {
           tabs={[
             { value: 'workspaces', label: m.explore_tab_workspaces() },
             { value: 'quizzes', label: m.explore_tab_quizzes() },
+            { value: 'decks', label: 'Flashcards' },
           ]}
           value={tab}
           onChange={setTab}
@@ -48,17 +62,32 @@ export default function Explore() {
                     <Text variant="meta" tone="muted" className="mt-1">
                       by {w.author} · {w.clones.toLocaleString()} clones
                     </Text>
-                    <Button size="sm" variant="outline" className="mt-3" iconLeft="plus">
-                      Clone to my library
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3"
+                      iconLeft="plus"
+                      disabled={cloneWorkspace.isPending}
+                      onClick={() =>
+                        cloneWorkspace.mutate(w.id, {
+                          onSuccess: ({ workspace }) =>
+                            navigate({
+                              to: '/workspaces/$workspaceId',
+                              params: { workspaceId: workspace.id },
+                            }),
+                        })
+                      }
+                    >
+                      Clone workspace
                     </Button>
                   </Card>
                 );
               })}
             </div>
           )
-        ) : qz.isLoading ? (
+        ) : tab === 'quizzes' && qz.isLoading ? (
           <SkeletonCardGrid count={6} cardHeight={190} />
-        ) : (
+        ) : tab === 'quizzes' ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {qz.data?.map((q) => (
               <Card key={q.id} radius="card-lg" className="p-5.5">
@@ -76,8 +105,64 @@ export default function Explore() {
                     {q.questions.length} questions
                   </Badge>
                 </div>
-                <Button size="sm" variant="outline" className="mt-3" iconLeft="plus">
-                  Clone to my library
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  iconLeft="plus"
+                  disabled={cloneQuiz.isPending}
+                  onClick={() =>
+                    cloneQuiz.mutate(q.id, {
+                      onSuccess: (copy) =>
+                        navigate({
+                          to: '/quizzes/$quizId/attempt',
+                          params: { quizId: copy.id },
+                        }),
+                    })
+                  }
+                >
+                  Clone quiz
+                </Button>
+              </Card>
+            ))}
+          </div>
+        ) : decks.isLoading ? (
+          <SkeletonCardGrid count={6} cardHeight={190} />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {decks.data?.map((deck) => (
+              <Card key={deck.id} radius="card-lg" className="p-5.5">
+                <span className="flex h-11 w-11 items-center justify-center rounded-card bg-tint-accent-2 text-tint-accent-2-fg">
+                  <Icon name="flashcards" size={20} />
+                </span>
+                <Text variant="card-title" className="mt-3 truncate">
+                  {deck.name}
+                </Text>
+                <Text variant="meta" tone="muted" className="mt-1">
+                  by {deck.author} · {deck.clones.toLocaleString()} clones
+                </Text>
+                <div className="mt-2">
+                  <Badge tone="neutral" size="sm">
+                    {deck.cardCount} cards
+                  </Badge>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  iconLeft="plus"
+                  disabled={cloneDeck.isPending}
+                  onClick={() =>
+                    cloneDeck.mutate(deck.id, {
+                      onSuccess: (copy) =>
+                        navigate({
+                          to: '/flashcards/$deckId',
+                          params: { deckId: copy.id },
+                        }),
+                    })
+                  }
+                >
+                  Clone deck
                 </Button>
               </Card>
             ))}

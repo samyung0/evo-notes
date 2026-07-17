@@ -37,13 +37,17 @@ func (a *api) registerMaterials(api huma.API) {
 	reg(api, http.MethodDelete, "/api/materials/{id}", "deleteMaterial", tag, "Delete a material", http.StatusNoContent, a.deleteMaterial)
 }
 
-// assertMaterialOwner resolves a material's workspace and checks ownership.
+// assertMaterialOwner checks direct material ownership. This supports both
+// workspace-contained and truly standalone quizzes/decks.
 func (a *api) assertMaterialOwner(ctx context.Context, matID string) error {
-	wsID, err := a.s.MaterialWorkspaceID(ctx, matID)
-	if err != nil {
-		return err
+	isOwner, err := a.s.MaterialAccess(ctx, userID(ctx), matID)
+	if err != nil || !isOwner {
+		if err != nil {
+			return err
+		}
+		return store.ErrNotFound
 	}
-	return a.assertOwner(ctx, wsID)
+	return nil
 }
 
 func (a *api) listMaterials(ctx context.Context, in *workspaceIDInput) (*materialRefsOutput, error) {

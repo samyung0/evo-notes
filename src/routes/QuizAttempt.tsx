@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { Panel, PanelWithInvertedRadius } from '@/components/app/layout';
-import { Button, Icon, ProgressBar, Skeleton, Text } from '@/components/ui';
-import { useQuiz, useSubmitAttempt } from '@/api/hooks';
+import { Button, Icon, ProgressBar, Skeleton, Text, userToast } from '@/components/ui';
+import { useCloneQuiz, useQuiz, useSubmitAttempt } from '@/api/hooks';
 import { QuestionRunner } from '@/features/quizzes/QuestionRunner';
 import { emptyAnswer, gradeQuestion, type Answer } from '@/features/quizzes/grade';
 import { m } from '@/i18n';
@@ -12,6 +12,8 @@ export default function QuizAttempt() {
   const quizId = (params as { quizId: string }).quizId;
   const { data: quiz, isLoading } = useQuiz(quizId);
   const submit = useSubmitAttempt();
+  const cloneQuiz = useCloneQuiz();
+  const navigate = useNavigate();
 
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
@@ -135,6 +137,35 @@ export default function QuizAttempt() {
           <Text variant="meta" tone="muted" className="tabular-nums">
             {idx + 1} / {quiz.questions.length}
           </Text>
+          {!quiz.isOwner && (
+            <Button
+              size="sm"
+              iconLeft="plus"
+              disabled={cloneQuiz.isPending}
+              onClick={() =>
+                cloneQuiz.mutate(quizId, {
+                  onSuccess: (copy) =>
+                    navigate({
+                      to: '/quizzes/$quizId/attempt',
+                      params: { quizId: copy.id },
+                    }),
+                  onError: () =>
+                    userToast({
+                      title: 'Sign in to clone',
+                      description: 'Create an account before cloning this quiz.',
+                      button: {
+                        label: 'Sign in',
+                        onClick: () => {
+                          window.location.href = '/sign-in';
+                        },
+                      },
+                    }),
+                })
+              }
+            >
+              {cloneQuiz.isPending ? 'Cloning…' : 'Clone'}
+            </Button>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto py-4">

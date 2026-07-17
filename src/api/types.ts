@@ -51,7 +51,6 @@ export type {
   User,
   BillingInfo,
   IntegrationsStatus,
-  Deck,
   Flashcard,
   SrsState,
   Label,
@@ -64,7 +63,7 @@ export type {
 export type SystemColor = 'success' | 'info' | 'warning' | 'error' | 'accent-1' | 'accent-2';
 
 /* ---------------- pass-through contracts (identical to the wire) ---------------- */
-export type Workspace = GenWorkspace;
+export type Workspace = Omit<GenWorkspace, 'isOwner'> & { isOwner?: boolean };
 export type Chapter = GenChapter;
 export type Attempt = GenAttempt;
 export type CalendarEvent = GenEvent;
@@ -87,13 +86,20 @@ export type SourceFile = GenFile & { ingestPct?: number };
 export type SearchResult = GenSearchResult & { color?: UserColor };
 
 /** `questions` is the rich discriminated union; the wire keeps it opaque. */
-export type Quiz = Omit<GenQuiz, 'questions'> & {
+export type Quiz = Omit<GenQuiz, 'questions' | 'isOwner'> & {
   questions: Question[];
+  isOwner?: boolean;
+};
+
+/** Legacy mock rows omit new sharing fields; real API always returns both. */
+export type Deck = Omit<GenDeck, 'privacy' | 'isOwner'> & {
+  privacy?: Privacy;
+  isOwner?: boolean;
 };
 
 export type PublicWorkspace = Workspace & { author: string; clones: number };
 export type PublicQuiz = Quiz & { author: string; clones: number };
-export type PublicDeck = GenDeck & { author: string; clones: number };
+export type PublicDeck = Deck & { author: string; clones: number };
 
 /** Response of POST /workspaces/{id}/clone. `ragCloned` is false when the
  * pipeline was offline — the copied files exist but have no knowledge graph
@@ -178,7 +184,11 @@ export interface OrderingQuestion extends BaseQuestion {
   items: { value: string }[];
 }
 export type Question =
-  ChoiceQuestion | BooleanQuestion | TextQuestion | MatchingQuestion | OrderingQuestion;
+  | ChoiceQuestion
+  | BooleanQuestion
+  | TextQuestion
+  | MatchingQuestion
+  | OrderingQuestion;
 
 /* ---------------- Generate (request options, not wire response types) ----------------
    Every generation is scoped: `chapters` (ids) and/or `fileIds` narrow the

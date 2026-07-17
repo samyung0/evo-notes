@@ -93,6 +93,7 @@ class Config:
     modal_parse_url: str = _env("MODAL_PARSE_URL", "")
     modal_parse_token: str = _env("MODAL_PARSE_TOKEN", "")
     modal_parse_timeout: int = int(_env("MODAL_PARSE_TIMEOUT", "600"))
+    modal_b2_artifacts: bool = _env("MODAL_B2_ARTIFACTS", "true").lower() != "false"
     parse_method: str = _env("EVO_PARSE_METHOD", "auto")  # auto | ocr | txt
 
     # ---- MinerU lightweight (free) cloud parse API ------------------------
@@ -101,6 +102,9 @@ class Config:
     mineru_lite_base: str = _env("MINERU_LITE_BASE_URL", "https://mineru.net/api/v1/agent")
     mineru_lite_language: str = _env("MINERU_LITE_LANGUAGE", "ch")
     mineru_lite_timeout: int = int(_env("MINERU_LITE_TIMEOUT", "600"))
+    mineru_relay_url: str = _env("MINERU_RELAY_URL", "")
+    mineru_relay_token: str = _env("MINERU_RELAY_TOKEN", "")
+    mineru_relay_timeout: int = int(_env("MINERU_RELAY_TIMEOUT", "180"))
 
     # ---- embeddings (OpenRouter, OpenAI-compatible) -----------------------
     embedding = ProviderCfg(

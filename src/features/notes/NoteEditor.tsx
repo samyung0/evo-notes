@@ -20,7 +20,13 @@ const mdApi = (editor: { api: unknown }): MdApi => editor.api as any;
 /** Editable Plate note. Loads the note material, mounts a full Plate editor with
  * the user's enabled widgets, and autosaves title/content (markdown) with a
  * debounce. Remounts when the enabled widget set changes. */
-export function NoteEditor({ materialId }: { materialId: string }) {
+export function NoteEditor({
+  materialId,
+  readOnly = false,
+}: {
+  materialId: string;
+  readOnly?: boolean;
+}) {
   const { data: material, isLoading } = useMaterial(materialId);
   const enabled = useNoteEditorPrefs((s) => s.enabled);
   const key = useMemo(() => enabledKey(enabled), [enabled]);
@@ -44,6 +50,7 @@ export function NoteEditor({ materialId }: { materialId: string }) {
       workspaceId={material.workspaceId}
       initialTitle={material.title}
       initialContent={material.content}
+      readOnly={readOnly}
     />
   );
 }
@@ -53,11 +60,13 @@ function NoteEditorInner({
   workspaceId,
   initialTitle,
   initialContent,
+  readOnly,
 }: {
   materialId: string;
   workspaceId: string;
   initialTitle: string;
   initialContent: string;
+  readOnly: boolean;
 }) {
   const enabled = useNoteEditorPrefs((s) => s.enabled);
   const update = useUpdateMaterial(workspaceId);
@@ -103,6 +112,7 @@ function NoteEditorInner({
   useEffect(() => () => flush(), [flush]);
 
   function onEditorChange() {
+    if (readOnly) return;
     try {
       const md = mdApi(editor).markdown.serialize();
       schedule({ content: md });
@@ -112,6 +122,7 @@ function NoteEditorInner({
   }
 
   function onTitleChange(next: string) {
+    if (readOnly) return;
     setTitle(next);
     schedule({ title: next.trim() || 'Untitled note' });
   }
@@ -122,18 +133,21 @@ function NoteEditorInner({
         <input
           value={title}
           onChange={(e) => onTitleChange(e.target.value)}
+          readOnly={readOnly}
           placeholder="Untitled note"
           className="bg-transparent px-4 pt-4 pb-2 text-2xl font-bold text-fg outline-none placeholder:text-placeholder"
         />
         <Plate editor={editor} onChange={onEditorChange}>
-          <NoteToolbar
-            right={
-              <>
-                <VoiceButton />
-                <AiMenu workspaceId={workspaceId} />
-              </>
-            }
-          />
+          {!readOnly && (
+            <NoteToolbar
+              right={
+                <>
+                  <VoiceButton />
+                  <AiMenu workspaceId={workspaceId} />
+                </>
+              }
+            />
+          )}
           <div className="min-h-0 flex-1 overflow-auto">
             <PlateContent
               className={cn(
@@ -141,6 +155,7 @@ function NoteEditorInner({
                 'min-h-[300px]'
               )}
               placeholder="Start writing…"
+              readOnly={readOnly}
             />
           </div>
         </Plate>

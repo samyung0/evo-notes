@@ -206,6 +206,7 @@ function ProfilePillInner({ onLogout }: { onLogout?: () => void }) {
   return (
     <Menu
       align="end"
+      alignWidthToTrigger
       trigger={
         <button className="flex items-center gap-2.5 rounded-card bg-surface py-1 pr-3 pl-1 hover:bg-surface-hover-bg lg:rounded-pill">
           <Avatar name={me?.name} src={me?.avatarUrl} size="md" />

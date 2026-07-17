@@ -44,7 +44,10 @@ import type {
   PublicQuiz,
   PublicWorkspace,
   CloneWorkspaceResult,
+  Privacy,
 } from './types';
+
+const USE_DIRECT_B2_UPLOAD = import.meta.env.VITE_DIRECT_B2_UPLOAD !== 'false';
 
 /* ---------------- account / shell ---------------- */
 export const meQuery = () => queryOptions({ queryKey: qk.me, queryFn: () => api.get<User>('/me') });
@@ -105,8 +108,11 @@ export const useIntegrations = () => useQuery(integrationsQuery());
 export function useImportSources(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { provider: 'google' | 'microsoft'; fileIds: string[]; chapterId?: string | null }) =>
-      api.post<SourceFile[]>(`/workspaces/${workspaceId}/sources/import`, body),
+    mutationFn: (body: {
+      provider: 'google' | 'microsoft';
+      fileIds: string[];
+      chapterId?: string | null;
+    }) => api.post<SourceFile[]>(`/workspaces/${workspaceId}/sources/import`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.files(workspaceId) });
       qc.invalidateQueries({ queryKey: qk.workspaceStats(workspaceId) });
@@ -344,8 +350,8 @@ function simulateMswProgress(qc: QueryClient, wsId: string, fileId: string) {
   }, 450);
 }
 
-/** Real multipart upload: sends the file bytes, which triggers the async ingest
- * pipeline (file lands `processing`; progress arrives via SSE / useIngestProgress). */
+/** Reserve a B2 object, upload it directly, then ask the gateway to verify and
+ * enqueue it. File bytes never traverse the Go gateway. */
 export function useUploadSource(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -354,6 +360,8 @@ export function useUploadSource(wsId: string) {
       kind,
       chapterId,
       parseMode,
+      onUploadProgress,
+      signal,
     }: {
       file: File;
       kind: SourceFile['kind'];
@@ -361,14 +369,40 @@ export function useUploadSource(wsId: string) {
       /** advanced = Modal MinerU hybrid backend, normal = free MinerU
        * lightweight cloud API, none = store only (no parsing/indexing). */
       parseMode?: 'advanced' | 'normal' | 'none';
+      onUploadProgress?: (pct: number) => void;
+      signal?: AbortSignal;
     }) => {
-      const form = new FormData();
-      form.append('file', file, file.name);
-      form.append('name', file.name);
-      form.append('kind', kind);
-      if (chapterId) form.append('chapterId', chapterId);
-      if (parseMode) form.append('parseMode', parseMode);
-      return api.upload<SourceFile>(`/workspaces/${wsId}/sources`, form);
+      if (USE_MSW || !USE_DIRECT_B2_UPLOAD) {
+        const form = new FormData();
+        form.append('file', file, file.name);
+        form.append('name', file.name);
+        form.append('kind', kind);
+        if (chapterId) form.append('chapterId', chapterId);
+        if (parseMode) form.append('parseMode', parseMode);
+        return api.upload<SourceFile>(`/workspaces/${wsId}/sources`, form);
+      }
+      return api
+        .post<{
+          uploadId: string;
+          url: string;
+          method: 'PUT';
+          headers: Record<string, string>;
+          expiresAt: string;
+        }>(`/workspaces/${wsId}/sources/uploads`, {
+          name: file.name,
+          kind,
+          chapterId: chapterId ?? null,
+          parseMode,
+          sizeBytes: file.size,
+          contentType: file.type || 'application/octet-stream',
+        })
+        .then(async (reservation) => {
+          await api.putFile(reservation.url, file, reservation.headers, onUploadProgress, signal);
+          onUploadProgress?.(100);
+          return api.post<SourceFile>(
+            `/workspaces/${wsId}/sources/uploads/${reservation.uploadId}/complete`
+          );
+        });
     },
     onSuccess: (file) => {
       // Insert immediately so the row (with its progress bar) shows up at once.
@@ -387,10 +421,10 @@ export function useUploadSource(wsId: string) {
 
 /** Subscribe to live ingest progress for a workspace (SSE) and patch the file
  * caches as events arrive. No-op under MSW (dev mock has no event stream). */
-export function useIngestProgress(wsId: string) {
+export function useIngestProgress(wsId: string, enabled = true) {
   const qc = useQueryClient();
   useEffect(() => {
-    if (!wsId || USE_MSW) return;
+    if (!wsId || !enabled || USE_MSW) return;
     const es = new EventSource(`${API_BASE}/workspaces/${wsId}/ingest-events`);
     es.onmessage = (e) => {
       try {
@@ -405,7 +439,7 @@ export function useIngestProgress(wsId: string) {
       }
     };
     return () => es.close();
-  }, [wsId, qc]);
+  }, [wsId, enabled, qc]);
 }
 
 /* ---------------- chat & generate ---------------- */
@@ -437,10 +471,12 @@ export function useGenerate(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (opts: GenerateOptions) => api.post<unknown>(`/workspaces/${wsId}/generate`, opts),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: qk.quizzes });
-      qc.invalidateQueries({ queryKey: qk.decks });
-      qc.invalidateQueries({ queryKey: qk.materials(wsId) });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: qk.quizzes }),
+        qc.invalidateQueries({ queryKey: qk.decks }),
+        qc.invalidateQueries({ queryKey: qk.materials(wsId) }),
+      ]);
     },
   });
 }
@@ -468,7 +504,11 @@ export function useDeleteMaterial(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.del<void>(`/materials/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.materials(wsId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.materials(wsId) });
+      qc.invalidateQueries({ queryKey: qk.quizzes });
+      qc.invalidateQueries({ queryKey: qk.decks });
+    },
   });
 }
 
@@ -524,9 +564,7 @@ export function useMoveMaterial(wsId: string) {
       qc.setQueryData<MaterialRef[]>(qk.materials(wsId), (prev) =>
         prev?.map((r) => (r.id === id ? { ...r, chapterId } : r))
       );
-      qc.setQueryData<Material>(qk.material(id), (prev) =>
-        prev ? { ...prev, chapterId } : prev
-      );
+      qc.setQueryData<Material>(qk.material(id), (prev) => (prev ? { ...prev, chapterId } : prev));
       return { prevList };
     },
     onError: (_e, _v, ctx) => {
@@ -581,9 +619,7 @@ export const useMistakes = () => useQuery(mistakesQuery());
 function invalidateAllMaterials(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({
     predicate: (q) =>
-      Array.isArray(q.queryKey) &&
-      q.queryKey[0] === 'workspace' &&
-      q.queryKey[2] === 'materials',
+      Array.isArray(q.queryKey) && q.queryKey[0] === 'workspace' && q.queryKey[2] === 'materials',
   });
 }
 
@@ -640,7 +676,14 @@ export function useSubmitAttempt() {
       wrong?: Question[];
       answers?: Record<string, unknown>;
       questions?: Question[];
-    }) => api.post<Attempt>(`/quizzes/${quizId}/attempts`, { correct, total, wrong, answers, questions }),
+    }) =>
+      api.post<Attempt>(`/quizzes/${quizId}/attempts`, {
+        correct,
+        total,
+        wrong,
+        answers,
+        questions,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.attempts });
       qc.invalidateQueries({ queryKey: qk.mistakes });
@@ -942,8 +985,15 @@ export function useCloneDeck() {
 export function useUpdateDeck() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name?: string; color?: string; privacy?: string }) =>
-      api.patch<Deck>(`/decks/${id}`, body),
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      name?: string;
+      color?: string;
+      privacy?: Privacy;
+    }) => api.patch<Deck>(`/decks/${id}`, body),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: qk.decks });
       qc.invalidateQueries({ queryKey: qk.deck(v.id) });

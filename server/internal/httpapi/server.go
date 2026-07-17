@@ -71,6 +71,14 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 		Disabled:  cfg.AuthDisabled,
 		DevUserID: cfg.DevUserID,
 		Store:     s,
+		PublicReadPrefix: []string{
+			"/api/workspaces/",
+			"/api/files/",
+			"/api/materials/",
+			"/api/quizzes/",
+			"/api/decks/",
+			"/api/explore/",
+		},
 	}))
 
 	// Mount huma on the chi router. Doc/spec routes register at construction, so
@@ -83,6 +91,8 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 	r.Post("/webhooks/clerk", a.clerkWebhook)
 	r.Post("/webhooks/stripe", a.stripeWebhook)
 	r.Post("/api/workspaces/{id}/sources", a.addSource)
+	r.Post("/api/workspaces/{id}/sources/uploads", a.createSourceUpload)
+	r.Post("/api/workspaces/{id}/sources/uploads/{uploadId}/complete", a.completeSourceUpload)
 	r.Post("/api/workspaces/{id}/sources/import", a.importSources)
 	r.Get("/api/workspaces/{id}/ingest-events", a.ingestEvents)
 	r.Post("/api/workspaces/{id}/chat", a.chat)
@@ -133,6 +143,14 @@ func randInt(min, max int) int {
 
 func (a *api) assertWS(w http.ResponseWriter, r *http.Request, wsID string) bool {
 	if err := a.s.AssertWorkspaceOwner(r.Context(), uid(r), wsID); err != nil {
+		a.fail(w, err)
+		return false
+	}
+	return true
+}
+
+func (a *api) assertWSRead(w http.ResponseWriter, r *http.Request, wsID string) bool {
+	if _, err := a.s.WorkspaceAccess(r.Context(), uid(r), wsID); err != nil {
 		a.fail(w, err)
 		return false
 	}
@@ -373,6 +391,9 @@ func contentType(kind string) string {
    passthrough of arbitrary JSON and generate is polymorphic. */
 
 func (a *api) chat(w http.ResponseWriter, r *http.Request) {
+	if !a.assertWSRead(w, r, id(r)) {
+		return
+	}
 	var b struct {
 		Text string `json:"text"`
 	}
@@ -411,8 +432,8 @@ type generateOpts struct {
 	Count        int      `json:"count"`
 	Style        string   `json:"style"`
 	Types        []string `json:"types"`
-	Levels       []string `json:"levels"`     // cognitive levels: recall|application|analysis
-	Difficulty   []string `json:"difficulty"` // legacy alias, still accepted
+	Levels       []string `json:"levels"`      // cognitive levels: recall|application|analysis
+	Difficulty   []string `json:"difficulty"`  // legacy alias, still accepted
 	Chapters     []string `json:"chapters"`    // chapter ids; resolved to files + names in resolveScope
 	FileIds      []string `json:"fileIds"`     // file-scoped retrieval filtering
 	Detail       string   `json:"detail"`      // mindmap: brief|standard|detailed
@@ -444,6 +465,9 @@ func (o generateOpts) cognitiveLevels() []string {
 }
 
 func (a *api) generate(w http.ResponseWriter, r *http.Request) {
+	if !a.assertWS(w, r, id(r)) {
+		return
+	}
 	var opts generateOpts
 	if err := decode(r, &opts); err != nil {
 		a.fail(w, err)

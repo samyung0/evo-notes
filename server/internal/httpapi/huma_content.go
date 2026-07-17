@@ -174,8 +174,14 @@ func (a *api) deleteFile(ctx context.Context, in *fileIDInput) (*Empty, error) {
 	if err := a.assertFileOwner(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
-	if err := a.s.DeleteFile(ctx, in.ID); err != nil {
+	orphaned, err := a.s.DeleteFileWithOrphanedBlobs(ctx, in.ID)
+	if err != nil {
 		return nil, hErr(err)
+	}
+	if a.blob != nil {
+		for _, path := range orphaned {
+			_ = a.blob.Delete(ctx, path)
+		}
 	}
 	return &Empty{}, nil
 }

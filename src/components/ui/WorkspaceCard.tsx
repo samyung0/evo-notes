@@ -10,10 +10,15 @@ import { m } from '@/i18n';
 import { useDeleteWorkspace } from '@/api/hooks';
 import { useDialogs } from '@/stores/dialogs';
 import { cn } from '@/lib/cn';
+import { useState } from 'react';
+import { ShareDialog } from '@/components/app/ShareDialog';
+import { useUpdateWorkspace } from '@/api/hooks';
 
 export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const c = userColorPair(workspace.color);
   const del = useDeleteWorkspace();
+  const update = useUpdateWorkspace();
+  const [shareOpen, setShareOpen] = useState(false);
   const openWorkspaceEdit = useDialogs((s) => s.openWorkspaceEdit);
   // const openWorkspaceStats = useDialogs((s) => s.openWorkspaceStats);
   const openConfirm = useDialogs((s) => s.openConfirm);
@@ -69,6 +74,11 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
             //   onClick: () => openWorkspaceStats(workspace.id),
             // },
             {
+              label: 'Share',
+              icon: 'link',
+              onClick: () => setShareOpen(true),
+            },
+            {
               label: m.action_delete(),
               icon: 'trash',
               danger: true,
@@ -82,6 +92,15 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
           ]}
         />
       </div>
+      <ShareDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={`Share ${workspace.name}`}
+        privacy={workspace.privacy}
+        link={`/share/workspaces/${workspace.id}`}
+        saving={update.isPending}
+        onPrivacyChange={(privacy) => update.mutate({ id: workspace.id, privacy })}
+      />
     </div>
   );
 }

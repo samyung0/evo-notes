@@ -16,16 +16,21 @@ import type {
   UserColor,
   Workspace,
 } from '@/api/types';
+import {
+  flashcardsMarkdown,
+  parseFlashcardsBlock,
+  quizMarkdown,
+} from '@/features/materials/blocks';
 import { isKnown, newSrsState } from '@/lib/srs';
-import { flashcardsMarkdown, parseFlashcardsBlock, quizMarkdown } from '@/features/materials/blocks';
 import { delay, http, HttpResponse } from 'msw';
 import * as db from './db';
 import { uid } from './db';
 
 /** Map a material's storage kind to the legacy left-panel ref type. */
-const refType = (kind: Material['kind']): MaterialRefType => (kind === 'flashcards' ? 'deck' : kind);
+const refType = (kind: Material['kind']): MaterialRefType =>
+  kind === 'flashcards' ? 'deck' : kind;
 
-const latency = () => delay(180 + Math.random() * 220);
+const latency = () => delay(1000 + Math.random() * 220);
 
 /** Resolve incoming tag refs against the catalog: reuse by id (preserving the
  * row), else match by value, else create a new catalog entry. Mirrors the
@@ -178,13 +183,18 @@ export const handlers = [
     const ws = db.workspaces.find((w) => w.id === params.id);
     if (!ws) return new HttpResponse(null, { status: 404 });
     ws.lastAccessedAt = new Date().toISOString();
-    return HttpResponse.json(ws);
+    return HttpResponse.json({ ...ws, isOwner: ws.isOwner ?? true });
   }),
   http.get('/api/workspaces/:id/stats', async ({ params }) => {
     await latency();
     const ws = db.workspaces.find((w) => w.id === params.id);
     if (!ws) return new HttpResponse(null, { status: 404 });
-    const wsQuizIds = new Set(db.quizMaterials().filter((m) => m.workspaceId === ws.id).map((m) => m.id));
+    const wsQuizIds = new Set(
+      db
+        .quizMaterials()
+        .filter((m) => m.workspaceId === ws.id)
+        .map((m) => m.id)
+    );
     const att = db.attempts.filter((a) => wsQuizIds.has(a.quizId));
     const avg = att.length ? Math.round(att.reduce((s, a) => s + a.pct, 0) / att.length) : 0;
     return HttpResponse.json({
@@ -224,6 +234,63 @@ export const handlers = [
     const i = db.workspaces.findIndex((w) => w.id === params.id);
     if (i >= 0) db.workspaces.splice(i, 1);
     return new HttpResponse(null, { status: 204 });
+  }),
+  http.post('/api/workspaces/:id/clone', async ({ params }) => {
+    await latency();
+    const source =
+      db.workspaces.find((w) => w.id === params.id) ??
+      db.publicWorkspaces.find((w) => w.id === params.id);
+    if (!source) return new HttpResponse(null, { status: 404 });
+    const newId = uid('ws');
+    const workspace: Workspace = {
+      ...source,
+      id: newId,
+      name: `${source.name} (copy)`,
+      privacy: 'private',
+      isOwner: true,
+      createdAt: new Date().toISOString(),
+      lastAccessedAt: new Date().toISOString(),
+    };
+    db.workspaces.unshift(workspace);
+
+    const chapterMap = new Map<string, string>();
+    db.chapters
+      .filter((chapter) => chapter.workspaceId === source.id)
+      .forEach((chapter) => {
+        const id = uid('ch');
+        chapterMap.set(chapter.id, id);
+        db.chapters.push({ ...chapter, id, workspaceId: newId, fileIds: [] });
+      });
+    const fileMap = new Map<string, string>();
+    db.files
+      .filter((file) => file.workspaceId === source.id)
+      .forEach((file) => {
+        const id = uid('f');
+        fileMap.set(file.id, id);
+        db.files.push({
+          ...file,
+          id,
+          workspaceId: newId,
+          chapterId: file.chapterId ? (chapterMap.get(file.chapterId) ?? null) : null,
+        });
+      });
+    db.materials
+      .filter((material) => material.workspaceId === source.id)
+      .forEach((material) => {
+        db.materials.push({
+          ...material,
+          id: uid('mat'),
+          workspaceId: newId,
+          workspaceName: workspace.name,
+          chapterId: material.chapterId ? (chapterMap.get(material.chapterId) ?? null) : null,
+          scopeFileIds: material.scopeFileIds
+            .map((id) => fileMap.get(id))
+            .filter((id): id is string => !!id),
+          privacy: 'private',
+          createdAt: new Date().toISOString(),
+        });
+      });
+    return HttpResponse.json({ workspace, ragCloned: true }, { status: 201 });
   }),
 
   /* ---------------- chapters & files ---------------- */
@@ -791,11 +858,11 @@ export const handlers = [
   }),
   http.post('/api/quizzes', async ({ request }) => {
     const body = (await request.json()) as Partial<Quiz>;
-    const ws = db.workspaces.find((w) => w.id === body.workspaceId) ?? db.workspaces[0];
+    const ws = db.workspaces.find((w) => w.id === body.workspaceId);
     const name = body.name ?? 'Untitled quiz';
     const material: Material = {
       id: uid('qz'),
-      workspaceId: body.workspaceId ?? ws?.id ?? '',
+      workspaceId: body.workspaceId ?? '',
       workspaceName: ws?.name ?? '',
       kind: 'quiz',
       title: name,
@@ -842,7 +909,9 @@ export const handlers = [
       } satisfies Quiz);
     }
     const mt = db.materials.find((x) => x.id === params.id && x.kind === 'quiz');
-    return mt ? HttpResponse.json(db.quizFromMaterial(mt)) : new HttpResponse(null, { status: 404 });
+    return mt
+      ? HttpResponse.json(db.quizFromMaterial(mt))
+      : new HttpResponse(null, { status: 404 });
   }),
   http.patch('/api/quizzes/:id', async ({ params, request }) => {
     const mt = db.materials.find((x) => x.id === params.id && x.kind === 'quiz');
@@ -863,6 +932,34 @@ export const handlers = [
     const i = db.materials.findIndex((x) => x.id === params.id && x.kind === 'quiz');
     if (i >= 0) db.materials.splice(i, 1);
     return new HttpResponse(null, { status: 204 });
+  }),
+  http.post('/api/quizzes/:id/clone', async ({ params }) => {
+    await latency();
+    const sourceMaterial = db.materials.find(
+      (material) => material.id === params.id && material.kind === 'quiz'
+    );
+    const publicQuiz = db.publicQuizzes.find((quiz) => quiz.id === params.id);
+    if (!sourceMaterial && !publicQuiz) return new HttpResponse(null, { status: 404 });
+    const source = sourceMaterial ? db.quizFromMaterial(sourceMaterial) : publicQuiz!;
+    const material: Material = {
+      id: uid('qz'),
+      workspaceId: '',
+      workspaceName: '',
+      kind: 'quiz',
+      title: source.name,
+      content: quizMarkdown(source.name, {
+        questions: source.questions,
+        timeLimitMin: source.timeLimitMin,
+      }),
+      chapterId: null,
+      scopeChapters: source.chapters,
+      scopeFileIds: [],
+      privacy: 'private',
+      createdAt: new Date().toISOString(),
+      isOwner: true,
+    };
+    db.materials.unshift(material);
+    return HttpResponse.json(db.quizFromMaterial(material), { status: 201 });
   }),
   http.get('/api/attempts', async () => {
     await latency();
@@ -951,12 +1048,60 @@ export const handlers = [
   http.get('/api/decks/:id', async ({ params }) => {
     await latency();
     const mt = db.materials.find((x) => x.id === params.id && x.kind === 'flashcards');
-    return mt ? HttpResponse.json(db.deckFromMaterial(mt)) : new HttpResponse(null, { status: 404 });
+    return mt
+      ? HttpResponse.json(db.deckFromMaterial(mt))
+      : new HttpResponse(null, { status: 404 });
+  }),
+  http.patch('/api/decks/:id', async ({ params, request }) => {
+    const material = db.materials.find(
+      (item) => item.id === params.id && item.kind === 'flashcards'
+    );
+    if (!material) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as Partial<Deck>;
+    if (body.name !== undefined) material.title = body.name;
+    if (body.color !== undefined) material.color = body.color;
+    if (body.privacy !== undefined) material.privacy = body.privacy;
+    return HttpResponse.json(db.deckFromMaterial(material));
+  }),
+  http.post('/api/decks/:id/clone', async ({ params }) => {
+    await latency();
+    let source = db.materials.find(
+      (material) => material.id === params.id && material.kind === 'flashcards'
+    );
+    if (!source) {
+      const index = db.publicDecks.findIndex((deck) => deck.id === params.id);
+      source = index >= 0 ? db.deckMaterials()[index] : undefined;
+    }
+    if (!source) return new HttpResponse(null, { status: 404 });
+    const cards = parseFlashcardsBlock(source.content).cards.map((card) => ({
+      ...card,
+      id: uid('c'),
+    }));
+    const id = uid('dk');
+    const material: Material = {
+      ...source,
+      id,
+      workspaceId: '',
+      workspaceName: '',
+      content: flashcardsMarkdown(source.title, cards),
+      chapterId: null,
+      scopeFileIds: [],
+      privacy: 'private',
+      createdAt: new Date().toISOString(),
+      isOwner: true,
+    };
+    db.materials.unshift(material);
+    cards.forEach((card) => {
+      db.cardStats[card.id] = { materialId: id, srs: newSrsState(), known: false };
+    });
+    return HttpResponse.json(db.deckFromMaterial(material), { status: 201 });
   }),
   http.get('/api/decks/:id/cards', async ({ params }) => {
     await latency();
     const mt = db.materials.find((x) => x.id === params.id && x.kind === 'flashcards');
-    return mt ? HttpResponse.json(db.cardsFromMaterial(mt)) : new HttpResponse(null, { status: 404 });
+    return mt
+      ? HttpResponse.json(db.cardsFromMaterial(mt))
+      : new HttpResponse(null, { status: 404 });
   }),
   http.post('/api/decks/:id/cards', async ({ params, request }) => {
     const mt = db.materials.find((x) => x.id === params.id && x.kind === 'flashcards');
@@ -974,7 +1119,9 @@ export const handlers = [
     if (!stat) return new HttpResponse(null, { status: 404 });
     const mt = db.materials.find((x) => x.id === stat.materialId && x.kind === 'flashcards');
     if (!mt) return new HttpResponse(null, { status: 404 });
-    const body = (await request.json()) as Partial<Pick<Flashcard, 'front' | 'back' | 'known' | 'srs'>>;
+    const body = (await request.json()) as Partial<
+      Pick<Flashcard, 'front' | 'back' | 'known' | 'srs'>
+    >;
     if (body.front !== undefined || body.back !== undefined) {
       const cards = parseFlashcardsBlock(mt.content).cards;
       const card = cards.find((c) => c.id === params.id);
@@ -1104,6 +1251,10 @@ export const handlers = [
   http.get('/api/explore/quizzes', async () => {
     await latency();
     return HttpResponse.json(db.publicQuizzes);
+  }),
+  http.get('/api/explore/decks', async () => {
+    await latency();
+    return HttpResponse.json(db.publicDecks);
   }),
 
   /* ---------------- billing ---------------- */

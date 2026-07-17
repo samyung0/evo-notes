@@ -12,12 +12,32 @@ const inputContainerVariants = cva(
         light:
           'border border-line bg-surface focus-within:border-line-strong has-[input[aria-invalid=true]]:border-2 has-[input[aria-invalid=true]]:border-solid-error',
         transparent: '',
+        underline:
+          'border-b border-line focus-within:border-line-strong has-[input[aria-invalid=true]]:border-b-2 has-[input[aria-invalid=true]]:border-solid-error',
       },
       size: {
+        sm: 'rounded-input px-2.5 py-0 text-xs',
         md: 'rounded-input px-3.5 py-0',
         lg: 'rounded-card-lg px-4.5 py-0',
       },
     },
+    compoundVariants: [
+      {
+        variant: 'underline',
+        size: 'sm',
+        className: 'rounded-none',
+      },
+      {
+        variant: 'underline',
+        size: 'md',
+        className: 'rounded-none',
+      },
+      {
+        variant: 'underline',
+        size: 'lg',
+        className: 'rounded-none',
+      },
+    ],
     defaultVariants: {
       variant: 'light',
       size: 'md',
@@ -30,6 +50,7 @@ const inputVariants = cva(
   {
     variants: {
       size: {
+        sm: 'pt-2 pb-0.5',
         md: 'py-2.5',
         lg: 'py-3.5',
       },

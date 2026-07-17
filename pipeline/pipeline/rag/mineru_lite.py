@@ -28,6 +28,7 @@ from ..config import cfg
 log = logging.getLogger("evo.rag.mineru_lite")
 
 _POLL_INTERVAL = 3.0
+_MAX_BYTES = 10 << 20
 
 
 class MineruLiteError(RuntimeError):
@@ -46,19 +47,8 @@ def _check(resp: requests.Response) -> dict:
     return body.get("data") or {}
 
 
-def parse_file(
-    local_path: str,
-    file_name: str,
-    on_progress: Optional[Callable[[int], None]] = None,
-) -> str:
-    """Parse a document with the MinerU lightweight API and return markdown.
-
-    ``on_progress`` receives coarse percentages (25–55) suitable for the SSE
-    parsing band; it is invoked from the calling (worker) thread.
-    """
+def _create_task(file_name: str) -> tuple[str, str]:
     base = cfg.mineru_lite_base.rstrip("/")
-
-    # 1. Create the task; the response carries the signed OSS upload URL.
     data = _check(
         requests.post(
             f"{base}/parse/file",
@@ -72,19 +62,13 @@ def parse_file(
             timeout=30,
         )
     )
-    task_id = data["task_id"]
-    file_url = data["file_url"]
-    log.info("mineru lite task %s created for %s", task_id, file_name)
+    return data["task_id"], data["file_url"]
 
-    # 2. Upload the bytes (per MinerU docs: plain PUT, no Content-Type needed).
-    with open(local_path, "rb") as fh:
-        put = requests.put(file_url, data=fh, timeout=120)
-    if put.status_code not in (200, 201):
-        raise MineruLiteError(f"file upload failed: HTTP {put.status_code}")
-    if on_progress:
-        on_progress(25)
 
-    # 3. Poll until done/failed, then download the markdown result.
+def _poll_result(
+    task_id: str, on_progress: Optional[Callable[[int], None]] = None
+) -> str:
+    base = cfg.mineru_lite_base.rstrip("/")
     deadline = time.monotonic() + cfg.mineru_lite_timeout
     pct = 25
     while time.monotonic() < deadline:
@@ -106,11 +90,80 @@ def parse_file(
                 f"lightweight parse failed ({data.get('err_code')}): "
                 f"{data.get('err_msg') or 'unknown error'}"
             )
-        # waiting-file / uploading / pending / running — inch the bar forward.
         pct = min(50, pct + 2)
         if on_progress:
             on_progress(pct)
-
     raise MineruLiteError(
         f"lightweight parse timed out after {cfg.mineru_lite_timeout}s (task {task_id})"
     )
+
+
+def parse_file(
+    local_path: str,
+    file_name: str,
+    on_progress: Optional[Callable[[int], None]] = None,
+) -> str:
+    """Parse a document with the MinerU lightweight API and return markdown.
+
+    ``on_progress`` receives coarse percentages (25–55) suitable for the SSE
+    parsing band; it is invoked from the calling (worker) thread.
+    """
+    task_id, file_url = _create_task(file_name)
+    log.info("mineru lite task %s created for %s", task_id, file_name)
+
+    # 2. Upload the bytes (per MinerU docs: plain PUT, no Content-Type needed).
+    with open(local_path, "rb") as fh:
+        put = requests.put(file_url, data=fh, timeout=120)
+    if put.status_code not in (200, 201):
+        raise MineruLiteError(f"file upload failed: HTTP {put.status_code}")
+    if on_progress:
+        on_progress(25)
+
+    return _poll_result(task_id, on_progress)
+
+
+def parse_blob(
+    blob_path: str,
+    file_name: str,
+    on_progress: Optional[Callable[[int], None]] = None,
+) -> str:
+    """Parse a B2 object, relaying its bytes through Cloudflare when enabled."""
+    from ..store import blobstore
+
+    if not cfg.mineru_relay_url:
+        local_path, cleanup = blobstore.fetch_local(blob_path)
+        try:
+            return parse_file(local_path, file_name, on_progress)
+        finally:
+            cleanup()
+
+    task_id, destination_url = _create_task(file_name)
+    source_url = blobstore.presign_get(blob_path, cfg.mineru_relay_timeout + 60)
+    headers = {"Content-Type": "application/json"}
+    if cfg.mineru_relay_token:
+        headers["Authorization"] = f"Bearer {cfg.mineru_relay_token}"
+    relay = None
+    for attempt in range(2):
+        try:
+            relay = requests.post(
+                cfg.mineru_relay_url,
+                headers=headers,
+                json={
+                    "sourceUrl": source_url,
+                    "destinationUrl": destination_url,
+                    "maxBytes": _MAX_BYTES,
+                },
+                timeout=cfg.mineru_relay_timeout,
+            )
+            if relay.status_code < 300:
+                break
+        except requests.RequestException:
+            relay = None
+        if attempt == 0:
+            time.sleep(1)
+    if relay is None or relay.status_code >= 300:
+        detail = "network error" if relay is None else f"{relay.status_code}: {relay.text[:300]}"
+        raise MineruLiteError(f"MinerU relay failed ({detail})")
+    if on_progress:
+        on_progress(25)
+    return _poll_result(task_id, on_progress)

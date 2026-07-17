@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Icon, IconName, Text } from '@/components/ui';
+import { Button, Icon, IconName, Text, userToast } from '@/components/ui';
 import { useGenerate } from '@/api/hooks';
 import type { Chapter, Deck, GenerateOptions, Material, Quiz, SourceFile } from '@/api/types';
 import { m } from '@/i18n';
@@ -23,24 +23,37 @@ export function GeneratePanel({
   chapters,
   files,
   onOpenItem,
+  onGeneratingChange,
 }: {
   workspaceId: string;
   chapters: Chapter[];
   files: SourceFile[];
   onOpenItem?: (item: OpenItem) => void;
+  onGeneratingChange?: (mode: GenerateMode | null) => void;
 }) {
   const gen = useGenerate(workspaceId);
   const [mode, setMode] = useState<GenerateMode | null>(null);
   const [result, setResult] = useState<GenerateResultData | null>(null);
 
   async function handleGenerate(opts: GenerateOptions) {
-    const r = (await gen.mutateAsync(opts)) as GenerateResultData;
-    setResult(r);
+    onGeneratingChange?.(opts.kind);
     setMode(null);
-    // Reveal the freshly-generated artifact in the center pane.
-    const materialId =
-      r.kind === 'quiz' ? r.quiz?.id : r.kind === 'flashcards' ? r.deck?.id : r.material?.id;
-    if (materialId) onOpenItem?.({ kind: 'material', id: materialId });
+    try {
+      const r = (await gen.mutateAsync(opts)) as GenerateResultData;
+      setResult(r);
+      // Reveal the freshly-generated artifact in the center pane.
+      const materialId =
+        r.kind === 'quiz' ? r.quiz?.id : r.kind === 'flashcards' ? r.deck?.id : r.material?.id;
+      if (materialId) onOpenItem?.({ kind: 'material', id: materialId });
+    } catch (error) {
+      userToast({
+        title: 'Could not generate material',
+        description: error instanceof Error ? error.message : 'Something went wrong.',
+        button: { label: 'Dismiss', onClick: () => {} },
+      });
+    } finally {
+      onGeneratingChange?.(null);
+    }
   }
 
   return (
@@ -51,6 +64,7 @@ export function GeneratePanel({
           <Button asChild key={k} size="lg" variant="outline">
             <button
               key={k}
+              disabled={gen.isPending}
               onClick={() => {
                 setResult(null);
                 setMode(k);

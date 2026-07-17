@@ -42,9 +42,10 @@ func (s *Store) WorkspaceAccess(ctx context.Context, userID, wsID string) (isOwn
 // parent workspace is shared.
 func (s *Store) MaterialAccess(ctx context.Context, userID, matID string) (isOwner bool, err error) {
 	var owner *string
-	var matPrivacy, wsPrivacy Privacy
-	e := s.pool.QueryRow(ctx, `SELECT w.user_id, m.privacy, w.privacy
-		FROM materials m JOIN workspaces w ON w.id=m.workspace_id WHERE m.id=$1`, matID).
+	var matPrivacy Privacy
+	var wsPrivacy *Privacy
+	e := s.pool.QueryRow(ctx, `SELECT m.user_id, m.privacy, w.privacy
+		FROM materials m LEFT JOIN workspaces w ON w.id=m.workspace_id WHERE m.id=$1`, matID).
 		Scan(&owner, &matPrivacy, &wsPrivacy)
 	if isNoRows(e) {
 		return false, ErrNotFound
@@ -56,7 +57,7 @@ func (s *Store) MaterialAccess(ctx context.Context, userID, matID string) (isOwn
 		return true, nil
 	}
 	if matPrivacy == PrivacyLink || matPrivacy == PrivacyPublic ||
-		wsPrivacy == PrivacyLink || wsPrivacy == PrivacyPublic {
+		(wsPrivacy != nil && (*wsPrivacy == PrivacyLink || *wsPrivacy == PrivacyPublic)) {
 		return false, nil
 	}
 	return false, ErrNotFound
@@ -127,9 +128,9 @@ func (s *Store) ListPublicWorkspaces(ctx context.Context) ([]PublicWorkspace, er
 }
 
 func (s *Store) ListPublicQuizzes(ctx context.Context) ([]PublicQuiz, error) {
-	rows, err := s.pool.Query(ctx, `SELECT m.id, m.workspace_id, m.workspace_name, m.kind, m.title, m.content, m.chapter_id, m.scope_chapters, m.scope_file_ids, m.privacy, m.color, m.created_at,
+	rows, err := s.pool.Query(ctx, `SELECT m.id, COALESCE(m.workspace_id,''), m.workspace_name, m.kind, m.title, m.content, m.chapter_id, m.scope_chapters, m.scope_file_ids, m.privacy, m.color, m.created_at,
 			COALESCE(u.name,'Unknown'), m.clone_count
-		FROM materials m JOIN workspaces w ON w.id=m.workspace_id LEFT JOIN users u ON u.id=w.user_id
+		FROM materials m LEFT JOIN workspaces w ON w.id=m.workspace_id LEFT JOIN users u ON u.id=m.user_id
 		WHERE m.kind='quiz' AND (m.privacy='public' OR w.privacy='public')
 		ORDER BY m.clone_count DESC, m.created_at DESC`)
 	if err != nil {
@@ -156,7 +157,7 @@ func (s *Store) ListPublicQuizzes(ctx context.Context) ([]PublicQuiz, error) {
 func (s *Store) ListPublicDecks(ctx context.Context) ([]PublicDeck, error) {
 	rows, err := s.pool.Query(ctx, `SELECT m.id, m.title, COALESCE(m.workspace_id,''), m.workspace_name, m.color, m.privacy,`+deckStatsExpr+`,
 			COALESCE(u.name,'Unknown'), m.clone_count
-		FROM materials m JOIN workspaces w ON w.id=m.workspace_id LEFT JOIN users u ON u.id=w.user_id
+		FROM materials m LEFT JOIN workspaces w ON w.id=m.workspace_id LEFT JOIN users u ON u.id=m.user_id
 		WHERE m.kind='flashcards' AND (m.privacy='public' OR w.privacy='public')
 		ORDER BY m.clone_count DESC, m.created_at DESC`)
 	if err != nil {
@@ -222,6 +223,13 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy) VALUES ($1,$2,$3,$4,'private')`,
 		newID, userID, name, src.Color); err != nil {
+		return Workspace{}, err
+	}
+	tagRefs := make([]TagRef, len(src.Tags))
+	for i, tag := range src.Tags {
+		tagRefs[i] = TagRef{Value: tag.Value}
+	}
+	if err := syncEntityTags(ctx, tx, userID, "workspace", newID, tagRefs); err != nil {
 		return Workspace{}, err
 	}
 
@@ -349,9 +357,9 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 					return Workspace{}, err
 				}
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO materials (id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'private',$10)`,
-				nid, newID, name, mt.Kind, mt.Title, content, chapterID, mt.ScopeChapters, scopeFiles, mt.Color); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'private',$11)`,
+				nid, userID, newID, name, mt.Kind, mt.Title, content, chapterID, mt.ScopeChapters, scopeFiles, mt.Color); err != nil {
 				return Workspace{}, err
 			}
 			for _, cid := range cardIDs {
@@ -372,24 +380,14 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 	return s.GetWorkspace(ctx, userID, newID, false)
 }
 
-// CloneMaterial copies one shared material (quiz / deck / note / …) into the
-// user's most recently used workspace. Flashcards get fresh card ids + reset
-// SRS stats. The clone lands private.
+// CloneMaterial copies one shared material into the user's standalone library.
+// Flashcards get fresh card ids + reset SRS stats. The clone lands private.
 func (s *Store) CloneMaterial(ctx context.Context, userID, matID string) (Material, error) {
 	if _, err := s.MaterialAccess(ctx, userID, matID); err != nil {
 		return Material{}, err
 	}
 	src, err := s.GetMaterial(ctx, matID)
 	if err != nil {
-		return Material{}, err
-	}
-
-	var wsID, wsName string
-	if err := s.pool.QueryRow(ctx, `SELECT id, name FROM workspaces WHERE user_id=$1 ORDER BY last_accessed_at DESC LIMIT 1`, userID).
-		Scan(&wsID, &wsName); err != nil {
-		if isNoRows(err) {
-			return Material{}, ErrNotFound
-		}
 		return Material{}, err
 	}
 
@@ -408,9 +406,9 @@ func (s *Store) CloneMaterial(ctx context.Context, userID, matID string) (Materi
 	defer tx.Rollback(ctx)
 
 	nid := uid("mat")
-	if _, err := tx.Exec(ctx, `INSERT INTO materials (id, workspace_id, workspace_name, kind, title, content, scope_chapters, scope_file_ids, privacy, color)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,'{}','private',$8)`,
-		nid, wsID, wsName, src.Kind, src.Title, content, src.ScopeChapters, src.Color); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, scope_chapters, scope_file_ids, privacy, color)
+		VALUES ($1,$2,NULL,'',$3,$4,$5,$6,'{}','private',$7)`,
+		nid, userID, src.Kind, src.Title, content, src.ScopeChapters, src.Color); err != nil {
 		return Material{}, err
 	}
 	for _, cid := range cardIDs {

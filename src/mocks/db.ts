@@ -14,6 +14,7 @@ import type {
   Label,
   Material,
   PublicQuiz,
+  PublicDeck,
   PublicWorkspace,
   Question,
   Quiz,
@@ -26,7 +27,12 @@ import type {
   Workspace,
 } from '@/api/types';
 import { isDue, isKnown, newSrsState, reviewSrs } from '@/lib/srs';
-import { flashcardsMarkdown, parseFlashcardsBlock, parseQuizBlock, quizMarkdown } from '@/features/materials/blocks';
+import {
+  flashcardsMarkdown,
+  parseFlashcardsBlock,
+  parseQuizBlock,
+  quizMarkdown,
+} from '@/features/materials/blocks';
 
 export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -482,7 +488,12 @@ const seedQuizzes: Quiz[] = [
         type: 'mcq',
         level: 'application',
         prompt: '∫ x·eˣ dx is best solved by…',
-        options: wv('Substitution', 'Integration by parts', 'Partial fractions', 'Trig substitution'),
+        options: wv(
+          'Substitution',
+          'Integration by parts',
+          'Partial fractions',
+          'Trig substitution'
+        ),
         correct: [1],
       },
       {
@@ -534,7 +545,12 @@ const seedQuizzes: Quiz[] = [
         type: 'multi',
         level: 'application',
         prompt: 'Which techniques help integrate rational functions?',
-        options: wv('Partial fractions', 'Polynomial long division', 'Integration by parts', 'Trig substitution'),
+        options: wv(
+          'Partial fractions',
+          'Polynomial long division',
+          'Integration by parts',
+          'Trig substitution'
+        ),
         correct: [0, 1],
       },
       {
@@ -930,7 +946,13 @@ export const chatMessages: WireMessage[] = [
       'A **cell** is the basic structural and functional unit of life.\n\n- Bounded by a **membrane** that controls transport\n- Contains **organelles** like the nucleus and mitochondria\n- Produces energy (ATP) in the **mitochondria**',
     status: 'complete',
     citations: files[0]
-      ? [{ fileId: files[0].id, fileName: files[0].name, snippet: 'The cell is the basic unit of life…' }]
+      ? [
+          {
+            fileId: files[0].id,
+            fileName: files[0].name,
+            snippet: 'The cell is the basic unit of life…',
+          },
+        ]
       : null,
     createdAt: days(1),
   },
@@ -970,6 +992,26 @@ export const publicQuizzes: PublicQuiz[] = [
     author: 'mathpro',
     privacy: 'public',
     clones: 410,
+  },
+];
+export const publicDecks: PublicDeck[] = [
+  {
+    ...seedDecks[0],
+    id: 'pub_dk_1',
+    name: 'Cell biology essentials',
+    author: 'mrslee',
+    privacy: 'public',
+    isOwner: false,
+    clones: 320,
+  },
+  {
+    ...seedDecks[1],
+    id: 'pub_dk_2',
+    name: 'Calculus formulas',
+    author: 'mathpro',
+    privacy: 'public',
+    isOwner: false,
+    clones: 205,
   },
 ];
 
@@ -1033,6 +1075,7 @@ export function quizFromMaterial(mt: Material): Quiz {
     createdAt: mt.createdAt,
     privacy: mt.privacy,
     timeLimitMin,
+    isOwner: true,
   };
 }
 
@@ -1041,7 +1084,14 @@ export function cardsFromMaterial(mt: Material): Flashcard[] {
   return parseFlashcardsBlock(mt.content).cards.map((c) => {
     const st = cardStats[c.id];
     const srs = st?.srs ?? newSrsState();
-    return { id: c.id, deckId: mt.id, front: c.front, back: c.back, known: st?.known ?? false, srs };
+    return {
+      id: c.id,
+      deckId: mt.id,
+      front: c.front,
+      back: c.back,
+      known: st?.known ?? false,
+      srs,
+    };
   });
 }
 
@@ -1055,6 +1105,8 @@ export function deckFromMaterial(mt: Material): Deck {
     workspaceId: mt.workspaceId,
     workspaceName: mt.workspaceName,
     color: mt.color ?? 'green',
+    privacy: mt.privacy,
+    isOwner: true,
     cardCount: cs.length,
     knownPct: cs.length ? Math.round((100 * known) / cs.length) : 0,
     dueCount: cs.filter((c) => isDue(c.srs)).length,

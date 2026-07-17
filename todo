@@ -6,23 +6,24 @@ low priority:
 4.  paginations?
 5.  shortcut keys (ctrl + n in workspace to make a note)
 6.  tooltip (for shortcut key and explanation)
-7.  use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc) (prob need an extra field like customColor and a bunch of type changes in backend go)
-8.  paraglide check for any missed text that is not being translated (few in workspaces open walready, PRIVACY_OPTIONS, input placeholders)
-9.  make a bunch of integration and backend tests
-10. rate limiting, bot detection (can do some funny things if we have high bot traffic), analytics, promo, posthog
-11. work on thinkg space
-12. check all the skeleton loaders look ok
-13. check that components are reused as much as possible (esp dialog ( to replace modals), popover, and buttons)
-14. rewrite progress bar/other components in cva
-15. check accessibility and aria labels (use radix-ui as primitive as often as possible, which means to enforce the radius primitives in ui components and ensure these ui components are reused as often as possible)
-16. folder organization
-17. react reactivity check (many many fixes needed, give it to fable)
-18. semantics and accessibility check
-19. readme files
-20. investigate how to tie the state between search params and dialog open/close state, right now I see that we listen to change in dialog state in useeffect and then manually remove search params, and listening to change in search params to manually open the dialog. and we also need to factor in navigating cross pages and dont strip the search params on initial mount (because dialog will be initially closed)
-21. elastic search?
-22. what is the backend actually doing
-23. how to not lose ones mind when reading this repo
+7.  double check that all actions have isSubmitting/proper isDisabled gates to prevent spams
+8.  use dynamic color paletts for solid colors (these should be user defined colors, system colors should use success/warning/info etc) (prob need an extra field like customColor and a bunch of type changes in backend go)
+9.  paraglide check for any missed text that is not being translated (few in workspaces open walready, PRIVACY_OPTIONS, input placeholders)
+10. make a bunch of integration and backend tests
+11. rate limiting, bot detection (can do some funny things if we have high bot traffic), analytics, promo, posthog
+12. work on thinkg space
+13. check all the skeleton loaders look ok
+14. check that components are reused as much as possible (esp dialog ( to replace modals), popover, and buttons)
+15. rewrite progress bar/other components in cva
+16. check accessibility and aria labels (use radix-ui as primitive as often as possible, which means to enforce the radius primitives in ui components and ensure these ui components are reused as often as possible)
+17. folder organization
+18. react reactivity check (many many fixes needed, give it to fable)
+19. semantics and accessibility check
+20. readme files
+21. investigate how to tie the state between search params and dialog open/close state, right now I see that we listen to change in dialog state in useeffect and then manually remove search params, and listening to change in search params to manually open the dialog. and we also need to factor in navigating cross pages and dont strip the search params on initial mount (because dialog will be initially closed)
+22. elastic search?
+23. what is the backend actually doing
+24. how to not lose ones mind when reading this repo
 
 high PRIORITIES:
 
@@ -31,6 +32,13 @@ high PRIORITIES:
 3. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
 4. set loading state for submit buttons (esp dialogs)
 5. remove all the <Text> components
+6. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
+7. inject script in head to set light/dark to prevent flashing
+8. add icons for common file format
+9. user can highlight words in workspace to reveal actions (summarize/copy to text)
+10. export to diff files
+11. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
+12. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
 
-risk?
-QueryParam.ids behavior on lightrag-hku 1.5.4 in mode="mix" is unverified (plan risk #2). Code degrades safely: if ids errors it logs and falls back to unscoped, and the natural-language scope hint still steers the answer. Worth a live smoke test once the pipeline runs.
+rag system caution
+chapter scoped query/filtering is only soft steered using prompt, underlying reason why hard filtering during query is quite impossible is because after ingestion, an entity can be pointed to by multiple documents

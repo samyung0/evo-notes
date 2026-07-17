@@ -102,16 +102,16 @@ func (a *api) createQuiz(ctx context.Context, in *createQuizInput) (*quizOutput,
 	if privacy == "" {
 		privacy = "private"
 	}
-	wsID, wsName := b.WorkspaceID, "Workspace"
-	if wsID == "" {
-		if list, err := a.s.ListWorkspaces(ctx, userID(ctx), "", "", "", ""); err == nil && len(list) > 0 {
-			wsID, wsName = list[0].ID, list[0].Name
+	wsID, wsName := b.WorkspaceID, ""
+	if wsID != "" {
+		ws, err := a.s.GetWorkspace(ctx, userID(ctx), wsID, false)
+		if err != nil {
+			return nil, hErr(err)
 		}
-	} else if ws, err := a.s.GetWorkspace(ctx, userID(ctx), wsID, false); err == nil {
 		wsName = ws.Name
 	}
 	res, err := a.s.CreateQuiz(ctx, store.Quiz{
-		Name: name, WorkspaceID: wsID, WorkspaceName: wsName, Chapters: b.Chapters,
+		UserID: userID(ctx), Name: name, WorkspaceID: wsID, WorkspaceName: wsName, Chapters: b.Chapters,
 		Questions: apimodel.EncodeQuestions(b.Questions), Privacy: privacy, TimeLimitMin: b.TimeLimitMin,
 	})
 	if err != nil {

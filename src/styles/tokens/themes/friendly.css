@@ -139,18 +139,6 @@
   --solid-graphite: #2c302d;
   --solid-graphite-fg: #ffffff;
 
-  /* Sticky-note surfaces (saturated + soft) */
-  --note-green-bg: #aef07f;
-  --note-green-fg: #222222;
-  --note-green-fg-muted: rgba(34, 34, 34, 0.6);
-  --note-purple-bg: #8c7bd9;
-  --note-purple-fg: #ffffff;
-  --note-purple-fg-muted: rgba(255, 255, 255, 0.78);
-  --note-green-soft-bg: #eaf3e6;
-  --note-green-soft-fg: #3c5230;
-  --note-purple-soft-bg: #ece6f6;
-  --note-purple-soft-fg: #5b4aa8;
-
   /* Shadows */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);

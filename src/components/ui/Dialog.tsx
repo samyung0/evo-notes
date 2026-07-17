@@ -6,6 +6,8 @@ import { IconButton } from './IconButton';
 import { Button } from './Button';
 import { Text } from './Text';
 import { Card } from '@/components/ui/Card';
+import { Spinner } from './feedback';
+import { m } from '@/i18n';
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
@@ -129,6 +131,7 @@ function SimpleDialog({
   title,
   children,
   footer,
+  width,
   className,
   showCloseButton = true,
 }: {
@@ -143,7 +146,11 @@ function SimpleDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent showCloseButton={showCloseButton} className={className}>
+      <DialogContent
+        showCloseButton={showCloseButton}
+        className={className}
+        style={width ? { maxWidth: width } : undefined}
+      >
         {title != null && <DialogTitle className="pr-10 pb-4">{title}</DialogTitle>}
         {children}
         {footer && <DialogFooter>{footer}</DialogFooter>}
@@ -160,6 +167,8 @@ interface ConfirmDialogProps {
   body?: string;
   confirmLabel?: string;
   danger?: boolean;
+  isSubmitting?: boolean;
+  disabled?: boolean;
 }
 
 function ConfirmDialog({
@@ -169,6 +178,8 @@ function ConfirmDialog({
   title,
   body,
   confirmLabel = 'Delete',
+  isSubmitting,
+  disabled,
   danger = true,
 }: ConfirmDialogProps) {
   return (
@@ -176,30 +187,30 @@ function ConfirmDialog({
       open={open}
       onClose={onClose}
       title={title}
-      width={420}
       footer={
         <>
           <Button variant="ghost-hover" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            variant={danger ? 'primary' : 'accent'}
-            className={danger ? 'bg-solid-error text-white hover:brightness-95' : undefined}
+            disabled={disabled || isSubmitting}
+            variant={danger ? 'danger' : 'accent'}
             onClick={() => {
               onConfirm();
               onClose();
             }}
           >
-            {confirmLabel}
+            {!isSubmitting && <span>{m.action_confirm()}</span>}
+            {isSubmitting && (
+              <span>
+                <Spinner />
+              </span>
+            )}
           </Button>
         </>
       }
     >
-      {body && (
-        <Text variant="body" tone="secondary">
-          {body}
-        </Text>
-      )}
+      {body && <p>{body}</p>}
     </SimpleDialog>
   );
 }

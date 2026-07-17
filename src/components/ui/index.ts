@@ -47,7 +47,7 @@ export {
   SelectTrigger,
   SelectValue,
 } from './Select';
-export { toast, type ToastProps } from './Sonner';
+export { userToast, type ToastProps } from './Sonner';
 export { Switch } from './Switch';
 export { Tabs } from './Tabs';
 export { TagSelect } from './TagSelect';

@@ -20,11 +20,15 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import os
+import shutil
+import tempfile
+import zipfile
 from collections.abc import Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, TYPE_CHECKING
 
 import requests
@@ -33,6 +37,7 @@ from lightrag.parser.external._base import ExternalParserBase
 from lightrag.parser.registry import ParserSpec, register_parser
 
 from ..config import cfg
+from ..store import blobstore
 
 if TYPE_CHECKING:
     from lightrag.sidecar.ir import IRDoc
@@ -41,6 +46,9 @@ log = logging.getLogger("evo.rag.modal_parser")
 
 PARSER_ENGINE_MODAL = "modal"
 _SIGNATURE_FILENAME = "evo_modal_signature.json"
+SOURCE_DESCRIPTOR_SCHEMA = "evo-b2-source-v1"
+ARTIFACT_SCHEMA = "evo-mineru-bundle-v1"
+PARSER_VERSION = "mineru-3.4-hybrid-v1"
 
 # Everything the Modal MineRU service can rasterize/OCR. Plain text formats
 # (txt/md) never reach this engine — the worker inserts those as RAW text.
@@ -68,8 +76,55 @@ class ModalParseError(RuntimeError):
     pass
 
 
+def source_descriptor(
+    *, blob_path: str, file_id: str, source_etag: str, source_size: int
+) -> dict[str, Any]:
+    return {
+        "schema": SOURCE_DESCRIPTOR_SCHEMA,
+        "blob_path": blob_path,
+        "file_id": file_id,
+        "source_etag": source_etag,
+        "source_size": source_size,
+    }
+
+
+def _read_source_descriptor(source_path: Path) -> dict[str, Any] | None:
+    try:
+        data = json.loads(source_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if isinstance(data, dict) and data.get("schema") == SOURCE_DESCRIPTOR_SCHEMA:
+        return data
+    return None
+
+
+def artifact_identity(descriptor: Mapping[str, Any]) -> tuple[str, str]:
+    identity = ":".join(
+        [
+            str(descriptor.get("blob_path") or ""),
+            str(descriptor.get("source_etag") or ""),
+            str(descriptor.get("source_size") or ""),
+            cfg.parse_method,
+            PARSER_VERSION,
+        ]
+    )
+    fingerprint = hashlib.sha256(identity.encode()).hexdigest()
+    file_id = str(descriptor.get("file_id") or "unknown")
+    return f"parsed/{file_id}/{PARSER_VERSION}/{fingerprint}.zip", fingerprint
+
+
 def _bundle_signature(source_path: Path) -> dict[str, Any]:
     """Cache signature for a raw bundle: source identity + parse params."""
+    descriptor = _read_source_descriptor(source_path)
+    if descriptor is not None:
+        artifact_key, fingerprint = artifact_identity(descriptor)
+        return {
+            "source_fingerprint": fingerprint,
+            "artifact_key": artifact_key,
+            "parse_method": cfg.parse_method,
+            "url": cfg.modal_parse_url,
+            "parser_version": PARSER_VERSION,
+        }
     stat = source_path.stat()
     return {
         "source_size": stat.st_size,
@@ -93,6 +148,57 @@ def _request_payload(source_path: Path, upload_name: str) -> dict[str, Any]:
     if cfg.modal_parse_token:
         headers["Authorization"] = f"Bearer {cfg.modal_parse_token}"
 
+    descriptor = _read_source_descriptor(source_path)
+    if descriptor is not None:
+        artifact_key, fingerprint = artifact_identity(descriptor)
+        cached = blobstore.object_info(artifact_key)
+        if cached is not None:
+            log.info(
+                "parse artifact cache hit key=%s bytes=%s",
+                artifact_key,
+                cached["size"],
+            )
+            return {
+                "artifact": {
+                    "key": artifact_key,
+                    "size": cached["size"],
+                    "etag": cached["etag"],
+                    "fingerprint": fingerprint,
+                    "cached": True,
+                }
+            }
+        source_url = blobstore.presign_get(str(descriptor["blob_path"]))
+        output_url = blobstore.presign_put(artifact_key, "application/zip")
+        resp = requests.post(
+            cfg.modal_parse_url,
+            headers={**headers, "Content-Type": "application/json"},
+            json={
+                "source_url": source_url,
+                "output_url": output_url,
+                "output_key": artifact_key,
+                "filename": upload_name,
+                "parse_method": cfg.parse_method,
+                "artifact_schema": ARTIFACT_SCHEMA,
+                "parser_version": PARSER_VERSION,
+                "source_fingerprint": fingerprint,
+            },
+            timeout=cfg.modal_parse_timeout,
+        )
+        if resp.status_code >= 300:
+            raise ModalParseError(f"modal parse {resp.status_code}: {resp.text[:500]}")
+        payload = resp.json()
+        artifact = payload.get("artifact") or {}
+        if artifact.get("key") != artifact_key:
+            raise ModalParseError("modal returned an unexpected artifact key")
+        artifact["fingerprint"] = fingerprint
+        log.info(
+            "modal published parse artifact key=%s bytes=%s parse_s=%s",
+            artifact_key,
+            artifact.get("size"),
+            payload.get("_server_parse_s"),
+        )
+        return payload
+
     with open(source_path, "rb") as fh:
         resp = requests.post(
             cfg.modal_parse_url,
@@ -106,12 +212,90 @@ def _request_payload(source_path: Path, upload_name: str) -> dict[str, Any]:
     return resp.json()
 
 
+def _extract_artifact(
+    artifact_key: str,
+    raw_dir: Path,
+    expected_sha256: str | None = None,
+    expected_fingerprint: str | None = None,
+) -> None:
+    fd, tmp_name = tempfile.mkstemp(prefix="evo_parse_", suffix=".zip")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        blobstore.download_to(artifact_key, tmp)
+        log.info("downloading parse artifact key=%s bytes=%d", artifact_key, tmp.stat().st_size)
+        digest = hashlib.sha256(tmp.read_bytes()).hexdigest()
+        if expected_sha256 and digest != expected_sha256:
+            raise ModalParseError("parsed artifact checksum mismatch")
+        with zipfile.ZipFile(tmp) as archive:
+            names = set(archive.namelist())
+            if "manifest.json" not in names or "content_list.json" not in names:
+                raise ModalParseError("parsed artifact is missing its manifest or content list")
+            manifest = json.loads(archive.read("manifest.json"))
+            if manifest.get("schema") != ARTIFACT_SCHEMA:
+                raise ModalParseError("unsupported parsed artifact schema")
+            if manifest.get("parser_version") != PARSER_VERSION:
+                raise ModalParseError("parsed artifact version mismatch")
+            if (
+                expected_fingerprint
+                and manifest.get("source_fingerprint") != expected_fingerprint
+            ):
+                raise ModalParseError("parsed artifact source mismatch")
+            for info in archive.infolist():
+                path = PurePosixPath(info.filename)
+                if path.is_absolute() or ".." in path.parts:
+                    raise ModalParseError("unsafe path in parsed artifact")
+                if info.is_dir():
+                    continue
+                destination = raw_dir.joinpath(*path.parts)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(info) as src, destination.open("wb") as dst:
+                    shutil.copyfileobj(src, dst)
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+
+
 def _fetch_bundle_sync(source_path: Path, upload_name: str, raw_dir: Path) -> None:
     """Fetch the Modal payload and write a MinerU-style raw bundle into ``raw_dir``.
 
     Blocking (requests + file IO); run via ``asyncio.to_thread``.
     """
     payload = _request_payload(source_path, upload_name)
+    artifact = payload.get("artifact")
+    if isinstance(artifact, dict) and artifact.get("key"):
+        try:
+            _extract_artifact(
+                str(artifact["key"]),
+                raw_dir,
+                str(artifact.get("sha256") or "") or None,
+                str(artifact.get("fingerprint") or "") or None,
+            )
+        except Exception:
+            if not artifact.get("cached"):
+                raise
+            log.warning("discarding corrupt cached parse artifact %s", artifact["key"])
+            blobstore.delete(str(artifact["key"]))
+            for child in raw_dir.iterdir():
+                if child.is_dir():
+                    shutil.rmtree(child)
+                else:
+                    child.unlink()
+            payload = _request_payload(source_path, upload_name)
+            artifact = payload.get("artifact") or {}
+            _extract_artifact(
+                str(artifact["key"]),
+                raw_dir,
+                str(artifact.get("sha256") or "") or None,
+                str(artifact.get("fingerprint") or "") or None,
+            )
+        (raw_dir / _SIGNATURE_FILENAME).write_text(
+            json.dumps(_bundle_signature(source_path)), encoding="utf-8"
+        )
+        return
+
     content_list: list[dict[str, Any]] = payload.get("content_list") or []
     images: dict[str, str] = payload.get("images") or {}
 

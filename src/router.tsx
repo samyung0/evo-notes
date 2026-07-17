@@ -25,6 +25,7 @@ import {
   deckQuery,
   eventsQuery,
   exploreQuizzesQuery,
+  exploreDecksQuery,
   exploreWorkspacesQuery,
   filesQuery,
   labelsQuery,
@@ -77,20 +78,49 @@ const page = <const T extends string>(
     ...(loader ? { loader } : {}),
   });
 
-const publicRoutes = USE_MSW
-  ? []
-  : [
-      createRoute({
-        getParentRoute: () => rootRoute,
-        path: '/sign-in',
-        component: lazyRouteComponent(() => import('@/routes/SignIn')),
-      }),
-      createRoute({
-        getParentRoute: () => rootRoute,
-        path: '/sign-up',
-        component: lazyRouteComponent(() => import('@/routes/SignUp')),
-      }),
-    ];
+const publicRoutes = [
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/share/workspaces/$workspaceId',
+    component: lazyRouteComponent(() => import('@/routes/WorkspaceOpen')),
+    loader: ({ context: { queryClient: qc }, params }) => {
+      const id = params.workspaceId;
+      qc.prefetchQuery(workspaceQuery(id));
+      qc.prefetchQuery(chaptersQuery(id));
+      qc.prefetchQuery(filesQuery(id));
+    },
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/share/quizzes/$quizId',
+    component: lazyRouteComponent(() => import('@/routes/QuizAttempt')),
+    loader: ({ context: { queryClient: qc }, params }) =>
+      qc.prefetchQuery(quizQuery(params.quizId)),
+  }),
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/share/decks/$deckId',
+    component: lazyRouteComponent(() => import('@/routes/DeckStudy')),
+    loader: ({ context: { queryClient: qc }, params }) => {
+      qc.prefetchQuery(deckQuery(params.deckId));
+      qc.prefetchQuery(cardsQuery(params.deckId));
+    },
+  }),
+  ...(USE_MSW
+    ? []
+    : [
+        createRoute({
+          getParentRoute: () => rootRoute,
+          path: '/sign-in',
+          component: lazyRouteComponent(() => import('@/routes/SignIn')),
+        }),
+        createRoute({
+          getParentRoute: () => rootRoute,
+          path: '/sign-up',
+          component: lazyRouteComponent(() => import('@/routes/SignUp')),
+        }),
+      ]),
+];
 
 const appRoutes = [
   createRoute({
@@ -202,6 +232,7 @@ const appRoutes = [
           ({ context: { queryClient: qc } }) => {
             qc.prefetchQuery(exploreWorkspacesQuery());
             qc.prefetchQuery(exploreQuizzesQuery());
+            qc.prefetchQuery(exploreDecksQuery());
           }
         ),
       ]

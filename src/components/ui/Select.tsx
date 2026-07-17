@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Select as SelectPrimitive } from 'radix-ui';
+import { cva, VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/cn';
 import { Icon } from './Icon';
@@ -22,27 +23,45 @@ function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.V
   return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
+const selectTriggerVariants = cva(
+  'flex w-full items-center justify-between gap-2 bg-surface text-left hover:border-line-strong focus-visible:border-line-strong disabled:cursor-not-allowed disabled:opacity-40 data-[state=open]:border-line-strong',
+  {
+    variants: {
+      size: {
+        sm: 'px-2.5 pt-2 pb-0.5 text-xs',
+        md: 'px-3.25 py-2.5',
+      },
+      variant: {
+        border: 'rounded-input border border-line',
+        underline: 'border-b border-line',
+      },
+    },
+    defaultVariants: {
+      size: 'md',
+      variant: 'border',
+    },
+  }
+);
+
 function SelectTrigger({
   className,
-  size = 'default',
+  size = 'md',
+  variant = 'border',
   children,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
-  size?: 'sm' | 'default';
-}) {
+}: React.ComponentProps<typeof SelectPrimitive.Trigger> &
+  VariantProps<typeof selectTriggerVariants>) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
-      className={cn(
-        'flex w-full items-center justify-between gap-2 rounded-input border border-line bg-surface px-3.25 py-2.5 text-left hover:border-line-strong focus-visible:border-line-strong disabled:cursor-not-allowed disabled:opacity-40 data-[state=open]:border-line-strong',
-        className
-      )}
+      data-variant={variant}
+      className={cn(selectTriggerVariants({ size, variant }), className)}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <Icon name="chevronDown" size={16} className="text-fg-muted" />
+        <Icon name="chevronDown" className="size-4 text-fg-muted" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -96,18 +115,34 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
   );
 }
 
+const selectItemVariants = cva(
+  "relative flex w-full cursor-pointer items-center gap-1.5 rounded-row bg-surface text-left font-medium text-fg outline-hidden transition-colors select-none hover:bg-surface-hover-bg disabled:opacity-40 data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+  {
+    variants: {
+      size: {
+        sm: 'px-2.5 py-2 text-xs',
+        md: 'px-3.25 py-2.5',
+      },
+    },
+    defaultVariants: {
+      size: 'md',
+    },
+  }
+);
+
 function SelectItem({
   className,
   children,
+  disabled,
+  size = 'md',
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & VariantProps<typeof selectItemVariants>) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
-      className={cn(
-        "relative flex w-full cursor-pointer items-center gap-1.5 rounded-row bg-surface px-3 py-2 text-left font-medium text-fg outline-hidden transition-colors select-none hover:bg-surface-hover-bg disabled:opacity-40 data-disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
-        className
-      )}
+      data-size={size}
+      disabled={disabled}
+      className={cn(selectItemVariants({ size }), disabled && 'opacity-50', className)}
       {...props}
     >
       <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
@@ -127,7 +162,7 @@ function SelectSeparator({
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
-      className={cn('bg-border pointer-events-none -mx-1 my-1 h-px', className)}
+      className={cn('pointer-events-none mx-3 my-1 h-px bg-line', className)}
       {...props}
     />
   );

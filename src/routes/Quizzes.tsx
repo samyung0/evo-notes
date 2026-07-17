@@ -14,11 +14,20 @@ import {
   Tabs,
   Text,
 } from '@/components/ui';
-import { useAttempts, useCreateQuiz, useDeleteQuiz, useMistakes, useQuizzes } from '@/api/hooks';
+import {
+  useAttempts,
+  useCloneQuiz,
+  useCreateQuiz,
+  useDeleteQuiz,
+  useMistakes,
+  useQuizzes,
+  useUpdateQuiz,
+} from '@/api/hooks';
 import { useDialogs } from '@/stores/dialogs';
 import { cn } from '@/lib/cn';
 import type { Attempt, Quiz } from '@/api/types';
 import { m } from '@/i18n';
+import { ShareDialog } from '@/components/app/ShareDialog';
 
 function scoreTone(pct: number): 'success' | 'warning' | 'error' {
   return pct >= 70 ? 'success' : pct >= 55 ? 'warning' : 'error';
@@ -55,8 +64,11 @@ function AllQuizzes() {
   const { data, isLoading } = useQuizzes();
   const navigate = useNavigate();
   const del = useDeleteQuiz();
+  const clone = useCloneQuiz();
+  const update = useUpdateQuiz();
   const openConfirm = useDialogs((s) => s.openConfirm);
   const [info, setInfo] = useState<Quiz | null>(null);
+  const [sharing, setSharing] = useState<Quiz | null>(null);
 
   if (isLoading) return <SkeletonCardGrid count={6} cardHeight={150} />;
 
@@ -79,7 +91,7 @@ function AllQuizzes() {
               {q.name}
             </Text>
             <span className="mt-1 flex items-center gap-1 text-xs text-fg-muted">
-              <Icon name="book" size={13} /> {q.workspaceName}
+              <Icon name="book" size={13} /> {q.workspaceName || 'Standalone'}
             </span>
             <Text variant="meta" tone="muted" className="mt-1">
               {q.questions.length} questions · {q.chapters.join(', ') || 'All chapters'}
@@ -101,6 +113,16 @@ function AllQuizzes() {
                         to: '/quizzes/$quizId/attempt',
                         params: { quizId: q.id },
                       }),
+                  },
+                  {
+                    label: 'Share',
+                    icon: 'link',
+                    onClick: () => setSharing(q),
+                  },
+                  {
+                    label: 'Clone',
+                    icon: 'plus',
+                    onClick: () => clone.mutate(q.id),
                   },
                   {
                     label: m.action_delete(),
@@ -153,7 +175,7 @@ function AllQuizzes() {
               chapters.
             </Text>
             <Text variant="body" tone="secondary">
-              Workspace: {info.workspaceName}
+              Workspace: {info.workspaceName || 'Standalone'}
             </Text>
             {info.timeLimitMin && (
               <Text variant="body" tone="secondary">
@@ -170,6 +192,19 @@ function AllQuizzes() {
           </div>
         )}
       </SimpleDialog>
+      {sharing && (
+        <ShareDialog
+          open
+          onClose={() => setSharing(null)}
+          title={`Share ${sharing.name}`}
+          privacy={sharing.privacy}
+          link={`/share/quizzes/${sharing.id}`}
+          saving={update.isPending}
+          onPrivacyChange={(privacy) => {
+            update.mutate({ id: sharing.id, privacy }, { onSuccess: (quiz) => setSharing(quiz) });
+          }}
+        />
+      )}
     </>
   );
 }

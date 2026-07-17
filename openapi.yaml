@@ -670,6 +670,8 @@ components:
         - slides
         - video
         - audio
+        - json
+        - unknown
       type: string
     FileStatus:
       enum:

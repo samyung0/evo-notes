@@ -62,6 +62,21 @@ def set_file_doc_id(cur, file_id: str, doc_id: Optional[str]) -> None:
     cur.execute("UPDATE files SET doc_id=%s WHERE id=%s", (doc_id, file_id))
 
 
+def set_file_parse_artifact(
+    cur,
+    file_id: str,
+    blob_path: str,
+    fingerprint: str,
+    parser_version: str,
+) -> None:
+    cur.execute(
+        """UPDATE files
+        SET parsed_blob_path=%s, parsed_fingerprint=%s, parsed_parser_version=%s
+        WHERE id=%s""",
+        (blob_path, fingerprint, parser_version, file_id),
+    )
+
+
 def file_ids_for_doc_id(cur, doc_id: str) -> list[str]:
     """Files (if any) already claiming this LightRAG doc id."""
     cur.execute("SELECT id FROM files WHERE doc_id=%s", (doc_id,))

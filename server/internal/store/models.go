@@ -80,6 +80,7 @@ type File struct {
 
 type Quiz struct {
 	ID            string          `json:"id"`
+	UserID        string          `json:"-"`
 	Name          string          `json:"name"`
 	WorkspaceID   string          `json:"workspaceId"`
 	WorkspaceName string          `json:"workspaceName"`
@@ -145,6 +146,7 @@ type Flashcard struct {
 // the material is filed under in the tree (null = unfiled), mirroring File.
 type Material struct {
 	ID            string    `json:"id"`
+	UserID        string    `json:"-"`
 	WorkspaceID   string    `json:"workspaceId"`
 	WorkspaceName string    `json:"workspaceName"`
 	Kind          string    `json:"kind"` // mindmap | diagram | quiz | flashcards

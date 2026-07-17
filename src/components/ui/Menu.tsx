@@ -47,6 +47,7 @@ export interface MenuProps extends VariantProps<typeof menuVariants> {
   align?: 'start' | 'center' | 'end';
   className?: string;
   iconContainerClassName?: string;
+  alignWidthToTrigger?: boolean;
 }
 
 /** Unified action menu — Popover-backed, thick-stroke vertical three-dot used app-wide. */
@@ -56,6 +57,7 @@ export function Menu({
   align = 'end',
   variant = 'default',
   iconContainerClassName,
+  alignWidthToTrigger,
   className,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
@@ -76,6 +78,7 @@ export function Menu({
       </PopoverTrigger>
       <PopoverContent
         data-slot="menu"
+        alignWidthToTrigger={alignWidthToTrigger}
         data-variant={variant}
         align={align}
         className={cn(menuVariants({ variant }), className)}

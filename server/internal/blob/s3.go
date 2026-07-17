@@ -109,6 +109,62 @@ func (s *B2) PresignGet(ctx context.Context, path string) (string, error) {
 	return req.URL, nil
 }
 
+func (s *B2) PresignPut(ctx context.Context, path, contentType string) (PresignedPut, error) {
+	expiresAt := time.Now().UTC().Add(s.presignTTL)
+	in := &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(path),
+		ContentType: aws.String(contentType),
+	}
+	req, err := s.presign.PresignPutObject(ctx, in, s3.WithPresignExpires(s.presignTTL))
+	if err != nil {
+		return PresignedPut{}, err
+	}
+	headers := map[string]string{"Content-Type": contentType}
+	return PresignedPut{URL: req.URL, Headers: headers, ExpiresAt: expiresAt}, nil
+}
+
+func (s *B2) Head(ctx context.Context, path string) (ObjectInfo, error) {
+	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(path),
+	})
+	if err != nil {
+		return ObjectInfo{}, err
+	}
+	return ObjectInfo{
+		Size:        aws.ToInt64(out.ContentLength),
+		ContentType: aws.ToString(out.ContentType),
+		ETag:        strings.Trim(aws.ToString(out.ETag), `"`),
+	}, nil
+}
+
+// Promote copies an upload from the short-lived incoming prefix to its stable
+// source key, then removes the incoming object. Copying is performed inside B2;
+// no object bytes pass through the gateway.
+func (s *B2) Promote(ctx context.Context, from, to string) error {
+	if from == to {
+		return nil
+	}
+	_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     aws.String(s.bucket),
+		Key:        aws.String(to),
+		CopySource: aws.String(url.PathEscape(s.bucket + "/" + from)),
+	})
+	if err != nil {
+		return err
+	}
+	return s.Delete(ctx, from)
+}
+
+func (s *B2) Delete(ctx context.Context, path string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(path),
+	})
+	return err
+}
+
 // HealthCheck verifies the bucket exists and the credentials can reach it.
 func (s *B2) HealthCheck(ctx context.Context) error {
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(s.bucket)})

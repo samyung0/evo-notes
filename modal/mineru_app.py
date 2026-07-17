@@ -39,6 +39,10 @@ import json
 import os
 import subprocess
 import tempfile
+import hashlib
+import io
+import zipfile
+from urllib.parse import urlparse
 
 import modal
 
@@ -63,6 +67,8 @@ LANG = "ch"
 # in the image, so "auto" resolves deterministically across redeploys — the GPU
 # memory snapshot still captures the fully-initialized engine.
 BACKEND = "hybrid-engine"
+ARTIFACT_SCHEMA = "evo-mineru-bundle-v1"
+PARSER_VERSION = "mineru-3.4-hybrid-v1"
 
 # Cache MinerU/HF model weights across cold starts.
 model_volume = modal.Volume.from_name("evo-mineru-models", create_if_missing=True)
@@ -78,7 +84,12 @@ image = (
     # to PP-OCRv6 and the hybrid VLM to MinerU2.5-Pro with native multilingual
     # OCR. Capped below 3.5 so a redeploy can't silently pull a new major that
     # changes backend names or the aio_do_parse contract this app depends on.
-    .pip_install("mineru[all]>=3.4.3,<3.5", "fastapi[standard]", "python-multipart")
+    .pip_install(
+        "mineru[all]>=3.4.3,<3.5",
+        "fastapi[standard]",
+        "python-multipart",
+        "requests>=2.31",
+    )
     .env(
         {
             "MINERU_MODEL_SOURCE": "huggingface",
@@ -140,6 +151,52 @@ def _collect_outputs(out_dir: str) -> dict:
             pass
 
     return {"content_list": content_list, "images": images, "md": md}
+
+
+def _validate_b2_url(value: str) -> None:
+    parsed = urlparse(value)
+    host = (parsed.hostname or "").lower()
+    if (
+        parsed.scheme != "https"
+        or not host.endswith(".backblazeb2.com")
+        or parsed.username
+        or parsed.password
+    ):
+        raise ValueError("source/output URL must be a Backblaze B2 HTTPS URL")
+
+
+def _bundle_bytes(result: dict, source_fingerprint: str) -> bytes:
+    content_list = result.get("content_list") or []
+    images = result.get("images") or {}
+    written: set[str] = set()
+    for name in images:
+        safe = os.path.basename(name)
+        if safe:
+            written.add(safe)
+    for item in content_list:
+        if isinstance(item, dict) and item.get("type") == "image":
+            basename = os.path.basename(str(item.get("img_path") or ""))
+            if basename in written:
+                item["img_path"] = f"images/{basename}"
+
+    manifest = {
+        "schema": ARTIFACT_SCHEMA,
+        "parser_version": PARSER_VERSION,
+        "source_fingerprint": source_fingerprint,
+    }
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("manifest.json", json.dumps(manifest, separators=(",", ":")))
+        archive.writestr(
+            "content_list.json",
+            json.dumps(content_list, ensure_ascii=False, separators=(",", ":")),
+        )
+        archive.writestr("document.md", str(result.get("md") or ""))
+        for name, encoded in images.items():
+            safe = os.path.basename(name)
+            if safe:
+                archive.writestr(f"images/{safe}", base64.b64decode(encoded))
+    return output.getvalue()
 
 
 async def _parse_document(data: bytes, name: str, parse_method: str) -> dict:
@@ -288,6 +345,66 @@ class MineruParser:
         async def file_parse(request: Request) -> JSONResponse:
             if not _authorized(request):
                 return JSONResponse({"detail": "invalid token"}, status_code=401)
+
+            if request.headers.get("content-type", "").startswith("application/json"):
+                import requests
+
+                body = await request.json()
+                source_url = str(body.get("source_url") or "")
+                output_url = str(body.get("output_url") or "")
+                output_key = str(body.get("output_key") or "")
+                name = str(body.get("filename") or "document")
+                parse_method = str(body.get("parse_method") or "auto")
+                fingerprint = str(body.get("source_fingerprint") or "")
+                if (
+                    body.get("artifact_schema") != ARTIFACT_SCHEMA
+                    or body.get("parser_version") != PARSER_VERSION
+                    or not source_url
+                    or not output_url
+                    or not output_key
+                    or not fingerprint
+                ):
+                    return JSONResponse({"detail": "invalid artifact request"}, status_code=400)
+                try:
+                    _validate_b2_url(source_url)
+                    _validate_b2_url(output_url)
+                    source = requests.get(source_url, timeout=(30, 300))
+                    source.raise_for_status()
+                    if len(source.content) > 100 << 20:
+                        return JSONResponse({"detail": "source exceeds 100 MB"}, status_code=413)
+                    t0 = time.perf_counter()
+                    result = await _parse_document(source.content, name, parse_method)
+                    parse_s = round(time.perf_counter() - t0, 3)
+                    bundle = _bundle_bytes(result, fingerprint)
+                    digest = hashlib.sha256(bundle).hexdigest()
+                    uploaded = requests.put(
+                        output_url,
+                        data=bundle,
+                        headers={"Content-Type": "application/zip"},
+                        timeout=(30, 300),
+                    )
+                    uploaded.raise_for_status()
+                except Exception as e:  # noqa: BLE001
+                    return JSONResponse({"detail": f"remote parse failed: {e}"}, status_code=500)
+                restored = getattr(self, "_restored_monotonic", None)
+                return JSONResponse(
+                    {
+                        "artifact": {
+                            "key": output_key,
+                            "size": len(bundle),
+                            "sha256": digest,
+                            "etag": uploaded.headers.get("etag", "").strip('"'),
+                            "parser_version": PARSER_VERSION,
+                            "source_fingerprint": fingerprint,
+                        },
+                        "_server_parse_s": parse_s,
+                        "_uptime_s": (
+                            None
+                            if restored is None
+                            else round(time.perf_counter() - restored, 3)
+                        ),
+                    }
+                )
 
             form = await request.form()
             upload = form.get("file")

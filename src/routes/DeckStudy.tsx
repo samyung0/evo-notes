@@ -1,13 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { PanelWithInvertedRadius } from '@/components/app/layout';
-import { Badge, Button, Icon, IconButton, ProgressBar, Skeleton, Text } from '@/components/ui';
-import { useCards, useDeck, useDeleteCard, useReviewCard } from '@/api/hooks';
+import {
+  Badge,
+  Button,
+  Icon,
+  IconButton,
+  ProgressBar,
+  Skeleton,
+  Text,
+  userToast,
+} from '@/components/ui';
+import {
+  useCards,
+  useCloneDeck,
+  useDeck,
+  useDeleteCard,
+  useReviewCard,
+  useUpdateDeck,
+} from '@/api/hooks';
 import { CardEditModal } from '@/features/flashcards/CardEditModal';
 import { isDue, isKnown, ratingPreviews, reviewSrs, SRS_RATINGS, type SrsRating } from '@/lib/srs';
 import { cn } from '@/lib/cn';
 import type { Flashcard } from '@/api/types';
 import { m } from '@/i18n';
+import { ShareDialog } from '@/components/app/ShareDialog';
 
 const RATING_LABEL: Record<SrsRating, string> = {
   again: 'Again',
@@ -29,11 +46,16 @@ export default function DeckStudy() {
   const { data: cards, isLoading } = useCards(deckId);
   const reviewCard = useReviewCard(deckId);
   const deleteCard = useDeleteCard(deckId);
+  const cloneDeck = useCloneDeck();
+  const updateDeck = useUpdateDeck();
+  const navigate = useNavigate();
+  const isOwner = deck?.isOwner !== false;
 
   const [queue, setQueue] = useState<string[] | null>(null);
   const [sessionTotal, setSessionTotal] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState<Flashcard | 'new' | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const dueIds = useMemo(
     () => (cards ? cards.filter((c) => isDue(c.srs)).map((c) => c.id) : []),
@@ -69,7 +91,7 @@ export default function DeckStudy() {
   function rate(rating: SrsRating) {
     if (!card) return;
     const srs = reviewSrs(card.srs, rating);
-    reviewCard.mutate({ id: card.id, srs, known: isKnown(srs) });
+    if (isOwner) reviewCard.mutate({ id: card.id, srs, known: isKnown(srs) });
     setFlipped(false);
     setQueue((q) => {
       if (!q) return q;
@@ -94,13 +116,49 @@ export default function DeckStudy() {
       <Text variant="subtitle" className="flex-1 truncate">
         {deck?.name}
       </Text>
-      <IconButton
-        icon="plus"
-        variant="outline"
-        size="sm"
-        label={m.flashcards_add_card()}
-        onClick={() => setEditing('new')}
-      />
+      {isOwner ? (
+        <>
+          <IconButton
+            icon="link"
+            variant="outline"
+            size="sm"
+            label="Share deck"
+            onClick={() => setShareOpen(true)}
+          />
+          <IconButton
+            icon="plus"
+            variant="outline"
+            size="sm"
+            label={m.flashcards_add_card()}
+            onClick={() => setEditing('new')}
+          />
+        </>
+      ) : (
+        <Button
+          size="sm"
+          iconLeft="plus"
+          disabled={cloneDeck.isPending}
+          onClick={() =>
+            cloneDeck.mutate(deckId, {
+              onSuccess: (copy) =>
+                navigate({ to: '/flashcards/$deckId', params: { deckId: copy.id } }),
+              onError: () =>
+                userToast({
+                  title: 'Sign in to clone',
+                  description: 'Create an account before cloning this deck.',
+                  button: {
+                    label: 'Sign in',
+                    onClick: () => {
+                      window.location.href = '/sign-in';
+                    },
+                  },
+                }),
+            })
+          }
+        >
+          {cloneDeck.isPending ? 'Cloning…' : 'Clone deck'}
+        </Button>
+      )}
     </div>
   );
 
@@ -124,9 +182,11 @@ export default function DeckStudy() {
               </Text>
             )}
             <div className="mt-2 flex gap-3">
-              <Button variant="outline" iconLeft="plus" onClick={() => setEditing('new')}>
-                {m.flashcards_add_card()}
-              </Button>
+              {isOwner && (
+                <Button variant="outline" iconLeft="plus" onClick={() => setEditing('new')}>
+                  {m.flashcards_add_card()}
+                </Button>
+              )}
               {cards.length > 0 && (
                 <Button
                   variant="accent"
@@ -139,12 +199,14 @@ export default function DeckStudy() {
             </div>
           </div>
         </div>
-        <CardEditModal
-          deckId={deckId}
-          card={null}
-          open={editing !== null}
-          onClose={() => setEditing(null)}
-        />
+        {isOwner && (
+          <CardEditModal
+            deckId={deckId}
+            card={null}
+            open={editing !== null}
+            onClose={() => setEditing(null)}
+          />
+        )}
       </PanelWithInvertedRadius>
     );
   }
@@ -180,20 +242,22 @@ export default function DeckStudy() {
           </Text>
         </button>
 
-        <div className="mt-3 flex items-center justify-center gap-4">
-          <button
-            onClick={() => setEditing(card)}
-            className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg"
-          >
-            <Icon name="notes" size={13} /> {m.action_edit()}
-          </button>
-          <button
-            onClick={removeCurrent}
-            className="flex items-center gap-1 text-xs text-fg-muted hover:text-tint-error-fg"
-          >
-            <Icon name="trash" size={13} /> {m.action_delete()}
-          </button>
-        </div>
+        {isOwner && (
+          <div className="mt-3 flex items-center justify-center gap-4">
+            <button
+              onClick={() => setEditing(card)}
+              className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg"
+            >
+              <Icon name="notes" size={13} /> {m.action_edit()}
+            </button>
+            <button
+              onClick={removeCurrent}
+              className="flex items-center gap-1 text-xs text-fg-muted hover:text-tint-error-fg"
+            >
+              <Icon name="trash" size={13} /> {m.action_delete()}
+            </button>
+          </div>
+        )}
 
         {!flipped ? (
           <div className="mt-3">
@@ -213,7 +277,7 @@ export default function DeckStudy() {
                 )}
               >
                 {RATING_LABEL[r]}
-                <span className="text-[11px] font-normal opacity-70 tabular-nums">
+                <span className="text-[11px] font-normal tabular-nums opacity-70">
                   {previews[r]}
                 </span>
               </button>
@@ -222,12 +286,25 @@ export default function DeckStudy() {
         )}
       </div>
 
-      <CardEditModal
-        deckId={deckId}
-        card={editing === 'new' ? null : editing}
-        open={editing !== null}
-        onClose={() => setEditing(null)}
-      />
+      {isOwner && (
+        <CardEditModal
+          deckId={deckId}
+          card={editing === 'new' ? null : editing}
+          open={editing !== null}
+          onClose={() => setEditing(null)}
+        />
+      )}
+      {deck && (
+        <ShareDialog
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          title={`Share ${deck.name}`}
+          privacy={deck.privacy ?? 'private'}
+          link={`/share/decks/${deck.id}`}
+          saving={updateDeck.isPending}
+          onPrivacyChange={(privacy) => updateDeck.mutate({ id: deck.id, privacy })}
+        />
+      )}
     </PanelWithInvertedRadius>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
-import { Button, Skeleton, Text, toast } from '@/components/ui';
+import { Button, Skeleton, Text, userToast } from '@/components/ui';
 import { useQuiz, useUpdateQuiz } from '@/api/hooks';
 import { QuizForm } from '@/features/quizzes/QuizForm';
 import type { Question } from '@/api/types';
@@ -33,14 +33,14 @@ export default function QuizEdit() {
   async function save() {
     try {
       await update.mutateAsync({ id: quizId, name, questions });
-      toast({
+      userToast({
         title: 'Quiz saved',
         description: 'Your changes were saved.',
         button: { label: 'Dismiss', onClick: () => {} },
       });
       back();
     } catch (err) {
-      toast({
+      userToast({
         title: 'Could not save quiz',
         description: err instanceof Error ? err.message : 'Something went wrong.',
         button: { label: 'Dismiss', onClick: () => {} },
@@ -54,7 +54,12 @@ export default function QuizEdit() {
         title="Edit quiz"
         actions={
           <>
-            <Button variant="ghost" iconLeft="chevronLeft" onClick={back} disabled={update.isPending}>
+            <Button
+              variant="ghost"
+              iconLeft="chevronLeft"
+              onClick={back}
+              disabled={update.isPending}
+            >
               Back
             </Button>
             <Button iconLeft="check" onClick={save} disabled={update.isPending || !seeded.current}>

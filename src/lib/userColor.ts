@@ -78,9 +78,9 @@ const USER_COLOR_MAP_LIGHT: Record<UserColor, ColorPair> = {
   },
 };
 
-export const DEFAULT_USER_COLOR = USER_COLOR_MAP['purple'];
+export const DEFAULT_USER_COLOR = USER_COLOR_MAP['transparent'];
 
-export const DEFAULT_USER_COLOR_LIGHT = USER_COLOR_MAP_LIGHT['purple'];
+export const DEFAULT_USER_COLOR_LIGHT = USER_COLOR_MAP_LIGHT['transparent'];
 
 export const userColorPair = (c?: UserColor): ColorPair =>
   c ? (USER_COLOR_MAP[c] ?? DEFAULT_USER_COLOR) : DEFAULT_USER_COLOR;
