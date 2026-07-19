@@ -1,15 +1,41 @@
 import { ClerkProvider, Show, RedirectToSignIn, useAuth } from '@clerk/react';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { setAuthTokenGetter, USE_MSW } from '@/api/auth';
+import { queryClient } from '@/api/queryClient';
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
 function AuthTokenBridge({ children }: { children: React.ReactNode }) {
-  const { getToken, isSignedIn } = useAuth();
+  const { getToken, isLoaded, isSignedIn, userId } = useAuth();
+  const identity = isLoaded ? (userId ?? null) : undefined;
+  const [readyIdentity, setReadyIdentity] = useState<string | null | undefined>(undefined);
+  const previousIdentity = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
+    if (!isLoaded) return;
+
+    // Workspace/material responses contain requester-specific capabilities and
+    // ownership. Never reuse them after sign-in, sign-out, or account changes.
+    if (previousIdentity.current !== identity) {
+      queryClient.clear();
+      previousIdentity.current = identity;
+    }
     setAuthTokenGetter(isSignedIn ? () => getToken() : null);
-    return () => setAuthTokenGetter(null);
-  }, [getToken, isSignedIn]);
+    setReadyIdentity(identity);
+
+    return () => {
+      setAuthTokenGetter(null);
+    };
+  }, [getToken, identity, isLoaded, isSignedIn]);
+
+  // Route loaders must not run until the matching token getter is installed.
+  if (!isLoaded || readyIdentity !== identity) {
+    return (
+      <div className="flex h-dvh items-center justify-center" role="status" aria-label="Loading">
+        Loading…
+      </div>
+    );
+  }
   return <>{children}</>;
 }
 

@@ -13,8 +13,8 @@ import type {
   Flashcard,
   Label,
   Material,
-  PublicQuiz,
   PublicDeck,
+  PublicQuiz,
   PublicWorkspace,
   Question,
   Quiz,
@@ -26,18 +26,18 @@ import type {
   WireMessage,
   Workspace,
 } from '@/api/types';
-import { isDue, isKnown, newSrsState, reviewSrs } from '@/lib/srs';
 import { parseFlashcardsBlock, parseQuizBlock } from '@/features/materials/blocks';
 import {
   createMaterialDocument,
-  flashcardsNode,
   flashcardsElementToCards,
+  flashcardsNode,
   mermaidNode,
-  quizNode,
   quizElementToBlock,
+  quizNode,
   type FlashcardsElement,
   type QuizElement,
 } from '@/features/materials/document';
+import { isDue, isKnown, newSrsState, reviewSrs } from '@/lib/srs';
 
 export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -281,6 +281,7 @@ export const files: SourceFile[] = [
     kind: 'image',
     sizeKb: 420,
     addedAt: days(14),
+    url: 'https://picsum.photos/2000/3000',
   },
   {
     id: 'f_6',
@@ -301,6 +302,26 @@ export const files: SourceFile[] = [
     sizeKb: 11,
     addedAt: days(9),
     content: '# Taylor series\n\nA function f(x) near a point a:\n\nf(x) = Σ fⁿ(a)/n! · (x − a)ⁿ',
+  },
+  {
+    id: 'f_8',
+    workspaceId: 'ws_bio',
+    chapterId: null,
+    name: 'dummy_video.mp4',
+    kind: 'video',
+    sizeKb: 10000,
+    addedAt: days(14),
+    url: 'https://lorem.video/720p',
+  },
+  {
+    id: 'f_9',
+    workspaceId: 'ws_bio',
+    chapterId: null,
+    name: 'dummy_audio.wav',
+    kind: 'audio',
+    sizeKb: 10000,
+    addedAt: days(14),
+    url: 'https://essentials.pixfort.com/original/wp-content/uploads/sites/4/2020/02/skanews.wav',
   },
 ];
 

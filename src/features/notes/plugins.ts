@@ -1,4 +1,3 @@
-import emojiMartData from '@emoji-mart/data';
 import {
   BlockquoteRules,
   BoldRules,
@@ -47,7 +46,6 @@ import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from '@platejs/code
 import { DatePlugin } from '@platejs/date/react';
 import { DndPlugin } from '@platejs/dnd';
 import { DocxPlugin } from '@platejs/docx';
-import { EmojiInputPlugin, EmojiPlugin } from '@platejs/emoji/react';
 import { IndentPlugin } from '@platejs/indent/react';
 import { JuicePlugin } from '@platejs/juice';
 import { ColumnItemPlugin, ColumnPlugin } from '@platejs/layout/react';
@@ -74,8 +72,7 @@ import {
   TableRowPlugin,
 } from '@platejs/table/react';
 import { TocPlugin } from '@platejs/toc/react';
-import { TogglePlugin } from '@platejs/toggle/react';
-import { all, createLowlight } from 'lowlight';
+import { common, createLowlight } from 'lowlight';
 import {
   createSlatePlugin,
   createTextSubstitutionInputRule,
@@ -91,7 +88,6 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { customBlockPlugins } from './blocks/plugins';
 import { BlockContextMenu, BlockDraggable } from './BlockInteractions';
 import { buildCollaborationPlugins, type EditorCollaborationOptions } from './Collaboration';
-import { EmojiInputElement } from './EmojiInput';
 import { MediaPlaceholderElement } from './MediaNodes';
 import { MentionInputElement } from './MentionInput';
 import { SlashInputElement } from './SlashInput';
@@ -102,7 +98,9 @@ import { noteMarkdownPlugin } from './markdown';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyPlugin = any;
 
-const lowlight = createLowlight(all);
+// `common` (~35 languages) instead of `all`: the full highlight.js language set
+// is roughly a megabyte of grammars that almost no document uses.
+const lowlight = createLowlight(common);
 const listTargets = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock, KEYS.img];
 
 const IndentListKit = [
@@ -343,7 +341,6 @@ export const MaterialKit: AnyPlugin[] = [
   TableRowPlugin,
   TableCellPlugin,
   TableCellHeaderPlugin,
-  TogglePlugin,
   TocPlugin,
   ...MediaKit,
   CalloutPlugin,
@@ -354,8 +351,6 @@ export const MaterialKit: AnyPlugin[] = [
   DatePlugin,
   MentionPlugin.configure({ options: { triggerPreviousCharPattern: /^$|^[\s"']$/ } }),
   MentionInputPlugin.withComponent(MentionInputElement),
-  EmojiPlugin.configure({ options: { data: emojiMartData as never } }),
-  EmojiInputPlugin.withComponent(EmojiInputElement),
   FontColorPlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
   FontBackgroundColorPlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
   FontSizePlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),

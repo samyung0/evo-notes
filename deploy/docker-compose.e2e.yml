@@ -1,0 +1,48 @@
+# Disposable stack for Playwright / backend access tests.
+#   docker compose -f deploy/docker-compose.e2e.yml up --build -d
+#   docker compose -f deploy/docker-compose.e2e.yml down -v
+#
+# Host ports are offset so this can run alongside the normal dev stack.
+
+services:
+  db:
+    build:
+      context: ./postgres
+    command: ['postgres', '-c', 'shared_preload_libraries=age']
+    environment:
+      POSTGRES_USER: evo
+      POSTGRES_PASSWORD: evo
+      POSTGRES_DB: evo
+    ports:
+      - '127.0.0.1:${E2E_DB_PORT:-55432}:5432'
+    volumes:
+      - evo_e2e_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U evo -d evo']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build:
+      context: ../server
+    environment:
+      DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable
+      ADDR: ':8080'
+      MIGRATE: 'true'
+      BLOB_BACKEND: memory
+      AUTH_DISABLED: 'true'
+      APP_ENV: e2e
+      E2E_AUTH: 'true'
+      E2E_AUTH_SECRET: ${E2E_AUTH_SECRET:?E2E_AUTH_SECRET is required}
+      E2E_AUTH_USER_IDS: u_owner,u_editor,u_viewer,u_other
+      APP_URL: ${APP_URL:-http://localhost:5173}
+      # No B2 / pipeline / redis required for sharing-access tests.
+    ports:
+      - '127.0.0.1:${E2E_API_PORT:-18080}:8080'
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  evo_e2e_pgdata:

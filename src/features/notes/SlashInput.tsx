@@ -2,13 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useComboboxInput, useHTMLInputCursorState } from '@platejs/combobox/react';
 import type { PointRef, TComboboxInputElement } from 'platejs';
 import { PlateElement, type PlateElementProps, useEditorRef } from 'platejs/react';
-import { useNoteBlockDialogs } from './blocks/dialogContext';
+import { useOptionalNoteBlockDialogs } from './blocks/dialogContext';
 import { commandMatches, EDITOR_COMMANDS } from './editorCommands';
 import { useNoteEditorPrefs } from './noteEditorPrefs';
 
 export function SlashInputElement(props: PlateElementProps<TComboboxInputElement>) {
   const editor = useEditorRef();
-  const dialogs = useNoteBlockDialogs();
+  // Optional: matches editorCommands (dialogs?.open*) and survives Plate element
+  // trees that do not see NoteBlockDialogsProvider React context.
+  const dialogs = useOptionalNoteBlockDialogs();
   const enabled = useNoteEditorPrefs((state) => state.enabled);
   const inputRef = useRef<HTMLInputElement>(null);
   const cursorState = useHTMLInputCursorState(inputRef);
@@ -100,9 +102,9 @@ export function SlashInputElement(props: PlateElementProps<TComboboxInputElement
             }}
           />
         </span>
-        <div
+        <span
           role="listbox"
-          className="absolute top-full left-0 z-50 mt-1 max-h-72 w-72 overflow-auto rounded-card border border-line bg-surface p-1 shadow-pop"
+          className="absolute top-full left-0 z-50 mt-1 block max-h-72 w-72 overflow-auto rounded-card border border-line bg-surface p-1 shadow-pop"
         >
           {commands.length ? (
             commands.map((command, index) => (
@@ -121,9 +123,9 @@ export function SlashInputElement(props: PlateElementProps<TComboboxInputElement
               </button>
             ))
           ) : (
-            <div className="px-2 py-3 text-sm text-fg-muted">No commands found</div>
+            <span className="block px-2 py-3 text-sm text-fg-muted">No commands found</span>
           )}
-        </div>
+        </span>
       </span>
       {props.children}
     </PlateElement>

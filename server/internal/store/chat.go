@@ -48,7 +48,7 @@ type msgMetadata struct {
 // ListConversations returns a workspace's conversations for a user, newest
 // activity first. Ownership is enforced via the user_id + workspace_id pair.
 func (s *Store) ListConversations(ctx context.Context, userID, wsID string) ([]Conversation, error) {
-	if err := s.AssertWorkspaceOwner(ctx, userID, wsID); err != nil {
+	if err := s.AssertWorkspaceEditor(ctx, userID, wsID); err != nil {
 		return nil, err
 	}
 	rows, err := s.pool.Query(ctx,
@@ -70,9 +70,9 @@ func (s *Store) ListConversations(ctx context.Context, userID, wsID string) ([]C
 	return out, rows.Err()
 }
 
-// CreateConversation opens a new thread in a workspace the user owns.
+// CreateConversation opens a new thread in a workspace the user can edit.
 func (s *Store) CreateConversation(ctx context.Context, userID, wsID, title string) (Conversation, error) {
-	if err := s.AssertWorkspaceOwner(ctx, userID, wsID); err != nil {
+	if err := s.AssertWorkspaceEditor(ctx, userID, wsID); err != nil {
 		return Conversation{}, err
 	}
 	id := uid("conv")

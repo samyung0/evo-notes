@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -39,12 +40,74 @@ func envInt(key string, def int) int {
 	return def
 }
 
+func openBlobStore(appEnv string) (blob.Store, error) {
+	switch env("BLOB_BACKEND", "b2") {
+	case "memory":
+		if appEnv != "e2e" {
+			return nil, errors.New("blob: memory backend is only allowed when APP_ENV=e2e")
+		}
+		log.Printf("blob store: in-memory (sharing E2E; upload URLs unsupported)")
+		return blob.NewMemory(), nil
+	case "disk":
+		if appEnv != "e2e" {
+			return nil, errors.New("blob: disk backend is only allowed when APP_ENV=e2e")
+		}
+		root := env("BLOB_DISK_ROOT", os.TempDir()+"/evo-blobs")
+		store, err := blob.NewDisk(root)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("blob store: disk root=%s", root)
+		return store, nil
+	default:
+		b2, err := blob.NewB2(blob.B2Config{
+			Endpoint:     env("B2_ENDPOINT", ""),
+			Region:       env("B2_REGION", ""),
+			Bucket:       env("B2_BUCKET", ""),
+			KeyID:        env("B2_KEY_ID", ""),
+			AppKey:       env("B2_APP_KEY", ""),
+			UsePathStyle: envBool("B2_FORCE_PATH_STYLE"),
+			PresignTTL:   time.Duration(envInt("B2_PRESIGN_TTL", 900)) * time.Second,
+		})
+		if err != nil {
+			return nil, err
+		}
+		hctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := b2.HealthCheck(hctx); err != nil {
+			return nil, err
+		}
+		log.Printf("blob store: Backblaze B2 bucket=%s (presigned URLs)", env("B2_BUCKET", ""))
+		return b2, nil
+	}
+}
+
 func main() {
 	dsn := env("DATABASE_URL", "postgres://evo:evo@localhost:5432/evo?sslmode=disable")
 	addr := env("ADDR", ":8080")
 	parser := env("EVO_PARSER", "docling")
 	engine := env("EVO_ENGINE", "linearrag")
 	appURL := env("APP_URL", "http://localhost:5173")
+	appEnv := env("APP_ENV", "development")
+
+	e2eAuth := envBool("E2E_AUTH")
+	e2eSecret := env("E2E_AUTH_SECRET", "")
+	e2eUserIDs := strings.Split(env("E2E_AUTH_USER_IDS", ""), ",")
+	if e2eAuth && e2eSecret == "" {
+		log.Fatal("E2E_AUTH=true requires a non-empty E2E_AUTH_SECRET")
+	}
+	if e2eAuth && appEnv != "e2e" {
+		log.Fatal("E2E_AUTH=true is only allowed when APP_ENV=e2e")
+	}
+	if e2eAuth && (len(e2eUserIDs) == 0 || strings.TrimSpace(e2eUserIDs[0]) == "") {
+		log.Fatal("E2E_AUTH=true requires E2E_AUTH_USER_IDS")
+	}
+	for i := range e2eUserIDs {
+		e2eUserIDs[i] = strings.TrimSpace(e2eUserIDs[i])
+	}
+	if e2eAuth {
+		log.Println("E2E auth enabled (X-E2E-User-Id / X-E2E-Secret)")
+	}
 
 	ctx := context.Background()
 	st, err := store.New(ctx, dsn)
@@ -53,25 +116,10 @@ func main() {
 	}
 	defer st.Close()
 
-	blobStore, err := blob.NewB2(blob.B2Config{
-		Endpoint:     env("B2_ENDPOINT", ""),
-		Region:       env("B2_REGION", ""),
-		Bucket:       env("B2_BUCKET", ""),
-		KeyID:        env("B2_KEY_ID", ""),
-		AppKey:       env("B2_APP_KEY", ""),
-		UsePathStyle: envBool("B2_FORCE_PATH_STYLE"),
-		PresignTTL:   time.Duration(envInt("B2_PRESIGN_TTL", 900)) * time.Second,
-	})
+	blobStore, err := openBlobStore(appEnv)
 	if err != nil {
-		log.Fatalf("Backblaze B2 blob store: %v", err)
+		log.Fatalf("blob store: %v", err)
 	}
-	hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	if err := blobStore.HealthCheck(hctx); err != nil {
-		cancel()
-		log.Fatalf("Backblaze B2 unreachable — check B2_* config: %v", err)
-	}
-	cancel()
-	log.Printf("blob store: Backblaze B2 bucket=%s (presigned URLs)", env("B2_BUCKET", ""))
 
 	var pipe *pipeline.Client
 	if u := env("PIPELINE_URL", ""); u != "" {
@@ -102,6 +150,9 @@ func main() {
 		ClerkWebhookSecret:  env("CLERK_WEBHOOK_SECRET", ""),
 		AuthDisabled:        envBool("AUTH_DISABLED"),
 		DevUserID:           env("DEV_USER_ID", "u_1"),
+		E2EAuth:             e2eAuth,
+		E2ESecret:           e2eSecret,
+		E2EUserIDs:          e2eUserIDs,
 		StripeSecretKey:     env("STRIPE_SECRET_KEY", ""),
 		StripeWebhookSecret: env("STRIPE_WEBHOOK_SECRET", ""),
 		StripePricePro:      env("STRIPE_PRICE_PRO", ""),

@@ -35,11 +35,12 @@ type api2 = api
 func userID(ctx context.Context) string { return auth.UserID(ctx) }
 
 // hErr maps store errors onto huma HTTP errors.
+// Forbidden is collapsed to 404 so private/shared resources do not leak existence.
 func hErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, store.ErrNotFound) {
+	if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrForbidden) {
 		return huma.Error404NotFound("not found")
 	}
 	return huma.Error500InternalServerError(err.Error())

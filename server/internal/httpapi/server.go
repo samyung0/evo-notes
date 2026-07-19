@@ -32,6 +32,10 @@ type Config struct {
 	ClerkWebhookSecret  string
 	AuthDisabled        bool
 	DevUserID           string
+	// E2EAuth enables X-E2E-User-Id identity headers (disposable E2E only).
+	E2EAuth             bool
+	E2ESecret           string
+	E2EUserIDs          []string
 	StripeSecretKey     string
 	StripeWebhookSecret string
 	StripePricePro      string
@@ -61,15 +65,21 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{
+			"Content-Type", "Authorization",
+			auth.HeaderE2EUserID, auth.HeaderE2ESecret,
+		},
 		AllowCredentials: false,
 	}))
 	r.Use(auth.Middleware(auth.Config{
 		SecretKey: cfg.ClerkSecretKey,
 		Disabled:  cfg.AuthDisabled,
 		DevUserID: cfg.DevUserID,
+		E2EAuth:   cfg.E2EAuth,
+		E2ESecret: cfg.E2ESecret,
+		E2EUserIDs: cfg.E2EUserIDs,
 		Store:     s,
 		PublicReadPrefix: []string{
 			"/api/workspaces/",
@@ -147,7 +157,10 @@ func randInt(min, max int) int {
 }
 
 func (a *api) assertWS(w http.ResponseWriter, r *http.Request, wsID string) bool {
-	if err := a.s.AssertWorkspaceOwner(r.Context(), uid(r), wsID); err != nil {
+	if err := a.s.AssertWorkspaceEditor(r.Context(), uid(r), wsID); err != nil {
+		if errors.Is(err, store.ErrForbidden) {
+			err = store.ErrNotFound
+		}
 		a.fail(w, err)
 		return false
 	}
@@ -480,7 +493,7 @@ func (a *api) generate(w http.ResponseWriter, r *http.Request) {
 	}
 	wsID := id(r)
 	wsName := "Workspace"
-	if ws, err := a.s.GetWorkspace(r.Context(), uid(r), wsID, false); err == nil {
+	if ws, err := a.s.GetWorkspaceShared(r.Context(), wsID); err == nil {
 		wsName = ws.Name
 	}
 

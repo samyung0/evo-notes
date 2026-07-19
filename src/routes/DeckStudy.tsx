@@ -9,7 +9,6 @@ import {
   ProgressBar,
   Skeleton,
   Text,
-  userToast,
 } from '@/components/ui';
 import {
   useCards,
@@ -25,6 +24,9 @@ import { cn } from '@/lib/cn';
 import type { Flashcard } from '@/api/types';
 import { m } from '@/i18n';
 import { ShareDialog } from '@/components/app/ShareDialog';
+import { PrivateOrUnavailable } from '@/components/app/PrivateOrUnavailable';
+import { isApiError } from '@/api/client';
+import { toastCloneError } from '@/lib/authToasts';
 
 const RATING_LABEL: Record<SrsRating, string> = {
   again: 'Again',
@@ -42,14 +44,19 @@ const RATING_STYLE: Record<SrsRating, string> = {
 export default function DeckStudy() {
   const params = useParams({ strict: false });
   const deckId = (params as { deckId: string }).deckId;
-  const { data: deck } = useDeck(deckId);
-  const { data: cards, isLoading } = useCards(deckId);
+  const {
+    data: deck,
+    isLoading: deckLoading,
+    isError: deckError,
+    error: deckErr,
+  } = useDeck(deckId);
+  const { data: cards, isLoading, isError: cardsError, error: cardsErr } = useCards(deckId);
   const reviewCard = useReviewCard(deckId);
   const deleteCard = useDeleteCard(deckId);
   const cloneDeck = useCloneDeck();
   const updateDeck = useUpdateDeck();
   const navigate = useNavigate();
-  const isOwner = deck?.isOwner !== false;
+  const isOwner = deck?.isOwner === true;
 
   const [queue, setQueue] = useState<string[] | null>(null);
   const [sessionTotal, setSessionTotal] = useState(0);
@@ -76,7 +83,18 @@ export default function DeckStudy() {
     setFlipped(false);
   }
 
-  if (isLoading || !cards || queue === null) {
+  if (deckLoading || isLoading || !deck || !cards || queue === null) {
+    if (!deckLoading && !isLoading && (deckError || cardsError || !deck || !cards)) {
+      const err = deckErr ?? cardsErr;
+      const denied = isApiError(err) && (err.status === 404 || err.status === 401);
+      return (
+        <PrivateOrUnavailable
+          title={denied ? 'This item is private or unavailable.' : 'Unable to load this deck.'}
+          backTo="/flashcards"
+          backLabel="Back to flashcards"
+        />
+      );
+    }
     return (
       <PanelWithInvertedRadius>
         <div className="h-full p-6">
@@ -142,17 +160,7 @@ export default function DeckStudy() {
             cloneDeck.mutate(deckId, {
               onSuccess: (copy) =>
                 navigate({ to: '/flashcards/$deckId', params: { deckId: copy.id } }),
-              onError: () =>
-                userToast({
-                  title: 'Sign in to clone',
-                  description: 'Create an account before cloning this deck.',
-                  button: {
-                    label: 'Sign in',
-                    onClick: () => {
-                      window.location.href = '/sign-in';
-                    },
-                  },
-                }),
+              onError: (err) => toastCloneError(err, 'deck'),
             })
           }
         >

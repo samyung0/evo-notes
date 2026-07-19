@@ -139,17 +139,6 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
     run: (editor) => insertMediaPlaceholder(editor, 'file'),
   },
   {
-    id: 'toggle',
-    label: 'Toggle',
-    description: 'Insert collapsible content',
-    run: (editor) =>
-      insertEditorNode(editor, {
-        type: KEYS.toggle,
-        open: true,
-        children: [emptyParagraph()],
-      }),
-  },
-  {
     id: 'mention',
     label: 'Mention',
     description: 'Mention a workspace member',

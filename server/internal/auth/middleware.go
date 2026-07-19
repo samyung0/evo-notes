@@ -11,6 +11,13 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2/user"
 )
 
+// Header names for the E2E-only identity bypass. Enabled only when Config.E2EAuth
+// is true and Config.E2ESecret is non-empty; production must leave both unset.
+const (
+	HeaderE2EUserID = "X-E2E-User-Id"
+	HeaderE2ESecret = "X-E2E-Secret"
+)
+
 // Config drives auth middleware behaviour.
 type Config struct {
 	SecretKey    string
@@ -19,8 +26,15 @@ type Config struct {
 	Store        UserStore
 	PublicPrefix []string // path prefixes that skip auth
 	// Read-only resource routes may be anonymous; handlers still enforce each
-	// resource's private/link/public visibility.
+	// resource's private/link/public visibility. Requests that carry credentials
+	// (Authorization or E2E headers) are still authenticated so owners keep
+	// their identity on private GETs.
 	PublicReadPrefix []string
+	// E2EAuth enables the X-E2E-User-Id / X-E2E-Secret identity headers.
+	// Must only be true in the disposable E2E environment.
+	E2EAuth    bool
+	E2ESecret  string
+	E2EUserIDs []string
 }
 
 // UserStore lazily provisions users on first authenticated request.
@@ -39,7 +53,53 @@ func isPublic(path string, prefixes []string) bool {
 	return false
 }
 
-// Middleware validates Clerk JWTs (or bypasses when Disabled).
+func hasBearer(r *http.Request) bool {
+	auth := r.Header.Get("Authorization")
+	return strings.HasPrefix(strings.ToLower(auth), "bearer ") && len(auth) > len("Bearer ")
+}
+
+func hasE2EHeaders(r *http.Request) bool {
+	return r.Header.Get(HeaderE2EUserID) != "" || r.Header.Get(HeaderE2ESecret) != ""
+}
+
+// tryE2EAuth validates E2E headers when enabled. ok=true means the request is
+// authenticated as userID. errWritten=true means a 401 response was already sent.
+func tryE2EAuth(w http.ResponseWriter, r *http.Request, cfg Config) (userID string, ok, errWritten bool) {
+	if !cfg.E2EAuth {
+		if hasE2EHeaders(r) {
+			writeUnauthorized(w)
+			return "", false, true
+		}
+		return "", false, false
+	}
+	if cfg.E2ESecret == "" {
+		writeUnauthorized(w)
+		return "", false, true
+	}
+	secret := r.Header.Get(HeaderE2ESecret)
+	userID = strings.TrimSpace(r.Header.Get(HeaderE2EUserID))
+	if secret == "" && userID == "" {
+		return "", false, false
+	}
+	if secret != cfg.E2ESecret || userID == "" {
+		writeUnauthorized(w)
+		return "", false, true
+	}
+	allowed := false
+	for _, id := range cfg.E2EUserIDs {
+		if userID == id {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		writeUnauthorized(w)
+		return "", false, true
+	}
+	return userID, true, false
+}
+
+// Middleware validates Clerk JWTs (or bypasses when Disabled / E2E auth).
 func Middleware(cfg Config) func(http.Handler) http.Handler {
 	if cfg.DevUserID == "" {
 		cfg.DevUserID = "u_1"
@@ -65,11 +125,6 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
-				isPublic(r.URL.Path, cfg.PublicReadPrefix) {
-				next.ServeHTTP(w, r)
-				return
-			}
 
 			// Only /api/* requires auth (except public prefixes above).
 			if !strings.HasPrefix(r.URL.Path, "/api/") {
@@ -77,8 +132,39 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				return
 			}
 
-			if cfg.Disabled || cfg.SecretKey == "" {
+			publicRead := (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
+				isPublic(r.URL.Path, cfg.PublicReadPrefix)
+			wantsCredentials := hasBearer(r) || hasE2EHeaders(r)
+
+			// Local development is a single-user authenticated environment.
+			// Apply DevUserID before anonymous-public-read handling so private
+			// resources remain available when Clerk is intentionally disabled.
+			if (cfg.Disabled || cfg.SecretKey == "") && !cfg.E2EAuth {
+				if hasE2EHeaders(r) {
+					writeUnauthorized(w)
+					return
+				}
 				next.ServeHTTP(w, r.WithContext(WithUserID(r.Context(), cfg.DevUserID)))
+				return
+			}
+
+			// Anonymous public reads: no credentials → empty user id; handlers
+			// enforce private/link/public themselves.
+			if publicRead && !wantsCredentials {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			if userID, ok, written := tryE2EAuth(w, r, cfg); written {
+				return
+			} else if ok {
+				next.ServeHTTP(w, r.WithContext(WithUserID(r.Context(), userID)))
+				return
+			}
+
+			if cfg.E2EAuth {
+				// Protected E2E routes require an allowlisted identity header.
+				writeUnauthorized(w)
 				return
 			}
 

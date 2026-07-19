@@ -13,6 +13,17 @@ import {
   type QuizOptionElement as QuizOptionNode,
   type QuizQuestionElement as QuizQuestionNode,
 } from '@/features/materials/document';
+import {
+  BLOCK_SHELL_CLASS,
+  FLASHCARD_BACK_CLASS,
+  FLASHCARD_CLASS,
+  FLASHCARD_FRONT_CLASS,
+  MERMAID_CAPTION_CLASS,
+  QUIZ_EXPLANATION_CLASS,
+  QUIZ_OPTION_CLASS,
+  QUIZ_PROMPT_CLASS,
+  QUIZ_QUESTION_CLASS,
+} from '../nodeStyles';
 import { useOptionalNoteBlockDialogs } from './dialogContext';
 import { flashcardsFenceBody, quizFenceBody } from './shared';
 
@@ -38,7 +49,7 @@ function BlockShell({
 }) {
   const readOnly = useReadOnly();
   return (
-    <PlateElement {...props} className="my-4 rounded-card border border-line bg-surface/40 p-3">
+    <PlateElement {...props} className={BLOCK_SHELL_CLASS}>
       <div contentEditable={false}>
         <div className="mb-1 flex items-center justify-between">
           <span className="t-label text-fg-muted">{label}</span>
@@ -114,7 +125,7 @@ export function MermaidElement(props: PlateElementProps) {
 export function QuizQuestionElement(props: PlateElementProps) {
   const element = props.element as unknown as QuizQuestionNode;
   return (
-    <PlateElement {...props} className="my-3 rounded-card border border-divider bg-surface p-3">
+    <PlateElement {...props} className={QUIZ_QUESTION_CLASS}>
       <div contentEditable={false} className="mb-2 text-xs font-medium text-fg-muted">
         {element.questionType.toUpperCase()}
       </div>
@@ -125,7 +136,7 @@ export function QuizQuestionElement(props: PlateElementProps) {
 
 export function QuizPromptElement(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="p" className="mb-2 font-medium text-fg">
+    <PlateElement {...props} as="p" className={QUIZ_PROMPT_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -136,11 +147,7 @@ export function QuizOptionElement(props: PlateElementProps) {
   const question = editorParentQuestion(useEditorRef(), props.element);
   const correct = question?.correctOptionIds?.includes(element.id);
   return (
-    <PlateElement
-      {...props}
-      as="p"
-      className="my-1 rounded-row border border-divider px-2 py-1.5 text-fg-secondary"
-    >
+    <PlateElement {...props} as="p" className={QUIZ_OPTION_CLASS}>
       <span contentEditable={false} className="mr-2 text-xs text-fg-muted">
         {correct ? '✓' : '○'}
       </span>
@@ -158,11 +165,7 @@ function editorParentQuestion(editor: AnyEditor, element: object): QuizQuestionN
 
 export function QuizExplanationElement(props: PlateElementProps) {
   return (
-    <PlateElement
-      {...props}
-      as="p"
-      className="mt-2 border-t border-divider pt-2 text-sm text-fg-muted"
-    >
+    <PlateElement {...props} as="p" className={QUIZ_EXPLANATION_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -171,11 +174,7 @@ export function QuizExplanationElement(props: PlateElementProps) {
 export function FlashcardElement(props: PlateElementProps) {
   const element = props.element as unknown as FlashcardNode;
   return (
-    <PlateElement
-      {...props}
-      className="my-2 grid grid-cols-1 gap-2 rounded-card border border-divider bg-surface p-3 sm:grid-cols-2"
-      data-card-id={element.id}
-    >
+    <PlateElement {...props} className={FLASHCARD_CLASS} data-card-id={element.id}>
       {props.children}
     </PlateElement>
   );
@@ -183,7 +182,7 @@ export function FlashcardElement(props: PlateElementProps) {
 
 export function FlashcardFrontElement(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="p" className="font-medium text-fg">
+    <PlateElement {...props} as="p" className={FLASHCARD_FRONT_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -191,7 +190,7 @@ export function FlashcardFrontElement(props: PlateElementProps) {
 
 export function FlashcardBackElement(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="p" className="text-fg-secondary">
+    <PlateElement {...props} as="p" className={FLASHCARD_BACK_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -199,7 +198,7 @@ export function FlashcardBackElement(props: PlateElementProps) {
 
 export function MermaidCaptionElement(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="p" className="mt-2 text-center text-sm text-fg-muted">
+    <PlateElement {...props} as="p" className={MERMAID_CAPTION_CLASS}>
       {props.children}
     </PlateElement>
   );

@@ -90,7 +90,7 @@ export function SkeletonList({
 }
 
 export function EmptyState({
-  icon = 'sparkles',
+  icon = 'fileError',
   title,
   body,
   action,
@@ -105,19 +105,15 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-3 px-6 py-12 text-center',
+        'flex h-full flex-col items-center justify-center gap-3 px-6 py-12 text-center',
         className
       )}
     >
-      <span className="flex h-12 w-12 items-center justify-center rounded-card bg-tint-accent-1 text-tint-accent-1-fg">
-        <Icon name={icon} size={22} />
-      </span>
-      <Text variant="card-title">{title}</Text>
-      {body && (
-        <Text variant="body" tone="secondary" className="max-w-sm">
-          {body}
-        </Text>
-      )}
+      <div className="">
+        <Icon name={icon} className="size-7" />
+      </div>
+      <h3 className="t-card-title">{title}</h3>
+      {body && <p className="max-w-sm">{body}</p>}
       {action}
     </div>
   );

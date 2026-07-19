@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useClerk } from '@clerk/react';
+import { USE_MSW } from '@/api/auth';
 import { cn } from '@/lib/cn';
 import { userColorPair } from '@/lib/userColor';
 import { useDebounced } from '@/lib/useDebounced';
@@ -22,9 +23,10 @@ import {
   PopoverContent,
 } from '@/components/ui';
 import { useMe, useNotifications, useSearch, useMarkNotificationsRead } from '@/api/hooks';
-import { USE_MSW } from '@/api/auth';
 import type { SearchKind } from '@/api/types';
-import { m } from '@/i18n';
+
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
+const CLERK_ACTIVE = !USE_MSW && !!CLERK_PUBLISHABLE_KEY;import { m } from '@/i18n';
 import { MobileNav } from './Sidebar';
 import { useDialogs } from '@/stores/dialogs';
 import { VisuallyHidden } from 'radix-ui';
@@ -249,7 +251,7 @@ function ClerkProfilePill() {
 }
 
 function ProfilePill() {
-  if (USE_MSW) return <ProfilePillInner />;
+  if (!CLERK_ACTIVE) return <ProfilePillInner />;
   return <ClerkProfilePill />;
 }
 

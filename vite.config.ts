@@ -35,6 +35,15 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: env.VITE_API_URL || 'http://localhost:8080',
           changeOrigin: true,
+          // Forward E2E identity headers used by Playwright actor fixtures.
+          configure: (proxy) => {
+            proxy.on('proxyReq', (proxyReq, req) => {
+              const user = req.headers['x-e2e-user-id'];
+              const secret = req.headers['x-e2e-secret'];
+              if (typeof user === 'string') proxyReq.setHeader('X-E2E-User-Id', user);
+              if (typeof secret === 'string') proxyReq.setHeader('X-E2E-Secret', secret);
+            });
+          },
         },
       },
     },

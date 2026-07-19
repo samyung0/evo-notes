@@ -79,9 +79,9 @@ export function MentionInputElement(props: PlateElementProps<TComboboxInputEleme
             }}
           />
         </span>
-        <div
+        <span
           role="listbox"
-          className="absolute top-full left-0 z-50 mt-1 max-h-64 w-64 overflow-auto rounded-card border border-line bg-surface p-1 shadow-pop"
+          className="absolute top-full left-0 z-50 mt-1 block max-h-64 w-64 overflow-auto rounded-card border border-line bg-surface p-1 shadow-pop"
         >
           {matches.map((member, index) => (
             <button
@@ -98,8 +98,10 @@ export function MentionInputElement(props: PlateElementProps<TComboboxInputEleme
               <span className="text-xs text-fg-muted">{member.email}</span>
             </button>
           ))}
-          {!matches.length && <p className="px-2 py-3 text-sm text-fg-muted">No members found</p>}
-        </div>
+          {!matches.length && (
+            <span className="block px-2 py-3 text-sm text-fg-muted">No members found</span>
+          )}
+        </span>
       </span>
       {props.children}
     </PlateElement>

@@ -165,7 +165,7 @@ export function ChatPanel({ workspaceId, color }: { workspaceId: string; color?:
       <div ref={scrollRef} className="flex flex-1 flex-col gap-4 self-stretch overflow-auto p-4">
         {!messages.length && (
           <div className="m-auto max-w-[80%] text-center">
-            <Icon name="message" size={26} className="mx-auto mb-2" />
+            <Icon name="message" className="mx-auto mb-2 size-6.5" />
             <p className="text-sm">Ask anything about your sources.</p>
           </div>
         )}

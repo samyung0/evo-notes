@@ -4,7 +4,7 @@ import { ListStyleType, toggleList } from '@platejs/list';
 import { SuggestionPlugin } from '@platejs/suggestion/react';
 import { TablePlugin } from '@platejs/table/react';
 import { KEYS } from 'platejs';
-import { useEditorRef, usePluginOption } from 'platejs/react';
+import { useEditorRef, useEditorSelector, usePluginOption } from 'platejs/react';
 import type { SlatePlugin } from 'platejs';
 import {
   AlignCenter,
@@ -41,7 +41,6 @@ import {
   Sparkles,
   Strikethrough,
   Table2,
-  ToggleLeft,
   Underline,
   Undo2,
 } from 'lucide-react';
@@ -69,7 +68,6 @@ import {
   importMarkdownDocument,
 } from './documentAdapters';
 import { insertMediaPlaceholder } from './MediaNodes';
-import { EmojiToolbarPicker } from './EmojiInput';
 import { MaterialKit } from './plugins';
 import { type WidgetGroupId, useNoteEditorPrefs, WIDGET_GROUPS } from './noteEditorPrefs';
 import { useEditorRuntime } from './EditorRuntime';
@@ -102,7 +100,7 @@ function ToolbarButton({
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       className={cn(
-        'inline-flex size-8 shrink-0 items-center justify-center rounded-row text-fg-secondary outline-none',
+        'inline-flex size-8 shrink-0 items-center justify-center rounded-row outline-none',
         'focus-visible:ring-focus hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2',
         'disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4',
         active && 'bg-tint-accent-1 text-tint-accent-1-fg'
@@ -128,6 +126,8 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
   const dialogs = useNoteBlockDialogs();
   const collaboration = useCollaborationActions();
   const suggesting = usePluginOption(SuggestionPlugin, 'isSuggesting');
+  const canUndo = useEditorSelector((ed) => ed.history.undos.length > 0, []);
+  const canRedo = useEditorSelector((ed) => ed.history.redos.length > 0, []);
   const importInput = useRef<HTMLInputElement>(null);
   const [insertOpen, setInsertOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -183,10 +183,18 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
           {canEdit && (
             <>
               <ToolbarGroup>
-                <ToolbarButton label="Undo" onClick={() => editor.tf.undo()}>
+                <ToolbarButton
+                  label="Undo"
+                  disabled={!canUndo}
+                  onClick={() => editor.tf.undo()}
+                >
                   <Undo2 />
                 </ToolbarButton>
-                <ToolbarButton label="Redo" onClick={() => editor.tf.redo()}>
+                <ToolbarButton
+                  label="Redo"
+                  disabled={!canRedo}
+                  onClick={() => editor.tf.redo()}
+                >
                   <Redo2 />
                 </ToolbarButton>
               </ToolbarGroup>
@@ -315,9 +323,6 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                 >
                   <ListChecks />
                 </ToolbarButton>
-                <ToolbarButton label="Toggle block" onClick={() => block(KEYS.toggle)}>
-                  <ToggleLeft />
-                </ToolbarButton>
               </ToolbarGroup>
               <ToolbarGroup>
                 <ToolbarButton label="Link" onClick={() => setLinkOpen(true)}>
@@ -331,7 +336,6 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                     transforms={tableTf}
                   />
                 )}
-                <EmojiToolbarPicker />
               </ToolbarGroup>
               {enabled.media && (
                 <ToolbarGroup>
@@ -661,7 +665,7 @@ function WidgetSettingsDialog() {
         type="button"
         aria-label="Editor command settings"
         title="Editor command settings"
-        className="inline-flex size-8 items-center justify-center rounded-row text-fg-muted hover:bg-surface-hover-bg hover:text-fg"
+        className="inline-flex size-8 items-center justify-center rounded-row hover:bg-surface-hover-bg"
         onClick={() => setOpen(true)}
       >
         <Settings2 className="size-4" />

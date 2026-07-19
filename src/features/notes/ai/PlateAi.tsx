@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useChat as useBaseChat } from '@ai-sdk/react';
 import { BaseAIPlugin, withAIBatch } from '@platejs/ai';
 import {
@@ -87,12 +87,18 @@ function usePlateChat(workspaceId: string) {
       }
     },
   });
+  // AI SDK v4 returns a new helpers object on every render. Plate stores plugin
+  // options externally, so writing that changing reference causes a render loop.
+  const stableChatRef = useRef({ ...chat });
+  Object.assign(stableChatRef.current, chat);
 
   useEffect(() => {
-    editor.setOption(AIChatPlugin, 'chat', chat as never);
-  }, [chat, editor]);
+    if (editor.getOption(AIChatPlugin, 'chat') !== stableChatRef.current) {
+      editor.setOption(AIChatPlugin, 'chat', stableChatRef.current as never);
+    }
+  }, [editor]);
 
-  return chat;
+  return stableChatRef.current;
 }
 
 function createAiChatPlugin(workspaceId: string) {

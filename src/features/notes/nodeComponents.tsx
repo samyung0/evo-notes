@@ -1,5 +1,3 @@
-import katex from 'katex';
-import 'katex/dist/katex.min.css';
 import { NodeApi, KEYS } from 'platejs';
 import {
   PlateElement,
@@ -8,22 +6,42 @@ import {
   type PlateLeafProps,
   useEditorRef,
 } from 'platejs/react';
-import { ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/cn';
+import { Katex } from '@/features/materials/Katex';
 import { MediaAssetElement } from './MediaNodes';
-import { EmojiInputElement } from './EmojiInput';
 import { MentionInputElement } from './MentionInput';
+import {
+  BLOCKQUOTE_CLASS,
+  BOLD_MARK_CLASS,
+  CALLOUT_CLASS,
+  CODE_BLOCK_CLASS,
+  CODE_MARK_CLASS,
+  COLUMN_CLASS,
+  COLUMN_GROUP_CLASS,
+  DATE_CLASS,
+  EQUATION_BLOCK_CLASS,
+  HEADING_CLASS,
+  HIGHLIGHT_MARK_CLASS,
+  HR_CLASS,
+  ITALIC_MARK_CLASS,
+  KBD_MARK_CLASS,
+  LINK_CLASS,
+  LI_CLASS,
+  MENTION_CLASS,
+  OL_CLASS,
+  PARAGRAPH_CLASS,
+  TABLE_CLASS,
+  TABLE_WRAP_CLASS,
+  TD_CLASS,
+  TH_CLASS,
+  TOC_BOX_CLASS,
+  TOC_EMPTY_CLASS,
+  TOC_ITEM_CLASS,
+  TOC_TITLE_CLASS,
+  UL_CLASS,
+  tocItemIndent,
+} from './nodeStyles';
 
 /* ------------------------------------------------------------- block elements */
-
-const HEADING_CLASS: Record<string, string> = {
-  h1: 'mt-6 mb-3 text-2xl font-bold text-fg',
-  h2: 'mt-5 mb-2.5 text-xl font-bold text-fg',
-  h3: 'mt-4 mb-2 text-lg font-semibold text-fg',
-  h4: 'mt-3 mb-2 text-base font-semibold text-fg',
-  h5: 'mt-3 mb-1.5 text-sm font-semibold text-fg',
-  h6: 'mt-3 mb-1.5 text-xs font-semibold tracking-wide text-fg-muted uppercase',
-};
 
 function heading(tag: keyof HTMLElementTagNameMap, key: string) {
   return function Heading(props: PlateElementProps) {
@@ -37,7 +55,7 @@ function heading(tag: keyof HTMLElementTagNameMap, key: string) {
 
 function Paragraph(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="p" className="my-2 leading-relaxed text-fg">
+    <PlateElement {...props} as="p" className={PARAGRAPH_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -45,11 +63,7 @@ function Paragraph(props: PlateElementProps) {
 
 function Blockquote(props: PlateElementProps) {
   return (
-    <PlateElement
-      {...props}
-      as="blockquote"
-      className="my-3 border-l-2 border-line-strong pl-4 text-fg-secondary italic"
-    >
+    <PlateElement {...props} as="blockquote" className={BLOCKQUOTE_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -59,7 +73,7 @@ function Hr(props: PlateElementProps) {
   return (
     <PlateElement {...props}>
       <div contentEditable={false}>
-        <hr className="my-5 border-divider" />
+        <hr className={HR_CLASS} />
       </div>
       {props.children}
     </PlateElement>
@@ -68,11 +82,7 @@ function Hr(props: PlateElementProps) {
 
 function CodeBlock(props: PlateElementProps) {
   return (
-    <PlateElement
-      {...props}
-      as="pre"
-      className="my-3 overflow-auto rounded-card border border-line bg-surface-hover-bg p-3 font-mono text-xs text-fg"
-    >
+    <PlateElement {...props} as="pre" className={CODE_BLOCK_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -87,7 +97,7 @@ function LinkElement(props: PlateElementProps) {
     <PlateElement
       {...props}
       as="a"
-      className="text-action-accent underline underline-offset-2"
+      className={LINK_CLASS}
       attributes={{ ...props.attributes, href: url } as PlateElementProps['attributes']}
     >
       {props.children}
@@ -98,21 +108,21 @@ function LinkElement(props: PlateElementProps) {
 /* lists */
 function Ul(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="ul" className="my-2 ml-5 list-disc space-y-1">
+    <PlateElement {...props} as="ul" className={UL_CLASS}>
       {props.children}
     </PlateElement>
   );
 }
 function Ol(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="ol" className="my-2 ml-5 list-decimal space-y-1">
+    <PlateElement {...props} as="ol" className={OL_CLASS}>
       {props.children}
     </PlateElement>
   );
 }
 function Li(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="li" className="text-fg">
+    <PlateElement {...props} as="li" className={LI_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -128,8 +138,8 @@ function Lic(props: PlateElementProps) {
 /* tables */
 function Table(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="div" className="my-3 overflow-auto">
-      <table className="w-full border-collapse text-sm">
+    <PlateElement {...props} as="div" className={TABLE_WRAP_CLASS}>
+      <table className={TABLE_CLASS}>
         <tbody>{props.children}</tbody>
       </table>
     </PlateElement>
@@ -144,18 +154,14 @@ function Tr(props: PlateElementProps) {
 }
 function Td(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="td" className="border border-line px-3 py-1.5 align-top">
+    <PlateElement {...props} as="td" className={TD_CLASS}>
       {props.children}
     </PlateElement>
   );
 }
 function Th(props: PlateElementProps) {
   return (
-    <PlateElement
-      {...props}
-      as="th"
-      className="border border-line bg-surface-hover-bg px-3 py-1.5 text-left font-semibold"
-    >
+    <PlateElement {...props} as="th" className={TH_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -164,10 +170,7 @@ function Th(props: PlateElementProps) {
 /* callout */
 function Callout(props: PlateElementProps) {
   return (
-    <PlateElement
-      {...props}
-      className="my-3 rounded-card border border-line bg-surface-hover-bg p-3 text-fg"
-    >
+    <PlateElement {...props} className={CALLOUT_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -176,7 +179,7 @@ function Callout(props: PlateElementProps) {
 /* columns */
 function ColumnGroup(props: PlateElementProps) {
   return (
-    <PlateElement {...props} className="my-3 flex flex-col gap-3 sm:flex-row">
+    <PlateElement {...props} className={COLUMN_GROUP_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -186,7 +189,7 @@ function Column(props: PlateElementProps) {
   return (
     <PlateElement
       {...props}
-      className="min-w-0 flex-1"
+      className={COLUMN_CLASS}
       style={width ? { flexBasis: width } : undefined}
     >
       {props.children}
@@ -202,21 +205,16 @@ function Toc(props: PlateElementProps) {
     .filter(({ node }) => KEYS.heading.includes(node.type as (typeof KEYS.heading)[number]));
   return (
     <PlateElement {...props}>
-      <div
-        contentEditable={false}
-        className="my-3 rounded-card border border-line bg-surface-hover-bg p-3"
-      >
-        <p className="mb-2 text-xs font-semibold tracking-wide text-fg-muted uppercase">
-          Table of contents
-        </p>
+      <div contentEditable={false} className={TOC_BOX_CLASS}>
+        <p className={TOC_TITLE_CLASS}>Table of contents</p>
         {headings.length ? (
           <nav className="flex flex-col">
             {headings.map(({ node, index }) => (
               <button
                 key={(node.id as string | undefined) ?? index}
                 type="button"
-                className="rounded-row px-2 py-1 text-left text-sm text-fg-secondary hover:bg-surface"
-                style={{ paddingLeft: `${8 + Math.max(0, Number(node.type.slice(1)) - 1) * 12}px` }}
+                className={TOC_ITEM_CLASS}
+                style={tocItemIndent(node.type)}
                 onClick={() => {
                   editor.tf.select([index, 0]);
                   editor.tf.focus();
@@ -227,7 +225,7 @@ function Toc(props: PlateElementProps) {
             ))}
           </nav>
         ) : (
-          <p className="text-sm text-fg-muted">Add headings to build this outline.</p>
+          <p className={TOC_EMPTY_CLASS}>Add headings to build this outline.</p>
         )}
       </div>
       {props.children}
@@ -239,11 +237,7 @@ function Toc(props: PlateElementProps) {
 function Mention(props: PlateElementProps) {
   const value = String((props.element as { value?: string }).value ?? '');
   return (
-    <PlateElement
-      {...props}
-      as="span"
-      className="rounded bg-tint-accent-1 px-1 text-tint-accent-1-fg"
-    >
+    <PlateElement {...props} as="span" className={MENTION_CLASS}>
       <span contentEditable={false}>@{value}</span>
       {props.children}
     </PlateElement>
@@ -254,51 +248,14 @@ function Mention(props: PlateElementProps) {
 function DateElement(props: PlateElementProps) {
   const date = String((props.element as { date?: string }).date ?? '');
   return (
-    <PlateElement
-      {...props}
-      as="span"
-      className="rounded bg-surface-hover-bg px-1 text-fg-secondary"
-    >
+    <PlateElement {...props} as="span" className={DATE_CLASS}>
       <span contentEditable={false}>{date || 'date'}</span>
       {props.children}
     </PlateElement>
   );
 }
 
-function ToggleElement(props: PlateElementProps) {
-  const editor = useEditorRef();
-  const open = Boolean((props.element as { open?: boolean }).open);
-  return (
-    <PlateElement {...props} className="my-2 rounded-card border border-line bg-surface">
-      <div className="flex items-start gap-1">
-        <button
-          type="button"
-          contentEditable={false}
-          aria-label={open ? 'Collapse toggle' : 'Expand toggle'}
-          aria-expanded={open}
-          className="mt-2 rounded-row p-1 text-fg-muted hover:bg-surface-hover-bg"
-          onClick={() => {
-            const at = editor.api.findPath(props.element);
-            if (at) editor.tf.setNodes({ open: !open }, { at });
-          }}
-        >
-          <ChevronRight className={cn('size-4 transition-transform', open && 'rotate-90')} />
-        </button>
-        <div className={cn('min-w-0 flex-1 px-1', !open && 'line-clamp-1')}>{props.children}</div>
-      </div>
-    </PlateElement>
-  );
-}
-
-/* math (KaTeX). Click to edit the TeX via prompt. */
-function renderKatex(tex: string, displayMode: boolean): { __html: string } {
-  try {
-    return { __html: katex.renderToString(tex || '', { displayMode, throwOnError: false }) };
-  } catch {
-    return { __html: tex };
-  }
-}
-
+/* math (KaTeX, lazily loaded). Click to edit the TeX via prompt. */
 function BlockEquation(props: PlateElementProps) {
   const editor = useEditorRef();
   const tex = String((props.element as { texExpression?: string }).texExpression ?? '');
@@ -313,9 +270,10 @@ function BlockEquation(props: PlateElementProps) {
       <div
         contentEditable={false}
         onClick={edit}
-        className="my-3 cursor-pointer overflow-auto rounded-card border border-line p-3 text-center"
-        dangerouslySetInnerHTML={renderKatex(tex, true)}
-      />
+        className={`cursor-pointer ${EQUATION_BLOCK_CLASS}`}
+      >
+        <Katex tex={tex} displayMode />
+      </div>
       {props.children}
     </PlateElement>
   );
@@ -331,12 +289,9 @@ function InlineEquation(props: PlateElementProps) {
   }
   return (
     <PlateElement {...props} as="span">
-      <span
-        contentEditable={false}
-        onClick={edit}
-        className="cursor-pointer"
-        dangerouslySetInnerHTML={renderKatex(tex, false)}
-      />
+      <span contentEditable={false} onClick={edit} className="cursor-pointer">
+        <Katex tex={tex} displayMode={false} />
+      </span>
       {props.children}
     </PlateElement>
   );
@@ -354,13 +309,10 @@ function mark(tag: keyof HTMLElementTagNameMap, className?: string) {
   };
 }
 
-const Code = mark('code', 'rounded bg-surface-hover-bg px-1 py-0.5 font-mono text-[0.85em]');
-const Highlight = mark('mark', 'bg-tint-accent-2 text-tint-accent-2-fg');
+const Code = mark('code', CODE_MARK_CLASS);
+const Highlight = mark('mark', HIGHLIGHT_MARK_CLASS);
 const CodeSyntax = mark('span');
-const Kbd = mark(
-  'kbd',
-  'rounded border border-line bg-surface-hover-bg px-1 font-mono text-[0.8em] text-fg'
-);
+const Kbd = mark('kbd', KBD_MARK_CLASS);
 
 /* ------------------------------------------------------------- components map */
 
@@ -394,15 +346,13 @@ export const noteComponents = {
   column_group: ColumnGroup,
   column: Column,
   toc: Toc,
-  toggle: ToggleElement,
   mention: Mention,
   mention_input: MentionInputElement,
-  emoji_input: EmojiInputElement,
   date: DateElement,
   equation: BlockEquation,
   inline_equation: InlineEquation,
-  bold: mark('strong', 'font-semibold'),
-  italic: mark('em', 'italic'),
+  bold: mark('strong', BOLD_MARK_CLASS),
+  italic: mark('em', ITALIC_MARK_CLASS),
   underline: mark('u'),
   strikethrough: mark('s'),
   code: Code,

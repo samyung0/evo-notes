@@ -1,10 +1,27 @@
 /**
- * Thin fetch wrapper around the mock API. One base URL so the real
+ * Thin fetch wrapper around the API. One base URL so the real
  * backend can be dropped in later by changing `API_BASE`.
  */
 import { authHeaders } from './auth';
 
 export const API_BASE = '/api';
+
+/** Typed HTTP failure so callers can branch on status (404 private, 401, …). */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly statusText: string;
+
+  constructor(status: number, statusText: string, detail?: string) {
+    super(`${status} ${statusText}${detail ? ` — ${detail}` : ''}`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.statusText = statusText;
+  }
+}
+
+export function isApiError(err: unknown): err is ApiError {
+  return err instanceof ApiError;
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await authHeaders();
@@ -19,7 +36,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* ignore */
     }
-    throw new Error(`${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`);
+    throw new ApiError(res.status, res.statusText, detail || undefined);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -37,7 +54,7 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
     } catch {
       /* ignore */
     }
-    throw new Error(`${res.status} ${res.statusText}${detail ? ` — ${detail}` : ''}`);
+    throw new ApiError(res.status, res.statusText, detail || undefined);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

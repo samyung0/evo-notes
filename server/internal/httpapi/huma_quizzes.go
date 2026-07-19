@@ -155,6 +155,13 @@ func (a *api) listAttempts(ctx context.Context, _ *struct{}) (*attemptsOutput, e
 }
 
 func (a *api) createAttempt(ctx context.Context, in *createAttemptInput) (*attemptOutput, error) {
+	// review_mistakes is a virtual per-user quiz; real quizzes must be readable
+	// (owner/member or link/public) before an attempt can be recorded.
+	if in.ID != "review_mistakes" {
+		if _, err := a.materialRead(ctx, in.ID); err != nil {
+			return nil, hErr(err)
+		}
+	}
 	wrong := make([]json.RawMessage, 0, len(in.Body.Wrong))
 	ids := make([]string, 0, len(in.Body.Wrong))
 	for _, q := range in.Body.Wrong {

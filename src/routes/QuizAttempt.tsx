@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
-import { Panel, PanelWithInvertedRadius } from '@/components/app/layout';
+import { PanelWithInvertedRadius } from '@/components/app/layout';
+import { PrivateOrUnavailable } from '@/components/app/PrivateOrUnavailable';
 import { Button, Icon, ProgressBar, Skeleton, Text, userToast } from '@/components/ui';
 import { useCloneQuiz, useQuiz, useSubmitAttempt } from '@/api/hooks';
+import { isApiError } from '@/api/client';
+import { toastCloneError, toastSignInRequired } from '@/lib/authToasts';
 import { QuestionRunner } from '@/features/quizzes/QuestionRunner';
 import { emptyAnswer, gradeQuestion, type Answer } from '@/features/quizzes/grade';
 import { m } from '@/i18n';
@@ -10,7 +13,7 @@ import { m } from '@/i18n';
 export default function QuizAttempt() {
   const params = useParams({ strict: false });
   const quizId = (params as { quizId: string }).quizId;
-  const { data: quiz, isLoading } = useQuiz(quizId);
+  const { data: quiz, isLoading, isError, error } = useQuiz(quizId);
   const submit = useSubmitAttempt();
   const cloneQuiz = useCloneQuiz();
   const navigate = useNavigate();
@@ -25,13 +28,24 @@ export default function QuizAttempt() {
     return { correct, total: quiz.questions.length };
   }, [quiz, answers]);
 
-  if (isLoading || !quiz) {
+  if (isLoading) {
     return (
       <PanelWithInvertedRadius>
         <div className="h-full p-6">
           <Skeleton className="h-full w-full" />
         </div>
       </PanelWithInvertedRadius>
+    );
+  }
+
+  if (isError || !quiz) {
+    const denied = isApiError(error) && (error.status === 404 || error.status === 401);
+    return (
+      <PrivateOrUnavailable
+        title={denied ? 'This item is private or unavailable.' : 'Unable to load this quiz.'}
+        backTo="/quizzes"
+        backLabel="Back to quizzes"
+      />
     );
   }
 
@@ -57,15 +71,33 @@ export default function QuizAttempt() {
   function finish() {
     if (!quiz) return;
     const wrong = quiz.questions.filter((qq) => !gradeQuestion(qq, answers[qq.id]));
-    submit.mutate({
-      quizId,
-      correct: score.correct,
-      total: score.total,
-      wrong,
-      answers,
-      questions: quiz.questions,
-    });
-    setDone(true);
+    submit.mutate(
+      {
+        quizId,
+        correct: score.correct,
+        total: score.total,
+        wrong,
+        answers,
+        questions: quiz.questions,
+      },
+      {
+        onSuccess: () => setDone(true),
+        onError: (err) => {
+          if (isApiError(err) && err.status === 401) {
+            toastSignInRequired(
+              'Sign in to save your score',
+              'Create an account before recording a quiz attempt.'
+            );
+            return;
+          }
+          userToast({
+            title: 'Could not save attempt',
+            description: err instanceof Error ? err.message : 'Please try again.',
+            button: { label: 'Dismiss', onClick: () => {} },
+          });
+        },
+      }
+    );
   }
 
   if (done) {
@@ -149,17 +181,7 @@ export default function QuizAttempt() {
                       to: '/quizzes/$quizId/attempt',
                       params: { quizId: copy.id },
                     }),
-                  onError: () =>
-                    userToast({
-                      title: 'Sign in to clone',
-                      description: 'Create an account before cloning this quiz.',
-                      button: {
-                        label: 'Sign in',
-                        onClick: () => {
-                          window.location.href = '/sign-in';
-                        },
-                      },
-                    }),
+                  onError: (err) => toastCloneError(err, 'quiz'),
                 })
               }
             >
@@ -190,8 +212,13 @@ export default function QuizAttempt() {
               Next
             </Button>
           ) : (
-            <Button variant="accent" onClick={finish} iconRight="check">
-              Finish
+            <Button
+              variant="accent"
+              onClick={finish}
+              iconRight="check"
+              disabled={submit.isPending}
+            >
+              {submit.isPending ? 'Saving…' : 'Finish'}
             </Button>
           )}
         </div>

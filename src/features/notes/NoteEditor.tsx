@@ -38,6 +38,8 @@ export function NoteEditor({
 }) {
   const { data: material, isLoading } = useMaterial(materialId);
 
+  console.log(material);
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -158,7 +160,10 @@ function NoteEditorCore({
   });
 
   useEffect(() => {
-    editor.setOption(SuggestionPlugin, 'isSuggesting', role === 'commenter');
+    const isSuggesting = role === 'commenter';
+    if (editor.getOption(SuggestionPlugin, 'isSuggesting') !== isSuggesting) {
+      editor.setOption(SuggestionPlugin, 'isSuggesting', isSuggesting);
+    }
   }, [editor, role]);
 
   useEffect(() => {

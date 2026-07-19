@@ -12,9 +12,9 @@ import (
 /* -------------------------------------------------------------- access checks
 
 Sharing model: `privacy` on workspaces and materials is enforced at read time.
-  - owner        → full read/write
-  - link/public  → any authenticated user may read (and clone)
-  - private      → owner only (404 for everyone else, like AssertWorkspaceOwner)
+  - owner / member → read (and write per role capabilities)
+  - link/public    → any caller may read (and clone when authenticated)
+  - private        → owner/members only (404 for everyone else)
 A material is readable when the material itself OR its parent workspace is
 link/public — publishing a workspace implicitly publishes everything inside. */
 

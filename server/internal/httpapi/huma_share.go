@@ -62,25 +62,24 @@ func (a *api) fileRead(ctx context.Context, fileID string) (bool, error) {
 	return a.workspaceRead(ctx, wsID)
 }
 
-// assertChapterOwner / assertFileOwner / assertCardOwner gate writes on
-// resources addressed by their own id (not the workspace path).
-func (a *api) assertChapterOwner(ctx context.Context, chapterID string) error {
+// Resource-editor helpers gate writes addressed by a child id.
+func (a *api) assertChapterEditor(ctx context.Context, chapterID string) error {
 	wsID, err := a.s.ChapterWorkspaceID(ctx, chapterID)
 	if err != nil {
 		return err
 	}
-	return a.assertOwner(ctx, wsID)
+	return a.assertWorkspaceEditor(ctx, wsID)
 }
 
-func (a *api) assertFileOwner(ctx context.Context, fileID string) error {
+func (a *api) assertFileEditor(ctx context.Context, fileID string) error {
 	wsID, err := a.s.FileWorkspaceID(ctx, fileID)
 	if err != nil {
 		return err
 	}
-	return a.assertOwner(ctx, wsID)
+	return a.assertWorkspaceEditor(ctx, wsID)
 }
 
-func (a *api) assertCardOwner(ctx context.Context, cardID string) error {
+func (a *api) assertCardEditor(ctx context.Context, cardID string) error {
 	matID, err := a.s.CardMaterialID(ctx, cardID)
 	if err != nil {
 		return err

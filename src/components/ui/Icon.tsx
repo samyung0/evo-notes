@@ -5,6 +5,11 @@ import type { CSSProperties } from 'react';
  * round caps & joins, currentColor stroke. Self-contained (no CDN).
  */
 const PATHS = {
+  fileError: [
+    'M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z',
+    'M12 9v4',
+    'M12 17h.01',
+  ],
   dashboard: [
     'M3 3h7.5v7.5H3z',
     'M13.5 3H21v7.5h-7.5z',
@@ -138,6 +143,10 @@ const PATHS = {
     'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2',
     'M12 15 L18 15',
   ],
+  maximize: ['M15 3h6v6', 'M9 21H3v-6', 'M21 3l-7 7', 'M3 21l7-7'],
+  minimize: ['M4 14h6v6', 'M14 4h6v6', 'M14 10l7-7', 'M3 21l7-7'],
+  zoomIn: ['M11 4a7 7 0 100 14 7 7 0 000-14z', 'M21 21l-4-4', 'M11 8v6', 'M8 11h6'],
+  zoomOut: ['M11 4a7 7 0 100 14 7 7 0 000-14z', 'M21 21l-4-4', 'M8 11h6'],
 } as const;
 
 export type IconName = keyof typeof PATHS;

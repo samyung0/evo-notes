@@ -65,3 +65,9 @@ data/
 # fixtures). These are only transient debug/probe artifacts.
 pipeline/tests/_match_debug.txt
 pipeline/tests/_probe.py
+
+# --- Playwright ---
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/

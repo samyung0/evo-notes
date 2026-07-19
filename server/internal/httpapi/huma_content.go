@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -60,8 +61,12 @@ func (a *api) registerContent(api huma.API) {
 	reg(api, http.MethodDelete, "/api/files/{id}", "deleteFile", tag, "Delete a file", http.StatusNoContent, a.deleteFile)
 }
 
-func (a *api) assertOwner(ctx context.Context, wsID string) error {
-	return a.s.AssertWorkspaceOwner(ctx, userID(ctx), wsID)
+func (a *api) assertWorkspaceEditor(ctx context.Context, wsID string) error {
+	err := a.s.AssertWorkspaceEditor(ctx, userID(ctx), wsID)
+	if errors.Is(err, store.ErrForbidden) {
+		return store.ErrNotFound
+	}
+	return err
 }
 
 func (a *api) listChapters(ctx context.Context, in *workspaceIDInput) (*chaptersOutput, error) {
@@ -76,7 +81,7 @@ func (a *api) listChapters(ctx context.Context, in *workspaceIDInput) (*chapters
 }
 
 func (a *api) addChapter(ctx context.Context, in *addChapterInput) (*chapterOutput, error) {
-	if err := a.assertOwner(ctx, in.ID); err != nil {
+	if err := a.assertWorkspaceEditor(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	res, err := a.s.AddChapter(ctx, in.ID, in.Body.Name)
@@ -87,7 +92,7 @@ func (a *api) addChapter(ctx context.Context, in *addChapterInput) (*chapterOutp
 }
 
 func (a *api) updateChapter(ctx context.Context, in *updateChapterInput) (*chapterOutput, error) {
-	if err := a.assertChapterOwner(ctx, in.ID); err != nil {
+	if err := a.assertChapterEditor(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	res, err := a.s.UpdateChapter(ctx, in.ID, store.ChapterPatch{Name: in.Body.Name, Order: in.Body.Order})
@@ -98,7 +103,7 @@ func (a *api) updateChapter(ctx context.Context, in *updateChapterInput) (*chapt
 }
 
 func (a *api) reorderChapters(ctx context.Context, in *reorderChaptersInput) (*Empty, error) {
-	if err := a.assertOwner(ctx, in.ID); err != nil {
+	if err := a.assertWorkspaceEditor(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	if err := a.s.ReorderChapters(ctx, in.Body.IDs); err != nil {
@@ -108,7 +113,7 @@ func (a *api) reorderChapters(ctx context.Context, in *reorderChaptersInput) (*E
 }
 
 func (a *api) deleteChapter(ctx context.Context, in *chapterIDInput) (*Empty, error) {
-	if err := a.assertChapterOwner(ctx, in.ID); err != nil {
+	if err := a.assertChapterEditor(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	if err := a.s.DeleteChapter(ctx, in.ID); err != nil {
@@ -148,7 +153,7 @@ func (a *api) getFile(ctx context.Context, in *fileIDInput) (*fileOutput, error)
 }
 
 func (a *api) updateFile(ctx context.Context, in *updateFileInput) (*fileOutput, error) {
-	if err := a.assertFileOwner(ctx, in.ID); err != nil {
+	if err := a.assertFileEditor(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	patch := store.FilePatch{Name: in.Body.Name}
@@ -171,7 +176,7 @@ func (a *api) updateFile(ctx context.Context, in *updateFileInput) (*fileOutput,
 }
 
 func (a *api) deleteFile(ctx context.Context, in *fileIDInput) (*Empty, error) {
-	if err := a.assertFileOwner(ctx, in.ID); err != nil {
+	if err := a.assertFileEditor(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	orphaned, err := a.s.DeleteFileWithOrphanedBlobs(ctx, in.ID)

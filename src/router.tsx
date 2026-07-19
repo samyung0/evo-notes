@@ -9,6 +9,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/app/AppShell';
 import { AuthGate } from '@/components/app/AuthProvider';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
+import { Toaster } from 'sonner';
 import { features } from '@/lib/features';
 import { USE_MSW } from '@/api/auth';
 import { queryClient } from '@/api/queryClient';
@@ -36,6 +37,7 @@ import {
   workspaceQuery,
   workspacesQuery,
 } from '@/api/hooks';
+import { parseWorkspaceOpenSearch } from '@/features/materials/openItem';
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -51,6 +53,7 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: () => (
     <>
       <Outlet />
+      <Toaster />
       <TanStackRouterDevtools />
     </>
   ),
@@ -83,6 +86,7 @@ const publicRoutes = [
     getParentRoute: () => rootRoute,
     path: '/share/workspaces/$workspaceId',
     component: lazyRouteComponent(() => import('@/routes/WorkspaceOpen')),
+    validateSearch: parseWorkspaceOpenSearch,
     loader: ({ context: { queryClient: qc }, params }) => {
       const id = params.workspaceId;
       qc.prefetchQuery(workspaceQuery(id));
@@ -140,17 +144,19 @@ const appRoutes = [
     ({ context: { queryClient: qc } }) =>
       qc.prefetchQuery(workspacesQuery({ sort: 'accessed', q: '', color: undefined }))
   ),
-  page(
-    '/workspaces/$workspaceId',
-    () => import('@/routes/WorkspaceOpen'),
-    ({ context: { queryClient: qc }, params }) => {
+  createRoute({
+    getParentRoute: () => authShellRoute,
+    path: '/workspaces/$workspaceId',
+    component: lazyRouteComponent(() => import('@/routes/WorkspaceOpen')),
+    validateSearch: parseWorkspaceOpenSearch,
+    loader: ({ context: { queryClient: qc }, params }) => {
       const id = params.workspaceId;
       qc.prefetchQuery(workspaceQuery(id));
       qc.prefetchQuery(chaptersQuery(id));
       qc.prefetchQuery(filesQuery(id));
       qc.prefetchQuery(conversationsQuery(id));
-    }
-  ),
+    },
+  }),
   page(
     '/quizzes',
     () => import('@/routes/Quizzes'),

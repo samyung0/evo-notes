@@ -6,6 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>Evo Notes</title>
+
+    <script>
+      (() => {
+        try {
+          const root = document.documentElement;
+          const theme = localStorage.getItem('evo.theme');
+          const mode = localStorage.getItem('evo.mode');
+
+          root.dataset.theme = theme === 'friendly' || theme === 'notion' ? theme : 'friendly';
+          root.dataset.mode =
+            mode === 'light' || mode === 'dark'
+              ? mode
+              : matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+        } catch {
+          // Keep the HTML defaults if storage is unavailable.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

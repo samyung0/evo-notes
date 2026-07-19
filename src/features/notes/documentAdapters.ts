@@ -1,4 +1,3 @@
-import { importDocx, exportToDocx } from '@platejs/docx-io';
 import { MarkdownPlugin } from '@platejs/markdown';
 import type { SlatePlugin } from 'platejs';
 import type { PlateEditor } from 'platejs/react';
@@ -17,6 +16,12 @@ type MarkdownEditor = PlateEditor & {
   };
 };
 
+/** Loaded only when the user imports/exports a .docx — keeps mammoth/jszip/xml
+ * out of the initial editor chunk. */
+function loadDocxIo() {
+  return import('@platejs/docx-io');
+}
+
 export function importMarkdownDocument(editor: PlateEditor, source: string): MaterialDocument {
   const value = (editor as MarkdownEditor).getApi(MarkdownPlugin).markdown.deserialize(source);
   return createMaterialDocument(value);
@@ -30,11 +35,16 @@ export async function importDocxDocument(
   editor: PlateEditor,
   buffer: ArrayBuffer
 ): Promise<MaterialDocument> {
+  const { importDocx } = await loadDocxIo();
   const result = await importDocx(editor, buffer);
   return createMaterialDocument(result.nodes as MaterialValue);
 }
 
-export function exportDocxDocument(editor: PlateEditor, plugins: SlatePlugin[]): Promise<Blob> {
+export async function exportDocxDocument(
+  editor: PlateEditor,
+  plugins: SlatePlugin[]
+): Promise<Blob> {
+  const { exportToDocx } = await loadDocxIo();
   return exportToDocx(editor.children, { editorPlugins: plugins });
 }
 

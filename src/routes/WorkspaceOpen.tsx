@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { useState } from 'react';
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { Panel } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
 import {
@@ -37,7 +37,12 @@ import {
 import type { Chapter, MaterialRef, MaterialRefType } from '@/api/types';
 import { FileListItem } from '@/features/files/FileListItem';
 import { CenterContent } from '@/features/materials/CenterContent';
-import type { OpenItem } from '@/features/materials/openItem';
+import {
+  openItemFromSearch,
+  searchFromOpenItem,
+  type OpenItem,
+  type WorkspaceOpenSearch,
+} from '@/features/materials/openItem';
 import { ChatPanel } from '@/features/workspace/ChatPanel';
 import { GeneratePanel } from '@/features/workspace/GeneratePanel';
 import type { GenerateMode } from '@/features/workspace/GenerateFormDialog';
@@ -46,6 +51,10 @@ import { useDialogs } from '@/stores/dialogs';
 import { m } from '@/i18n';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/Resizable';
 import { ShareDialog } from '@/components/app/ShareDialog';
+import { PrivateOrUnavailable } from '@/components/app/PrivateOrUnavailable';
+import { canShareWorkspace, isWorkspaceReadOnly } from '@/features/workspace/access';
+import { isApiError } from '@/api/client';
+import { toastCloneError } from '@/lib/authToasts';
 
 const MATERIAL_ICON: Record<MaterialRefType, IconName> = {
   mindmap: 'workspaces',
@@ -135,12 +144,15 @@ export default function WorkspaceOpen() {
   const params = useParams({ strict: false });
   const workspaceId = (params as { workspaceId: string }).workspaceId;
   const navigate = useNavigate();
+  const search = useSearch({ strict: false }) as WorkspaceOpenSearch;
 
-  const { data: ws } = useWorkspace(workspaceId);
+  const { data: ws, isLoading: wsLoading, isError: wsError, error: wsErr } =
+    useWorkspace(workspaceId);
   const { data: chapters } = useChapters(workspaceId);
   const { data: files } = useFiles(workspaceId);
   const { data: materials } = useMaterials(workspaceId);
-  const readOnly = ws ? !ws.capabilities.canEdit : true;
+  const readOnly = isWorkspaceReadOnly(ws?.capabilities);
+  const canShare = canShareWorkspace(ws?.capabilities);
   useIngestProgress(workspaceId, !readOnly);
   const addChapter = useAddChapter(workspaceId);
   const updateChapter = useUpdateChapter(workspaceId);
@@ -155,7 +167,16 @@ export default function WorkspaceOpen() {
   const openAddSource = useDialogs((s) => s.openAddSource);
   const openConfirm = useDialogs((s) => s.openConfirm);
 
-  const [openItem, setOpenItem] = useState<OpenItem | null>(null);
+  const openItem = openItemFromSearch(search);
+
+  function setOpenItem(item: OpenItem | null) {
+    navigate({
+      to: '.',
+      search: searchFromOpenItem(item),
+      replace: true,
+    });
+  }
+
   const [generating, setGenerating] = useState<GenerateMode | null>(null);
   const [mode, setMode] = useState('chat');
   const [openChapters, setOpenChapters] = useState<Record<string, boolean>>({});
@@ -250,6 +271,21 @@ export default function WorkspaceOpen() {
     if (openItem?.kind === 'file' && openItem.id === id) setOpenItem(null);
   }
 
+  if (!wsLoading && (wsError || !ws)) {
+    const denied = isApiError(wsErr) && (wsErr.status === 404 || wsErr.status === 401);
+    return (
+      <PrivateOrUnavailable
+        title={
+          denied
+            ? 'This item is private or unavailable.'
+            : 'Unable to load this workspace.'
+        }
+        backTo="/workspaces"
+        backLabel="Back to workspaces"
+      />
+    );
+  }
+
   // overflow-visible WITH important is so that shadow doesnt get clipped
   return (
     <>
@@ -302,17 +338,7 @@ export default function WorkspaceOpen() {
                         params: { workspaceId: workspace.id },
                       });
                     },
-                    onError: () =>
-                      userToast({
-                        title: 'Sign in to clone',
-                        description: 'Create an account before cloning this workspace.',
-                        button: {
-                          label: 'Sign in',
-                          onClick: () => {
-                            window.location.href = '/sign-in';
-                          },
-                        },
-                      }),
+                    onError: (err) => toastCloneError(err, 'workspace'),
                   })
                 }
                 className="mt-4 w-full py-2"
@@ -320,7 +346,7 @@ export default function WorkspaceOpen() {
                 {cloneWorkspace.isPending ? 'Cloning…' : 'Clone workspace'}
               </Button>
             ) : (
-              <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className={`mt-4 grid gap-2 ${canShare ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <Button
                   variant="surface"
                   size="md"
@@ -329,15 +355,17 @@ export default function WorkspaceOpen() {
                 >
                   <Icon name="plus" size={16} className="-translate-y-px" /> {m.action_add_file()}
                 </Button>
-                <Button
-                  variant="surface"
-                  size="md"
-                  iconLeft="link"
-                  onClick={() => setShareOpen(true)}
-                  className="py-2"
-                >
-                  Share
-                </Button>
+                {canShare && (
+                  <Button
+                    variant="surface"
+                    size="md"
+                    iconLeft="link"
+                    onClick={() => setShareOpen(true)}
+                    className="py-2"
+                  >
+                    Share
+                  </Button>
+                )}
               </div>
             )}
           </div>

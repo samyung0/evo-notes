@@ -1,21 +1,18 @@
-import { lazy, Suspense, type ReactNode } from 'react';
-import { Icon, Skeleton, Spinner } from '@/components/ui';
 import type { SourceFile } from '@/api/types';
-import { PlateMarkdown } from '@/features/materials/PlateMarkdown';
-import { FileLoading } from '../materials/CenterContent';
+import { Icon } from '@/components/ui';
+import { ImageViewer } from '@/features/files/ImageViewer';
+import { MaterialPreview } from '@/features/materials/MaterialPreview';
+import { lazy, Suspense, type ReactNode } from 'react';
+import { FileEmpty, FileLoading } from '../materials/CenterContent';
+import { fileExt, IMAGE_MIN_ZOOM, isImageFile } from './fileUtils';
 
 const PdfView = lazy(() => import('./PdfView'));
 const SheetView = lazy(() => import('./SheetView'));
 const DocxView = lazy(() => import('./DocxView'));
 
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'jp2', 'webp', 'gif', 'bmp', 'svg', 'avif']);
 const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v']);
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac']);
 const SHEET_EXTS = new Set(['xlsx', 'xls', 'csv']);
-
-function fileExt(name: string) {
-  return name.includes('.') ? (name.split('.').pop()?.toLowerCase() ?? '') : '';
-}
 
 function lazyView(node: ReactNode) {
   return <Suspense fallback={<FileLoading />}>{node}</Suspense>;
@@ -46,7 +43,15 @@ function UnsupportedPreview({ file }: { file: SourceFile }) {
   );
 }
 
-export function FileViewer({ file }: { file: SourceFile | null }) {
+export function FileViewer({
+  file,
+  imageZoom = IMAGE_MIN_ZOOM,
+  onImageZoomChange,
+}: {
+  file: SourceFile | null;
+  imageZoom?: number;
+  onImageZoomChange?: (next: number) => void;
+}) {
   if (!file) {
     return (
       <div className="grid h-full place-items-center">
@@ -60,27 +65,40 @@ export function FileViewer({ file }: { file: SourceFile | null }) {
 
   const ext = fileExt(file.name);
 
-  if ((file.kind === 'pdf' || ext === 'pdf') && file.url) {
+  if (file.kind === 'pdf' || ext === 'pdf') {
+    if (!file.url) return <FileEmpty />;
     return lazyView(<PdfView url={file.url} />);
   }
 
-  if ((file.kind === 'image' || IMAGE_EXTS.has(ext)) && file.url) {
-    return <img src={file.url} alt={file.name} className="mx-auto max-w-full rounded-card" />;
-  }
-
-  if ((file.kind === 'video' || VIDEO_EXTS.has(ext)) && file.url) {
+  if (isImageFile(file)) {
+    if (!file.url) return <FileEmpty />;
     return (
-      <video
-        controls
-        src={file.url}
-        className="mx-auto max-h-full max-w-full rounded-card bg-black"
-      >
-        Your browser can't play this video.
-      </video>
+      <ImageViewer
+        url={file.url}
+        alt={file.name}
+        zoom={imageZoom}
+        onZoomChange={onImageZoomChange}
+      />
     );
   }
 
-  if ((file.kind === 'audio' || AUDIO_EXTS.has(ext)) && file.url) {
+  if (file.kind === 'video' || VIDEO_EXTS.has(ext)) {
+    if (!file.url) return <FileEmpty />;
+    return (
+      <div className="grid h-full w-full place-items-center p-6">
+        <video
+          controls
+          src={file.url}
+          className="mx-auto max-h-full max-w-full rounded-card bg-black"
+        >
+          Your browser can't play this video.
+        </video>
+      </div>
+    );
+  }
+
+  if (file.kind === 'audio' || AUDIO_EXTS.has(ext)) {
+    if (!file.url) return <FileEmpty />;
     return (
       <div className="grid h-full place-items-center">
         <div className="flex w-full max-w-140 flex-col items-center gap-3">
@@ -91,18 +109,22 @@ export function FileViewer({ file }: { file: SourceFile | null }) {
     );
   }
 
-  if ((file.kind === 'sheet' || SHEET_EXTS.has(ext)) && file.url) {
+  if (file.kind === 'sheet' || SHEET_EXTS.has(ext)) {
+    if (!file.url) return <FileEmpty />;
     return lazyView(<SheetView url={file.url} />);
   }
 
   // docx renders in the browser; legacy binary .doc has no web viewer.
-  if (ext === 'docx' && file.url) {
+  if (ext === 'docx') {
+    if (!file.url) return <FileEmpty />;
     return lazyView(<DocxView url={file.url} />);
   }
 
-  // Markdown — render with PlateJS.
-  if (file.kind === 'md' && file.content) {
-    return <PlateMarkdown content={file.content} className="mx-auto max-w-175" />;
+  // Markdown — render with the static Plate preview. `!= null` so empty
+  // markdown files still preview instead of falling to "unsupported".
+  if (file.kind === 'md') {
+    if (file.content == null) return <FileEmpty />;
+    return <MaterialPreview content={file.content} className="mx-auto max-w-175" />;
   }
 
   // Plain text (or extracted text content from other kinds).

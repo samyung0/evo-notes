@@ -103,7 +103,7 @@ func (a *api) createCard(ctx context.Context, in *createCardInput) (*cardOutput,
 }
 
 func (a *api) updateCard(ctx context.Context, in *updateCardInput) (*cardOutput, error) {
-	if err := a.assertCardOwner(ctx, in.ID); err != nil {
+	if err := a.assertCardEditor(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	p := store.CardPatch{Front: in.Body.Front, Back: in.Body.Back, Known: in.Body.Known}
@@ -119,7 +119,7 @@ func (a *api) updateCard(ctx context.Context, in *updateCardInput) (*cardOutput,
 }
 
 func (a *api) deleteCard(ctx context.Context, in *cardIDInput) (*Empty, error) {
-	if err := a.assertCardOwner(ctx, in.ID); err != nil {
+	if err := a.assertCardEditor(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
 	if err := a.s.DeleteCard(ctx, in.ID); err != nil {

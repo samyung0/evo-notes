@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { QuizDialog } from './QuizDialog';
 import { FlashcardsDialog } from './FlashcardsDialog';
 
@@ -10,6 +18,14 @@ export interface NoteBlockDialogsApi {
 }
 
 const Ctx = createContext<NoteBlockDialogsApi | null>(null);
+
+/**
+ * Module-level handle for the mounted provider. Plate inline nodes (slash input)
+ * sit under PlateContent and can miss React context after HMR or when rendered
+ * through Plate's element pipeline; the editor store still works, so callers
+ * fall back here while a NoteEditor is mounted.
+ */
+let mountedDialogsApi: NoteBlockDialogsApi | null = null;
 
 /** Hosts the quiz/flashcards authoring popups and exposes imperative openers.
  * Used both for inserting new blocks (toolbar/slash) and editing existing ones
@@ -32,6 +48,13 @@ export function NoteBlockDialogsProvider({ children }: { children: React.ReactNo
     () => ({ openQuiz, openFlashcards }),
     [openQuiz, openFlashcards]
   );
+
+  useEffect(() => {
+    mountedDialogsApi = api;
+    return () => {
+      if (mountedDialogsApi === api) mountedDialogsApi = null;
+    };
+  }, [api]);
 
   return (
     <Ctx.Provider value={api}>
@@ -58,13 +81,17 @@ export function NoteBlockDialogsProvider({ children }: { children: React.ReactNo
   );
 }
 
+function useResolvedDialogs(): NoteBlockDialogsApi | null {
+  return useContext(Ctx) ?? mountedDialogsApi;
+}
+
 export function useNoteBlockDialogs(): NoteBlockDialogsApi {
-  const ctx = useContext(Ctx);
+  const ctx = useResolvedDialogs();
   if (!ctx) throw new Error('useNoteBlockDialogs must be used within NoteBlockDialogsProvider');
   return ctx;
 }
 
 /** Static material renderers do not mount authoring dialogs. */
 export function useOptionalNoteBlockDialogs(): NoteBlockDialogsApi | null {
-  return useContext(Ctx);
+  return useResolvedDialogs();
 }

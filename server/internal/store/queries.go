@@ -957,17 +957,22 @@ func (s *Store) ListAttempts(ctx context.Context, userID string) ([]Attempt, err
 }
 
 func (s *Store) CreateAttempt(ctx context.Context, userID, materialID string, correct, total int, answers, questions json.RawMessage) (Attempt, error) {
-	q, err := s.GetQuiz(ctx, materialID)
-	if err != nil && err != ErrNotFound {
-		return Attempt{}, err
+	quizName, workspaceName := "Review mistakes", ""
+	chapters := []string{}
+	if materialID != "review_mistakes" {
+		q, err := s.GetQuiz(ctx, materialID)
+		if err != nil {
+			return Attempt{}, err
+		}
+		quizName, workspaceName, chapters = q.Name, q.WorkspaceName, q.Chapters
 	}
 	pct := 0
 	if total > 0 {
 		pct = int(float64(correct) / float64(total) * 100.0)
 	}
 	a := Attempt{
-		ID: uid("at"), QuizID: materialID, QuizName: q.Name, WorkspaceName: q.WorkspaceName,
-		Chapters: q.Chapters, Correct: correct, Total: total, Pct: pct, TakenAt: time.Now().UTC(),
+		ID: uid("at"), QuizID: materialID, QuizName: quizName, WorkspaceName: workspaceName,
+		Chapters: chapters, Correct: correct, Total: total, Pct: pct, TakenAt: time.Now().UTC(),
 	}
 	if a.Chapters == nil {
 		a.Chapters = []string{}
@@ -978,7 +983,7 @@ func (s *Store) CreateAttempt(ctx context.Context, userID, materialID string, co
 	if len(questions) == 0 {
 		questions = json.RawMessage("[]")
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO attempts (id, quiz_id, user_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at, answers, questions)
+	_, err := s.pool.Exec(ctx, `INSERT INTO attempts (id, quiz_id, user_id, quiz_name, workspace_name, chapters, correct, total, pct, taken_at, answers, questions)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, a.ID, a.QuizID, userID, a.QuizName, a.WorkspaceName, a.Chapters, a.Correct, a.Total, a.Pct, a.TakenAt, []byte(answers), []byte(questions))
 	return a, err
 }
