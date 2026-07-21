@@ -289,24 +289,28 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                 <ToolbarButton
                   label="AI commands (Ctrl/Cmd+J)"
                   onClick={() => editor.getApi(AIChatPlugin).aiChat.show()}
+                  className="size-fit gap-1.5 px-2 py-1"
                 >
                   <Sparkles />
+                  <span className="translate-y-px">Ask AI</span>
                 </ToolbarButton>
               </ToolbarGroup>
             )}
-            <ToolbarGroup className="gap-2">
+            <ToolbarGroup className="gap-1">
               {canCreateAssets && <ImportMenu importFile={importFile} />}
               <ExportMenu editor={editor} />
             </ToolbarGroup>
-            <ToolbarGroup>
-              <BlockTypeMenu onBlock={block} />
-            </ToolbarGroup>
-            <ToolbarGroup persistent>
+            <ToolbarGroup persistent className="gap-1">
               <Popover open={moreOpen} onOpenChange={setMoreOpen}>
                 <PopoverTrigger asChild>
                   <span>
-                    <ToolbarButton label="More formatting" onClick={() => setMoreOpen(true)}>
+                    <ToolbarButton
+                      label="More formatting"
+                      className="w-fit"
+                      onClick={() => setMoreOpen(true)}
+                    >
                       <Plus />
+                      <ChevronDown className="size-3! text-fg-secondary" />
                     </ToolbarButton>
                   </span>
                 </PopoverTrigger>
@@ -346,6 +350,7 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                       onClick={() => insertNode({ type: KEYS.toc, children: [{ text: '' }] })}
                     />
                   )}
+                  {/* TODO: add in heading 4,5,6,bullet list, numbered list, task list, and column layouts  */}
                   {enabled.quiz && (
                     <MenuRow
                       label="Quiz"
@@ -381,6 +386,7 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                   <MenuRow label="Clear formatting" onClick={() => editor.tf.removeMarks()} />
                 </PopoverContent>
               </Popover>
+              <BlockTypeMenu onBlock={block} />
             </ToolbarGroup>
             {enabled.fontStyles && (
               <ToolbarGroup>
@@ -550,12 +556,12 @@ const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 96;
 const FONT_SIZE_PRESETS = [8, 9, 10, 12, 14, 16, 18, 24, 30, 36, 48, 60, 72, 96] as const;
 const BLOCK_FONT_SIZES: Record<string, number> = {
-  [KEYS.h1]: 24,
-  [KEYS.h2]: 20,
-  [KEYS.h3]: 18,
-  [KEYS.h4]: 16,
-  [KEYS.h5]: 14,
-  [KEYS.h6]: 12,
+  [KEYS.h1]: 36,
+  [KEYS.h2]: 24,
+  [KEYS.h3]: 20,
+  [KEYS.h4]: 18,
+  [KEYS.h5]: 18,
+  [KEYS.h6]: 16,
 };
 
 function clampFontSize(size: number) {
@@ -584,14 +590,10 @@ function FontSizeControl() {
   };
 
   return (
-    <div
-      role="group"
-      className="flex h-8 items-center overflow-hidden rounded-row border border-line"
-      aria-label="Font size"
-    >
+    <div role="group" className="mr-1 flex items-center overflow-hidden" aria-label="Font size">
       <ToolbarButton
         label="Decrease font size"
-        className="size-7 rounded-none"
+        className="rounded-r-none bg-surface-hover-bg p-0 text-surface-dark-fg hover:bg-surface-dark"
         disabled={cursorFontSize <= MIN_FONT_SIZE}
         onClick={() => setFontSize(cursorFontSize - 1)}
       >
@@ -608,8 +610,8 @@ function FontSizeControl() {
             title="Choose font size"
             onMouseDown={(event) => event.preventDefault()}
             className={cn(
-              'h-7 w-10 shrink-0 border-x border-line bg-transparent text-center text-sm font-semibold outline-none',
-              'focus-visible:ring-focus hover:bg-surface-hover-bg focus-visible:ring-2'
+              'h-8 w-10 shrink-0 text-center text-sm font-semibold outline-none',
+              'focus-visible:ring-focus bg-surface-hover-bg text-surface-dark-fg hover:bg-surface-dark focus-visible:ring-2'
             )}
           >
             {cursorFontSize}
@@ -648,7 +650,7 @@ function FontSizeControl() {
       </Popover>
       <ToolbarButton
         label="Increase font size"
-        className="size-7 rounded-none"
+        className="rounded-l-none bg-surface-hover-bg p-0 text-surface-dark-fg hover:bg-surface-dark"
         disabled={cursorFontSize >= MAX_FONT_SIZE}
         onClick={() => setFontSize(cursorFontSize + 1)}
       >
@@ -719,7 +721,7 @@ function BlockTypeMenu({ onBlock }: { onBlock: (type: string) => void }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <ToolbarButton label="Block Type" className="size-fit h-full gap-3 py-1 pl-1.5">
+        <ToolbarButton label="Block Type" className="w-fit">
           <span className="translate-y-px">Paragraph</span>
           <ChevronDown className="size-3! text-fg-secondary" />
         </ToolbarButton>
@@ -825,7 +827,7 @@ function ImportMenu({
       ))}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <ToolbarButton label="Import document" className="w-9">
+          <ToolbarButton label="Import document" className="w-fit">
             <ArrowUpFromLine />
             <ChevronDown className="size-3! text-fg-secondary" />
           </ToolbarButton>
@@ -834,9 +836,9 @@ function ImportMenu({
           align="start"
           className="w-52 gap-0.5 border border-line bg-surface p-1 shadow-pop"
         >
-          <MenuRow label="Markdown (.md, .mdx)" onClick={() => chooseFile('markdown')} />
-          <MenuRow label="Word (.docx)" onClick={() => chooseFile('docx')} />
-          <MenuRow label="Plate JSON (.json)" onClick={() => chooseFile('json')} />
+          <MenuRow label="Import Markdown (.md)" onClick={() => chooseFile('markdown')} />
+          <MenuRow label="Import Word (.docx)" onClick={() => chooseFile('docx')} />
+          <MenuRow label="Import JSON" onClick={() => chooseFile('json')} />
         </PopoverContent>
       </Popover>
     </>
@@ -848,7 +850,7 @@ function ExportMenu({ editor }: { editor: AnyEditor }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <ToolbarButton label="Export document" className="w-9">
+        <ToolbarButton label="Export document" className="w-fit">
           <ArrowDownToLine />
           <ChevronDown className="size-3! text-fg-secondary" />
         </ToolbarButton>

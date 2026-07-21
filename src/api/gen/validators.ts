@@ -1463,8 +1463,8 @@ export const AcceptWorkspaceInviteResponse = zod.object({
 export const ListWorkspacesQueryParams = zod.object({
   q: zod.string().optional(),
   sort: zod.string().optional(),
-  color: zod.string().optional(),
-  tag: zod.string().optional(),
+  color: zod.string().optional().describe('Comma-separated colors; OR-matched with tags'),
+  tag: zod.string().optional().describe('Comma-separated tags; OR-matched with colors'),
 });
 
 export const listWorkspacesResponseTagsItemValueMax = 50;
@@ -1510,11 +1510,6 @@ export const CreateWorkspaceBody = zod.object({
     .optional()
     .describe('User color; defaults to graphite'),
   name: zod.string().min(1).max(createWorkspaceBodyNameMax).describe('Workspace name'),
-  privacy: zod.enum(['private', 'public', 'link']).describe('Visibility'),
-  shareRole: zod
-    .enum(['editor', 'commenter', 'viewer'])
-    .optional()
-    .describe('Effective material role for signed-in nonmembers; defaults to viewer'),
   tags: zod
     .array(
       zod.object({
@@ -1614,8 +1609,6 @@ export const UpdateWorkspaceBody = zod.object({
     .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
     .optional(),
   name: zod.string().optional(),
-  privacy: zod.enum(['private', 'public', 'link']).optional(),
-  shareRole: zod.enum(['editor', 'commenter', 'viewer']).optional(),
   tags: zod
     .array(
       zod.object({
@@ -2011,6 +2004,47 @@ export const UpdateWorkspaceMemberBody = zod.object({
 });
 
 export const UpdateWorkspaceMemberResponse = zod.void();
+
+/**
+ * @summary Update workspace sharing
+ */
+export const UpdateWorkspaceSharingParams = zod.object({
+  id: zod.string(),
+});
+
+export const UpdateWorkspaceSharingBody = zod.object({
+  privacy: zod.enum(['private', 'public', 'link']).optional(),
+  shareRole: zod.enum(['editor', 'commenter', 'viewer']).optional(),
+});
+
+export const updateWorkspaceSharingResponseTagsItemValueMax = 50;
+
+export const UpdateWorkspaceSharingResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  capabilities: zod.object({
+    canComment: zod.boolean(),
+    canEdit: zod.boolean(),
+    canManageMembers: zod.boolean(),
+    canView: zod.boolean(),
+  }),
+  chapterCount: zod.number(),
+  color: zod.enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent']),
+  createdAt: zod.iso.datetime({ offset: true }),
+  fileCount: zod.number(),
+  id: zod.string(),
+  isOwner: zod.boolean(),
+  lastAccessedAt: zod.iso.datetime({ offset: true }),
+  name: zod.string(),
+  privacy: zod.enum(['private', 'public', 'link']),
+  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
+  shareRole: zod.enum(['editor', 'commenter', 'viewer']),
+  tags: zod.array(
+    zod.object({
+      id: zod.string(),
+      value: zod.string().min(1).max(updateWorkspaceSharingResponseTagsItemValueMax),
+    })
+  ),
+});
 
 /**
  * @summary Workspace stats

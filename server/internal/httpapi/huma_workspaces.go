@@ -32,6 +32,10 @@ type updateWorkspaceInput struct {
 	ID   string `path:"id"`
 	Body apimodel.UpdateWorkspaceReq
 }
+type updateWorkspaceSharingInput struct {
+	ID   string `path:"id"`
+	Body apimodel.UpdateWorkspaceSharingReq
+}
 type workspaceStatsOutput struct {
 	Body apimodel.WorkspaceStats
 }
@@ -42,6 +46,7 @@ func (a *api) registerWorkspaces(api huma.API) {
 	reg(api, http.MethodPost, "/api/workspaces", "createWorkspace", tag, "Create a workspace", http.StatusCreated, a.createWorkspace)
 	reg(api, http.MethodGet, "/api/workspaces/{id}", "getWorkspace", tag, "Get a workspace", http.StatusOK, a.getWorkspace)
 	reg(api, http.MethodPatch, "/api/workspaces/{id}", "updateWorkspace", tag, "Update a workspace", http.StatusOK, a.updateWorkspace)
+	reg(api, http.MethodPatch, "/api/workspaces/{id}/sharing", "updateWorkspaceSharing", tag, "Update workspace sharing", http.StatusOK, a.updateWorkspaceSharing)
 	reg(api, http.MethodDelete, "/api/workspaces/{id}", "deleteWorkspace", tag, "Delete a workspace", http.StatusNoContent, a.deleteWorkspace)
 	reg(api, http.MethodGet, "/api/workspaces/{id}/stats", "getWorkspaceStats", tag, "Workspace stats", http.StatusOK, a.getWorkspaceStats)
 }
@@ -98,8 +103,6 @@ func (a *api) createWorkspace(ctx context.Context, in *createWorkspaceInput) (*w
 		userID(ctx),
 		in.Body.Name,
 		color,
-		in.Body.Privacy,
-		in.Body.ShareRole,
 		apimodel.ToTagRefs(in.Body.Tags),
 	)
 	if err != nil {
@@ -110,13 +113,27 @@ func (a *api) createWorkspace(ctx context.Context, in *createWorkspaceInput) (*w
 
 func (a *api) updateWorkspace(ctx context.Context, in *updateWorkspaceInput) (*workspaceOutput, error) {
 	p := store.WorkspacePatch{
-		Name: in.Body.Name, Color: in.Body.Color, Privacy: in.Body.Privacy, ShareRole: in.Body.ShareRole,
+		Name: in.Body.Name, Color: in.Body.Color,
 	}
 	if in.Body.Tags != nil {
 		t := apimodel.ToTagRefs(*in.Body.Tags)
 		p.Tags = &t
 	}
 	res, err := a.s.UpdateWorkspace(ctx, userID(ctx), in.ID, p)
+	if err != nil {
+		return nil, hErr(err)
+	}
+	return &workspaceOutput{Body: apimodel.FromWorkspace(res)}, nil
+}
+
+func (a *api) updateWorkspaceSharing(ctx context.Context, in *updateWorkspaceSharingInput) (*workspaceOutput, error) {
+	res, err := a.s.UpdateWorkspaceSharing(
+		ctx,
+		userID(ctx),
+		in.ID,
+		in.Body.Privacy,
+		in.Body.ShareRole,
+	)
 	if err != nil {
 		return nil, hErr(err)
 	}

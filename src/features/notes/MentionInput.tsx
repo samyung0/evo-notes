@@ -12,6 +12,7 @@ export function MentionInputElement(props: PlateElementProps<TComboboxInputEleme
   const editor = useEditorRef();
   const { workspaceId } = useEditorRuntime();
   const { data: members = [] } = useWorkspaceMembers(workspaceId);
+  console.log(members);
   const inputRef = useRef<HTMLInputElement>(null);
   const cursorState = useHTMLInputCursorState(inputRef);
   const [query, setQuery] = useState('');

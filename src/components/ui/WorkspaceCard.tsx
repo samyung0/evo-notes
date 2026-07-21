@@ -7,17 +7,16 @@ import { Icon } from './Icon';
 import { Skeleton } from './feedback';
 import { Menu } from '@/components/ui/Menu';
 import { m } from '@/i18n';
-import { useDeleteWorkspace } from '@/api/hooks';
+import { useDeleteWorkspace, useUpdateWorkspaceSharing } from '@/api/hooks';
 import { useDialogs } from '@/stores/dialogs';
 import { cn } from '@/lib/cn';
 import { useState } from 'react';
 import { ShareDialog } from '@/components/app/ShareDialog';
-import { useUpdateWorkspace } from '@/api/hooks';
 
 export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const c = userColorPair(workspace.color);
   const del = useDeleteWorkspace();
-  const update = useUpdateWorkspace();
+  const updateSharing = useUpdateWorkspaceSharing();
   const [shareOpen, setShareOpen] = useState(false);
   const canManage = workspace.capabilities.canManageMembers;
   const openWorkspaceEdit = useDialogs((s) => s.openWorkspaceEdit);
@@ -96,11 +95,15 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
             title={`Share ${workspace.name}`}
             privacy={workspace.privacy}
             link={`/share/workspaces/${workspace.id}`}
-            saving={update.isPending}
+            saving={updateSharing.isPending}
             workspaceId={workspace.id}
             shareRole={workspace.shareRole ?? 'viewer'}
-            onPrivacyChange={(privacy) => update.mutate({ id: workspace.id, privacy })}
-            onShareRoleChange={(shareRole) => update.mutate({ id: workspace.id, shareRole })}
+            onPrivacyChange={(privacy) =>
+              updateSharing.mutateAsync({ id: workspace.id, privacy })
+            }
+            onShareRoleChange={(shareRole) =>
+              updateSharing.mutateAsync({ id: workspace.id, shareRole })
+            }
           />
         </>
       )}

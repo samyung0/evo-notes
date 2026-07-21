@@ -1,4 +1,4 @@
-﻿components:
+components:
   schemas:
     AccessCapabilities:
       additionalProperties: false
@@ -621,12 +621,6 @@
           maxLength: 100
           minLength: 1
           type: string
-        privacy:
-          $ref: "#/components/schemas/Privacy"
-          description: Visibility
-        shareRole:
-          $ref: "#/components/schemas/ShareRole"
-          description: Effective material role for signed-in nonmembers; defaults to viewer
         tags:
           description: Tags; reuse existing by id or create new by value
           items:
@@ -635,7 +629,6 @@
           type: array
       required:
         - name
-        - privacy
       type: object
     CreatedWorkspaceInvite:
       additionalProperties: false
@@ -1877,14 +1870,24 @@
           $ref: "#/components/schemas/UserColor"
         name:
           type: string
-        privacy:
-          $ref: "#/components/schemas/Privacy"
-        shareRole:
-          $ref: "#/components/schemas/ShareRole"
         tags:
           items:
             $ref: "#/components/schemas/TagInput"
           type: array
+      type: object
+    UpdateWorkspaceSharingReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/UpdateWorkspaceSharingReq.json
+          format: uri
+          readOnly: true
+          type: string
+        privacy:
+          $ref: "#/components/schemas/Privacy"
+        shareRole:
+          $ref: "#/components/schemas/ShareRole"
       type: object
     User:
       additionalProperties: false
@@ -3858,12 +3861,14 @@ paths:
           in: query
           name: color
           schema:
+            description: Comma-separated colors; OR-matched with tags
             type: string
         - description: Comma-separated tags; OR-matched with colors
           explode: false
           in: query
           name: tag
           schema:
+            description: Comma-separated tags; OR-matched with colors
             type: string
       responses:
         "200":
@@ -4444,6 +4449,37 @@ paths:
       summary: Change a workspace member role
       tags:
         - Workspace collaboration
+  /api/workspaces/{id}/sharing:
+    patch:
+      operationId: updateWorkspaceSharing
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWorkspaceSharingReq"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Update workspace sharing
+      tags:
+        - Workspaces
   /api/workspaces/{id}/stats:
     get:
       operationId: getWorkspaceStats

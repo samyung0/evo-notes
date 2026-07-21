@@ -12,6 +12,7 @@ import type {
   UpdateChapterReq,
   UpdateQuizReq,
   UpdateWorkspaceReq,
+  UpdateWorkspaceSharingReq,
 } from './gen/model';
 import type {
   Attempt,
@@ -219,6 +220,17 @@ export function useUpdateWorkspace() {
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       qc.invalidateQueries({ queryKey: qk.workspace(v.id) });
       qc.invalidateQueries({ queryKey: ['tags'] });
+    },
+  });
+}
+export function useUpdateWorkspaceSharing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: UpdateWorkspaceSharingReq & { id: string }) =>
+      api.patch<Workspace>(`/workspaces/${id}/sharing`, body),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      qc.invalidateQueries({ queryKey: qk.workspace(v.id) });
     },
   });
 }

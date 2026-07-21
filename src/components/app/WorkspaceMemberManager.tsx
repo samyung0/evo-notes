@@ -11,7 +11,7 @@ import {
 } from '@/api/hooks';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { Input, InputTitle } from '@/components/ui/Input';
 import {
   Select,
   SelectContent,
@@ -61,10 +61,8 @@ export function WorkspaceMemberManager({ workspaceId }: { workspaceId: string })
   return (
     <section className="border-t border-divider pt-4" aria-labelledby="workspace-members-title">
       <div>
-        <h3 id="workspace-members-title" className="font-semibold text-fg">
-          People with access
-        </h3>
-        <p className="mt-1 text-xs text-fg-muted">
+        <InputTitle id="workspace-members-title">People with access</InputTitle>
+        <p className="t-meta text-fg-muted">
           Invite an existing Evo Notes user. They must accept before access is granted.
         </p>
       </div>
@@ -124,7 +122,7 @@ export function WorkspaceMemberManager({ workspaceId }: { workspaceId: string })
             </div>
           ) : (
             !candidates.isFetching && (
-              <p className="px-1 text-xs text-fg-muted">No eligible users found.</p>
+              <p className="t-meta px-1 text-fg-muted">No eligible users found.</p>
             )
           ))
         )}

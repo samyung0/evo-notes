@@ -15,11 +15,9 @@ import (
 /* ------------------------------------------------------------------ patches */
 
 type WorkspacePatch struct {
-	Name      *string    `json:"name"`
-	Color     *UserColor `json:"color"`
-	Privacy   *Privacy   `json:"privacy"`
-	ShareRole *ShareRole `json:"shareRole"`
-	Tags      *[]TagRef  `json:"tags"`
+	Name  *string    `json:"name"`
+	Color *UserColor `json:"color"`
+	Tags  *[]TagRef  `json:"tags"`
 }
 type ChapterPatch struct {
 	Name  *string `json:"name"`
@@ -271,11 +269,8 @@ func (s *Store) WorkspaceStats(ctx context.Context, userID, id string) (Workspac
 	return st, err
 }
 
-func (s *Store) CreateWorkspace(ctx context.Context, userID, name string, color UserColor, privacy Privacy, shareRole ShareRole, tags []TagRef) (Workspace, error) {
+func (s *Store) CreateWorkspace(ctx context.Context, userID, name string, color UserColor, tags []TagRef) (Workspace, error) {
 	id := uid("ws")
-	if shareRole == "" {
-		shareRole = ShareViewer
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Workspace{}, err
@@ -283,7 +278,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, userID, name string, color 
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy, share_role) VALUES ($1,$2,$3,$4,$5,$6)`,
-		id, userID, name, color, privacy, shareRole); err != nil {
+		id, userID, name, color, PrivacyPrivate, ShareViewer); err != nil {
 		return Workspace{}, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')`,
@@ -400,9 +395,8 @@ func (s *Store) UpdateWorkspace(ctx context.Context, userID, id string, p Worksp
 	defer tx.Rollback(ctx)
 
 	ct, err := tx.Exec(ctx, `UPDATE workspaces SET
-		name=COALESCE($2,name), color=COALESCE($3,color),
-		privacy=COALESCE($4,privacy), share_role=COALESCE($5,share_role) WHERE id=$1`,
-		id, p.Name, p.Color, p.Privacy, p.ShareRole)
+		name=COALESCE($2,name), color=COALESCE($3,color) WHERE id=$1`,
+		id, p.Name, p.Color)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -416,6 +410,27 @@ func (s *Store) UpdateWorkspace(ctx context.Context, userID, id string, p Worksp
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Workspace{}, err
+	}
+	return s.GetWorkspace(ctx, userID, id, false)
+}
+
+func (s *Store) UpdateWorkspaceSharing(
+	ctx context.Context,
+	userID, id string,
+	privacy *Privacy,
+	shareRole *ShareRole,
+) (Workspace, error) {
+	if err := s.AssertWorkspaceOwner(ctx, userID, id); err != nil {
+		return Workspace{}, err
+	}
+	ct, err := s.pool.Exec(ctx, `UPDATE workspaces SET
+		privacy=COALESCE($2,privacy), share_role=COALESCE($3,share_role) WHERE id=$1`,
+		id, privacy, shareRole)
+	if err != nil {
+		return Workspace{}, err
+	}
+	if ct.RowsAffected() == 0 {
+		return Workspace{}, ErrNotFound
 	}
 	return s.GetWorkspace(ctx, userID, id, false)
 }

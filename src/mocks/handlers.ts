@@ -276,7 +276,7 @@ export const handlers = [
       role: 'owner',
       capabilities: { canView: true, canEdit: true, canComment: true, canManageMembers: true },
       color: (body.color as UserColor) ?? 'green',
-      privacy: body.privacy ?? 'private',
+      privacy: 'private',
       shareRole: 'viewer',
       tags: resolveTags('workspace', body.tags),
       chapterCount: 0,
@@ -292,8 +292,16 @@ export const handlers = [
     if (!ws) return new HttpResponse(null, { status: 404 });
     const body = (await request.json()) as Partial<Workspace> & { tags?: TagInput[] };
     if (body.tags !== undefined) ws.tags = resolveTags('workspace', body.tags);
-    const { tags: _tags, ...rest } = body;
-    Object.assign(ws, rest);
+    if (body.name !== undefined) ws.name = body.name;
+    if (body.color !== undefined) ws.color = body.color;
+    return HttpResponse.json(ws);
+  }),
+  http.patch('/api/workspaces/:id/sharing', async ({ params, request }) => {
+    const ws = db.workspaces.find((w) => w.id === params.id);
+    if (!ws) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as Pick<Workspace, 'privacy' | 'shareRole'>;
+    if (body.privacy !== undefined) ws.privacy = body.privacy;
+    if (body.shareRole !== undefined) ws.shareRole = body.shareRole;
     return HttpResponse.json(ws);
   }),
   http.get('/api/workspaces/:id/members', async ({ params }) => {

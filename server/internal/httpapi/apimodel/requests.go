@@ -10,23 +10,25 @@ import (
 
 /* ------------------------------------------------------------------ requests */
 
-// CreateWorkspaceReq is the body for POST /api/workspaces. Name and privacy are
-// required (todo #8); color and tags fall back to server defaults.
+// CreateWorkspaceReq is the body for POST /api/workspaces. New workspaces are
+// always private; visibility is configured later through the sharing endpoint.
 type CreateWorkspaceReq struct {
-	Name      string          `json:"name" minLength:"1" maxLength:"100" doc:"Workspace name"`
-	Color     store.UserColor `json:"color,omitempty" doc:"User color; defaults to graphite"`
-	Privacy   store.Privacy   `json:"privacy" doc:"Visibility"`
-	ShareRole store.ShareRole `json:"shareRole,omitempty" doc:"Effective material role for signed-in nonmembers; defaults to viewer"`
-	Tags      []TagInput      `json:"tags,omitempty" doc:"Tags; reuse existing by id or create new by value"`
+	Name  string          `json:"name" minLength:"1" maxLength:"100" doc:"Workspace name"`
+	Color store.UserColor `json:"color,omitempty" doc:"User color; defaults to graphite"`
+	Tags  []TagInput      `json:"tags,omitempty" doc:"Tags; reuse existing by id or create new by value"`
 }
 
-// UpdateWorkspaceReq is the (partial) body for PATCH /api/workspaces/{id}.
+// UpdateWorkspaceReq updates general workspace settings only.
 type UpdateWorkspaceReq struct {
-	Name      *string          `json:"name,omitempty"`
-	Color     *store.UserColor `json:"color,omitempty"`
+	Name  *string          `json:"name,omitempty"`
+	Color *store.UserColor `json:"color,omitempty"`
+	Tags  *[]TagInput      `json:"tags,omitempty"`
+}
+
+// UpdateWorkspaceSharingReq updates visibility and nonmember permissions.
+type UpdateWorkspaceSharingReq struct {
 	Privacy   *store.Privacy   `json:"privacy,omitempty"`
 	ShareRole *store.ShareRole `json:"shareRole,omitempty"`
-	Tags      *[]TagInput      `json:"tags,omitempty"`
 }
 
 type AddChapterReq struct {

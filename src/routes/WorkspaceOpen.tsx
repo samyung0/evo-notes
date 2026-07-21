@@ -31,7 +31,7 @@ import {
   useMoveMaterial,
   useReorderChapters,
   useUpdateChapter,
-  useUpdateWorkspace,
+  useUpdateWorkspaceSharing,
   useWorkspace,
 } from '@/api/hooks';
 import type { Chapter, MaterialRef, MaterialRefType } from '@/api/types';
@@ -168,7 +168,7 @@ export default function WorkspaceOpen() {
   const moveFile = useMoveFile(workspaceId);
   const createNote = useCreateNote(workspaceId);
   const cloneWorkspace = useCloneWorkspace();
-  const updateWorkspace = useUpdateWorkspace();
+  const updateSharing = useUpdateWorkspaceSharing();
   const openAddSource = useDialogs((s) => s.openAddSource);
   const openConfirm = useDialogs((s) => s.openConfirm);
 
@@ -651,11 +651,11 @@ export default function WorkspaceOpen() {
           title={`Share ${ws.name}`}
           privacy={ws.privacy}
           link={`/share/workspaces/${ws.id}`}
-          saving={updateWorkspace.isPending}
+          saving={updateSharing.isPending}
           workspaceId={ws.id}
           shareRole={ws.shareRole ?? 'viewer'}
-          onPrivacyChange={(privacy) => updateWorkspace.mutate({ id: ws.id, privacy })}
-          onShareRoleChange={(shareRole) => updateWorkspace.mutate({ id: ws.id, shareRole })}
+          onPrivacyChange={(privacy) => updateSharing.mutateAsync({ id: ws.id, privacy })}
+          onShareRoleChange={(shareRole) => updateSharing.mutateAsync({ id: ws.id, shareRole })}
         />
       )}
     </>

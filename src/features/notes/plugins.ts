@@ -437,6 +437,9 @@ export interface BuildPluginsOptions extends EditorCollaborationOptions {
   allowExternalAssets: boolean;
 }
 
+// TODO: code block let user choose language and copy on top right (refer to playground template), pressing enter should not jump out of the code block (only ctrl+enter should, just like how other blocks do it)
+// TODO: redesign callouts using left-accent alerts from https://readymadeui.com/tailwind-components/alerts, make 4 callout nature (success, warning, danger, info), let user choose the callout style at the top right (similar to the code block)
+// TODO: fix column layout plugins, default should insert 2 columns, floating action allows user to change between 2 column (even), 3 columns, 2 columns (2:1 ratio), 2 columns (1:2 ratios) or delete, user should be able to drag and drop each column to switch the order
 // TODO: allow direct recording with audio/video uploads
 // TODO: fix right click to select block, sometimes the browser default right click takes over (e.g. when I clicked in a text block and the blinking cursor was in the text, the browser right click menu took over instead of the block context menu)
 

@@ -125,7 +125,26 @@ func TestShareHTTPCapabilities(t *testing.T) {
 func TestShareHTTPWritesAndClone(t *testing.T) {
 	h := openShareHTTP(t)
 
-	rec := doReq(t, h, http.MethodPost, "/api/workspaces/ws_e2e_link/clone", "", nil)
+	rec := doReq(t, h, http.MethodPost, "/api/workspaces", "u_owner", map[string]any{
+		"name": "Private-by-default workspace",
+		// A stale or malicious client cannot make a new workspace public.
+		"privacy": "public",
+	})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("workspace create = %d %s", rec.Code, rec.Body.String())
+	}
+	var createdWorkspace map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &createdWorkspace)
+	if createdWorkspace["privacy"] != "private" {
+		t.Fatalf("created workspace privacy = %q, want private", createdWorkspace["privacy"])
+	}
+	if id, _ := createdWorkspace["id"].(string); id != "" {
+		t.Cleanup(func() {
+			_ = doReq(t, h, http.MethodDelete, "/api/workspaces/"+id, "u_owner", nil)
+		})
+	}
+
+	rec = doReq(t, h, http.MethodPost, "/api/workspaces/ws_e2e_link/clone", "", nil)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("anon clone = %d", rec.Code)
 	}
@@ -148,21 +167,21 @@ func TestShareHTTPWritesAndClone(t *testing.T) {
 		_ = doReq(t, h, http.MethodDelete, "/api/quizzes/"+id, "u_other", nil)
 	}
 
-	rec = doReq(t, h, http.MethodPatch, "/api/workspaces/ws_e2e_mutate", "u_other", map[string]any{
+	rec = doReq(t, h, http.MethodPatch, "/api/workspaces/ws_e2e_mutate/sharing", "u_other", map[string]any{
 		"privacy": "link",
 	})
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("non-owner privacy patch = %d", rec.Code)
 	}
 
-	rec = doReq(t, h, http.MethodPatch, "/api/workspaces/ws_e2e_mutate", "u_owner", map[string]any{
+	rec = doReq(t, h, http.MethodPatch, "/api/workspaces/ws_e2e_mutate/sharing", "u_owner", map[string]any{
 		"privacy": "link",
 	})
 	if rec.Code != http.StatusOK {
 		t.Fatalf("owner privacy patch = %d %s", rec.Code, rec.Body.String())
 	}
 	// Restore private so other tests stay stable.
-	_ = doReq(t, h, http.MethodPatch, "/api/workspaces/ws_e2e_mutate", "u_owner", map[string]any{
+	_ = doReq(t, h, http.MethodPatch, "/api/workspaces/ws_e2e_mutate/sharing", "u_owner", map[string]any{
 		"privacy": "private",
 	})
 }

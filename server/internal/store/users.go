@@ -81,7 +81,9 @@ func (s *Store) CreateDefaultWorkspace(ctx context.Context, userID string) error
 		return err
 	}
 	// Unlock on a detached context so release still runs if ctx is cancelled.
-	defer func() { _, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtext($1))`, lockKey) }()
+	defer func() {
+		_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtext($1))`, lockKey)
+	}()
 
 	var n int
 	if err := conn.QueryRow(ctx, `SELECT count(*) FROM workspaces WHERE user_id=$1`, userID).Scan(&n); err != nil {
@@ -90,7 +92,7 @@ func (s *Store) CreateDefaultWorkspace(ctx context.Context, userID string) error
 	if n > 0 {
 		return nil
 	}
-	_, err = s.CreateWorkspace(ctx, userID, "My workspace", "green", "private", ShareViewer, []TagRef{})
+	_, err = s.CreateWorkspace(ctx, userID, "My workspace", ColorGreen, []TagRef{})
 	return err
 }
 

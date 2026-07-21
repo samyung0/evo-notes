@@ -18,11 +18,11 @@ const buttonVariants = cva(
         ghost: 'border-none text-fg',
         'ghost-hover': 'border-none text-fg hover:bg-surface-hover-bg',
         'ghost-link': 'border-none text-link hover:text-link-hover',
-        gray: 'bg-page text-surface-dark-fg hover:bg-surface-dark',
+        gray: 'bg-surface-hover-bg text-surface-dark-fg hover:bg-surface-dark',
         danger: 'border border-transparent bg-solid-error text-surface hover:brightness-95',
       },
       size: {
-        sm: 'gap-[7px] rounded-button px-4 py-2 text-[0.8125rem]',
+        sm: 'gap-[7px] rounded-button px-4 py-2.5 text-[0.8125rem]',
         md: 'gap-2 rounded-button px-5 py-3 text-sm',
         lg: 'gap-[9px] rounded-card px-6.5 py-5 text-[0.9375rem]',
       },

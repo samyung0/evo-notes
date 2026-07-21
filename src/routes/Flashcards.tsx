@@ -107,12 +107,10 @@ export default function Flashcards() {
           privacy={sharing.privacy ?? 'private'}
           link={`/share/decks/${sharing.id}`}
           saving={updateDeck.isPending}
-          onPrivacyChange={(privacy) =>
-            updateDeck.mutate(
-              { id: sharing.id, privacy },
-              { onSuccess: (deck) => setSharing(deck) }
-            )
-          }
+          onPrivacyChange={async (privacy) => {
+            const deck = await updateDeck.mutateAsync({ id: sharing.id, privacy });
+            setSharing(deck);
+          }}
         />
       )}
     </PanelWithInvertedRadius>

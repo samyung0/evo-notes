@@ -27,22 +27,33 @@ func createSharingTestWorkspace(t *testing.T, s *Store, shareRole ShareRole) (co
 		"u_owner",
 		"Sharing test "+uid("name"),
 		ColorGraphite,
-		PrivacyLink,
-		shareRole,
 		[]TagRef{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.DeleteWorkspace(ctx, "u_owner", ws.ID) })
+	privacy := PrivacyLink
+	if shareRole == "" {
+		shareRole = ShareViewer
+	}
+	ws, err = s.UpdateWorkspaceSharing(ctx, "u_owner", ws.ID, &privacy, &shareRole)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return ctx, ws
 }
 
-func TestWorkspaceShareRoleDefaultsToViewer(t *testing.T) {
+func TestWorkspaceDefaultsToInviteOnlyViewer(t *testing.T) {
 	s := openAccessTestStore(t)
-	_, ws := createSharingTestWorkspace(t, s, "")
-	if ws.ShareRole != ShareViewer {
-		t.Fatalf("default share role = %q, want viewer", ws.ShareRole)
+	ctx := context.Background()
+	ws, err := s.CreateWorkspace(ctx, "u_owner", "Default test "+uid("name"), ColorGraphite, []TagRef{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.DeleteWorkspace(ctx, "u_owner", ws.ID) })
+	if ws.Privacy != PrivacyPrivate || ws.ShareRole != ShareViewer {
+		t.Fatalf("default sharing = privacy %q, role %q; want private/viewer", ws.Privacy, ws.ShareRole)
 	}
 }
 

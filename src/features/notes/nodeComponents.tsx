@@ -218,7 +218,7 @@ function Toc(props: PlateElementProps) {
             ))}
           </nav>
         ) : (
-          <p className={TOC_EMPTY_CLASS}>Add headings to build this outline.</p>
+          <p className={TOC_EMPTY_CLASS}>Create a heading to display the table of contents.</p>
         )}
       </div>
       {props.children}

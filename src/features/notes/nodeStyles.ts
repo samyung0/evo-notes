@@ -5,17 +5,17 @@
 import type { CSSProperties } from 'react';
 
 export const HEADING_CLASS: Record<string, string> = {
-  h1: 'mt-6 mb-3 text-2xl font-bold text-fg',
-  h2: 'mt-5 mb-2.5 text-xl font-bold text-fg',
-  h3: 'mt-4 mb-2 text-lg font-semibold text-fg',
-  h4: 'mt-3 mb-2 text-base font-semibold text-fg',
-  h5: 'mt-3 mb-1.5 text-sm font-semibold text-fg',
-  h6: 'mt-3 mb-1.5 text-xs font-semibold tracking-wide text-fg-muted uppercase',
+  h1: 'mt-[1.6em] mb-1 pb-1 text-4xl font-extrabold text-fg',
+  h2: 'mt-[1.4em] mb-1 pb-px text-2xl font-bold text-fg',
+  h3: 'mt-[1em] mb-1 pb-px text-xl font-bold text-fg',
+  h4: 'mt-[0.75em] mb-1 pb-px text-lg font-semibold text-fg',
+  h5: 'mt-[0.75em] mb-1 pb-px text-lg font-semibold text-fg',
+  h6: 'mt-[0.75em] mb-1 pb-px text-base font-semibold text-fg',
 };
 
-export const PARAGRAPH_CLASS = 'my-2 leading-relaxed text-fg';
-export const BLOCKQUOTE_CLASS = 'my-3 border-l-2 border-line-strong pl-4 text-fg-secondary italic';
-export const HR_CLASS = 'my-5 border-divider';
+export const PARAGRAPH_CLASS = 'py-1 px-0 leading-relaxed text-fg';
+export const BLOCKQUOTE_CLASS = 'my-1 border-l-2 border-line pl-4 text-fg-secondary italic';
+export const HR_CLASS = 'py-5 border-divider';
 export const CODE_BLOCK_CLASS =
   'my-3 overflow-auto rounded-card border border-line bg-surface-hover-bg p-3 font-mono text-xs text-fg';
 export const LINK_CLASS = 'text-link underline underline-offset-2';
@@ -30,9 +30,9 @@ export const TD_CLASS = 'h-12 border border-line px-3 py-2 align-top';
 export const TH_CLASS =
   'h-12 border border-line bg-surface-hover-bg px-3 py-2 text-left font-semibold';
 
-export const CALLOUT_CLASS = 'my-3 rounded-card border border-line bg-surface-hover-bg p-3 text-fg';
-export const COLUMN_GROUP_CLASS = 'my-3 flex flex-col gap-3 sm:flex-row';
-export const COLUMN_CLASS = 'min-w-0 flex-1';
+export const CALLOUT_CLASS = 'p-4 my-1 rounded-row bg-surface-hover-bg p-3 text-fg';
+export const COLUMN_GROUP_CLASS = 'mb-2 flex flex-col size-full flex-row';
+export const COLUMN_CLASS = 'min-w-0 flex-1 border border-line border-dashed rounded-row p-1.5';
 
 export const TOC_BOX_CLASS = 'my-3';
 export const TOC_TITLE_CLASS = 'mb-2 t-label text-fg-muted';
@@ -52,7 +52,7 @@ export const EQUATION_BLOCK_CLASS =
 export const CODE_MARK_CLASS = 'rounded bg-surface-hover-bg px-1 py-0.5 font-mono text-[0.85em]';
 export const HIGHLIGHT_MARK_CLASS = 'bg-tint-info border-b border-solid-info';
 export const KBD_MARK_CLASS =
-  'rounded border border-line bg-surface-hover-bg px-1 font-mono text-[0.8em] text-fg';
+  'rounded border border-line bg-surface-hover-bg px-1.5 py-0.5 text-sm font-mono text-fg';
 export const BOLD_MARK_CLASS = 'font-extrabold';
 export const ITALIC_MARK_CLASS = 'italic';
 

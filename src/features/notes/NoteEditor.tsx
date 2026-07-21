@@ -382,7 +382,7 @@ function NoteEditorCore({
             <div className="min-h-0 flex-1 overflow-auto">
               <PlateContent
                 className={cn(
-                  'note-editor mx-auto min-h-75 max-w-3xl px-10 py-6 text-[0.95rem] outline-none max-sm:px-5'
+                  'note-editor mx-auto min-h-75 max-w-3xl px-10 pt-4 pb-16 text-[0.95rem] outline-none max-sm:px-5'
                 )}
                 placeholder="Start writing…"
               />

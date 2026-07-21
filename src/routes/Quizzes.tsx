@@ -200,8 +200,9 @@ function AllQuizzes() {
           privacy={sharing.privacy}
           link={`/share/quizzes/${sharing.id}`}
           saving={update.isPending}
-          onPrivacyChange={(privacy) => {
-            update.mutate({ id: sharing.id, privacy }, { onSuccess: (quiz) => setSharing(quiz) });
+          onPrivacyChange={async (privacy) => {
+            const quiz = await update.mutateAsync({ id: sharing.id, privacy });
+            setSharing(quiz);
           }}
         />
       )}

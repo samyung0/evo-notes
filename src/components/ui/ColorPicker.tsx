@@ -77,7 +77,7 @@ export function ColorPicker({
           className="focus-visible:ring-focus inline-flex h-7 items-center gap-1 rounded-row px-2 text-xs text-fg-secondary outline-none hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2"
         >
           <RotateCcw className="size-3.5" />
-          Default
+          <span className="translate-y-px">Default</span>
         </button>
       </div>
 
@@ -115,10 +115,10 @@ export function ColorPicker({
         })}
       </div>
 
-      <label className="flex items-center justify-between gap-3 border-t border-divider pt-2 text-xs font-semibold text-fg-secondary">
+      <label className="mt-2 flex items-center justify-between gap-3 border-t border-divider pt-2 text-xs font-semibold text-fg-secondary">
         Custom color
         <span className="flex items-center gap-2 font-mono font-normal text-fg">
-          {normalizedValue && HEX_COLOR_RE.test(normalizedValue) ? normalizedValue : 'Choose'}
+          {normalizedValue && HEX_COLOR_RE.test(normalizedValue) ? normalizedValue : ''}
           <input
             type="color"
             data-plate-prevent-deselect

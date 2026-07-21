@@ -1,7 +1,6 @@
 import { UpdateWorkspaceReq } from '@/api/gen/model';
 import { UpdateWorkspaceBody } from '@/api/gen/validators';
-import type { Privacy, Workspace } from '@/api/types';
-import type { IconName } from '@/components/ui';
+import type { Workspace } from '@/api/types';
 import {
   Button,
   Dialog,
@@ -9,7 +8,6 @@ import {
   DialogContent,
   DialogFooter,
   DialogTitle,
-  Icon,
   Input,
   InputError,
   Spinner,
@@ -18,24 +16,10 @@ import {
   userToast,
 } from '@/components/ui';
 import { InputTitle } from '@/components/ui/Input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/Select';
 import { m } from '@/i18n';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-
-const PRIVACY_OPTIONS: { value: Privacy; label: string; icon: IconName }[] = [
-  { value: 'private', label: 'Private', icon: 'lock' },
-  { value: 'public', label: 'Public', icon: 'globe' },
-  { value: 'link', label: 'Shared link', icon: 'link' },
-];
 
 export function WorkspaceFormEditDialog({
   open,
@@ -49,7 +33,11 @@ export function WorkspaceFormEditDialog({
   onSubmit: (v: UpdateWorkspaceReq) => Promise<Workspace | void>;
 }) {
   const form = useForm<UpdateWorkspaceReq>({
-    defaultValues: workspace,
+    defaultValues: {
+      name: workspace.name,
+      color: workspace.color,
+      tags: workspace.tags,
+    },
     resolver: zodResolver(UpdateWorkspaceBody),
   });
 
@@ -120,25 +108,6 @@ export function WorkspaceFormEditDialog({
             }}
           />
           <Controller
-            name={'privacy'}
-            control={form.control}
-            render={({ field, fieldState }) => {
-              return (
-                <>
-                  <div className="flex min-w-full items-center justify-between gap-1.5">
-                    <InputTitle required>Visibility</InputTitle>
-                    <PrivacySelect
-                      value={field.value as Privacy}
-                      onChange={field.onChange}
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.invalid && <InputError errors={[fieldState.error]} />}
-                  </div>
-                </>
-              );
-            }}
-          />
-          <Controller
             name={'tags'}
             control={form.control}
             render={({ field, fieldState }) => (
@@ -191,30 +160,5 @@ export function WorkspaceFormEditDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function PrivacySelect({ value, onChange }: { value: Privacy; onChange: (v: Privacy) => void }) {
-  const current = PRIVACY_OPTIONS.find((o) => o.value === value) ?? PRIVACY_OPTIONS[0]; // TODO:
-  return (
-    <div className="max-w-70 min-w-45">
-      <Select defaultValue={current.value} onValueChange={(v) => onChange(v as Privacy)}>
-        <SelectTrigger>
-          <SelectValue></SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {PRIVACY_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                <div className="flex items-center gap-1.5">
-                  {o.icon && <Icon name={o.icon} className="size-4.5" />}
-                  <span className="translate-y-px">{o.label}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </div>
   );
 }

@@ -302,7 +302,7 @@ export default function DeckStudy() {
           privacy={deck.privacy ?? 'private'}
           link={`/share/decks/${deck.id}`}
           saving={updateDeck.isPending}
-          onPrivacyChange={(privacy) => updateDeck.mutate({ id: deck.id, privacy })}
+          onPrivacyChange={(privacy) => updateDeck.mutateAsync({ id: deck.id, privacy })}
         />
       )}
     </PanelWithInvertedRadius>

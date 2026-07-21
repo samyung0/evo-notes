@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/Button';
 import { SimpleDialog } from '@/components/ui/Dialog';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { userToast } from '@/components/ui/Sonner';
-import { Text } from '@/components/ui/Text';
 import {
   Select,
   SelectContent,
@@ -14,38 +13,59 @@ import {
   SelectValue,
 } from '@/components/ui/Select';
 import { WorkspaceMemberManager } from './WorkspaceMemberManager';
+import { InputTitle } from '../ui';
 
 type SharedRole = Exclude<WorkspaceRole, 'owner'>;
+type SavingField = 'privacy' | 'shareRole';
 
 const PRIVACY_OPTIONS: { value: Privacy; label: string; icon: IconName; hint: string }[] = [
-  { value: 'private', label: 'Private', icon: 'lock', hint: 'Only you can access this.' },
+  { value: 'private', label: 'Private', icon: 'lock', hint: 'Only you can access.' },
   {
     value: 'link',
     label: 'Shared link',
     icon: 'link',
-    hint: 'Anyone with the link can view and clone it.',
+    hint: 'Anyone with the link can see it.',
   },
   {
     value: 'public',
     label: 'Public',
     icon: 'globe',
-    hint: 'Anyone can discover it on the Explore page.',
+    hint: 'Open to public, your workspace can be searched.',
   },
 ];
 
 const SHARED_ROLE_OPTIONS: Array<{ value: SharedRole; label: string; hint: string }> = [
-  { value: 'viewer', label: 'Can view', hint: 'People can read and study materials.' },
+  { value: 'viewer', label: 'Can view', hint: "Just see, can't touch." },
   {
     value: 'commenter',
     label: 'Can comment',
-    hint: 'Signed-in people can comment and suggest changes.',
+    hint: 'Users can comment and suggest changes.',
   },
   {
     value: 'editor',
     label: 'Can edit',
-    hint: 'Signed-in people can edit material content and suggest changes.',
+    hint: 'Editing is allowed on the files.',
   },
 ];
+
+function toastShareSuccess(kind: SavingField) {
+  userToast({
+    title: 'Sharing updated',
+    description:
+      kind === 'privacy' ? 'Visibility settings saved.' : 'Link permissions saved.',
+    button: { label: 'Dismiss', onClick: () => {} },
+  });
+}
+
+function toastShareError(err: unknown, kind: SavingField) {
+  userToast({
+    title: kind === 'privacy' ? 'Could not update visibility' : 'Could not update permissions',
+    description: err instanceof Error ? err.message : 'Something went wrong. Please try again.',
+    button: { label: 'Dismiss', onClick: () => {} },
+  });
+}
+
+// TODO: make public + editor as dangerous, show a warning
 
 /** Generic share dialog: pick a visibility (private / link / public) and copy
  * the share link. Used by workspaces, quizzes and flashcard decks. */
@@ -65,16 +85,19 @@ export function ShareDialog({
   onClose: () => void;
   title?: string;
   privacy: Privacy;
-  onPrivacyChange: (privacy: Privacy) => void;
+  /** Prefer returning a Promise (e.g. mutateAsync) so success/error toasts work. */
+  onPrivacyChange: (privacy: Privacy) => void | Promise<unknown>;
   /** Absolute or app-relative URL viewers should open. */
   link: string;
   saving?: boolean;
   /** Enables workspace member management and link/public material permissions. */
   workspaceId?: string;
   shareRole?: SharedRole;
-  onShareRoleChange?: (role: SharedRole) => void;
+  onShareRoleChange?: (role: SharedRole) => void | Promise<unknown>;
 }) {
   const [copied, setCopied] = useState(false);
+  const [savingField, setSavingField] = useState<SavingField | null>(null);
+  const busy = Boolean(saving) || savingField !== null;
   const privacyOptions = workspaceId
     ? PRIVACY_OPTIONS.map((option) =>
         option.value === 'private'
@@ -105,18 +128,47 @@ export function ShareDialog({
     }
   }
 
+  async function handlePrivacyChange(next: Privacy) {
+    if (next === privacy || busy) return;
+    setSavingField('privacy');
+    try {
+      await onPrivacyChange(next);
+      toastShareSuccess('privacy');
+    } catch (err) {
+      toastShareError(err, 'privacy');
+    } finally {
+      setSavingField(null);
+    }
+  }
+
+  async function handleShareRoleChange(next: SharedRole) {
+    if (!onShareRoleChange || next === shareRole || busy) return;
+    setSavingField('shareRole');
+    try {
+      await onShareRoleChange(next);
+      toastShareSuccess('shareRole');
+    } catch (err) {
+      toastShareError(err, 'shareRole');
+    } finally {
+      setSavingField(null);
+    }
+  }
+
   return (
     <SimpleDialog open={open} onClose={onClose} title={title ?? 'Share'}>
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <p>Visibility</p>
+      <div className="flex flex-col gap-6">
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <InputTitle>Visibility</InputTitle>
+            <p className="t-meta text-fg-muted">{current.hint}</p>
+          </div>
           <div className="max-w-70 min-w-45">
             <Select
               value={privacy}
-              onValueChange={(v) => onPrivacyChange(v as Privacy)}
-              disabled={saving}
+              onValueChange={(v) => void handlePrivacyChange(v as Privacy)}
+              disabled={busy}
             >
-              <SelectTrigger>
+              <SelectTrigger loading={savingField === 'privacy'}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -134,20 +186,20 @@ export function ShareDialog({
             </Select>
           </div>
         </div>
-        <Text variant="meta" tone="muted">
-          {current.hint}
-        </Text>
         {workspaceId && privacy !== 'private' && shareRole && onShareRoleChange && (
           <>
             <div className="flex items-center justify-between gap-3">
-              <p>Anyone with access</p>
+              <div className="flex flex-col gap-1">
+                <InputTitle>Anyone with access</InputTitle>
+                <p className="t-meta text-fg-muted">{currentRole.hint}</p>
+              </div>
               <div className="max-w-70 min-w-45">
                 <Select
                   value={shareRole}
-                  onValueChange={(value) => onShareRoleChange(value as SharedRole)}
-                  disabled={saving}
+                  onValueChange={(value) => void handleShareRoleChange(value as SharedRole)}
+                  disabled={busy}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger loading={savingField === 'shareRole'}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -162,9 +214,6 @@ export function ShareDialog({
                 </Select>
               </div>
             </div>
-            <Text variant="meta" tone="muted">
-              {currentRole.hint}
-            </Text>
           </>
         )}
         {privacy !== 'private' && (

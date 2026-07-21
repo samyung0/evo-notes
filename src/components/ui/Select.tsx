@@ -4,6 +4,7 @@ import { cva, VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/cn';
 import { Icon } from './Icon';
+import { Spinner } from './feedback';
 
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />;
@@ -48,25 +49,33 @@ function SelectTrigger({
   className,
   size = 'md',
   variant = 'border',
+  loading = false,
   children,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> &
-  VariantProps<typeof selectTriggerVariants>) {
+  VariantProps<typeof selectTriggerVariants> & {
+    loading?: boolean;
+  }) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
       data-variant={variant}
+      data-loading={loading || undefined}
       className={cn(selectTriggerVariants({ size, variant }), className)}
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon asChild>
-        <Icon
-          name="chevronDown"
-          className="size-4 text-fg-muted transition-transform duration-200 data-[state=open]:rotate-180"
-        />
-      </SelectPrimitive.Icon>
+      {loading ? (
+        <Spinner className="size-4 shrink-0 text-fg-muted" />
+      ) : (
+        <SelectPrimitive.Icon asChild>
+          <Icon
+            name="chevronDown"
+            className="size-4 text-fg-muted transition-transform duration-200 data-[state=open]:rotate-180"
+          />
+        </SelectPrimitive.Icon>
+      )}
     </SelectPrimitive.Trigger>
   );
 }

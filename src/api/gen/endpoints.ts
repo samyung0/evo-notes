@@ -72,6 +72,7 @@ import type {
   UpdateTaskReq,
   UpdateWorkspaceMemberReq,
   UpdateWorkspaceReq,
+  UpdateWorkspaceSharingReq,
   User,
   Workspace,
   WorkspaceInvite,
@@ -4001,6 +4002,52 @@ export const updateWorkspaceMember = async (
 
   const data: updateWorkspaceMemberResponse['data'] = body ? JSON.parse(body) : undefined;
   return { data, status: res.status, headers: res.headers } as updateWorkspaceMemberResponse;
+};
+
+export type updateWorkspaceSharingResponse200 = {
+  data: Workspace;
+  status: 200;
+};
+
+export type updateWorkspaceSharingResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type updateWorkspaceSharingResponseSuccess = updateWorkspaceSharingResponse200 & {
+  headers: Headers;
+};
+export type updateWorkspaceSharingResponseError = updateWorkspaceSharingResponseDefault & {
+  headers: Headers;
+};
+
+export type updateWorkspaceSharingResponse =
+  | updateWorkspaceSharingResponseSuccess
+  | updateWorkspaceSharingResponseError;
+
+export const getUpdateWorkspaceSharingUrl = (id: string) => {
+  return `/api/workspaces/${id}/sharing`;
+};
+
+/**
+ * @summary Update workspace sharing
+ */
+export const updateWorkspaceSharing = async (
+  id: string,
+  updateWorkspaceSharingReq: NonReadonly<UpdateWorkspaceSharingReq>,
+  options?: RequestInit
+): Promise<updateWorkspaceSharingResponse> => {
+  const res = await fetch(getUpdateWorkspaceSharingUrl(id), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateWorkspaceSharingReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: updateWorkspaceSharingResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as updateWorkspaceSharingResponse;
 };
 
 export type getWorkspaceStatsResponse200 = {

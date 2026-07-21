@@ -73,7 +73,7 @@ test.describe('workspace sharing', () => {
 
       const patchPromise = waitForApi(
         ownerPage,
-        apiEndsWith(`/api/workspaces/${seed.mutateWorkspace.id}`, 'PATCH')
+        apiEndsWith(`/api/workspaces/${seed.mutateWorkspace.id}/sharing`, 'PATCH')
       );
       await ownerPage.getByRole('combobox').first().click();
       await ownerPage.getByRole('option', { name: /Shared link/i }).click();
@@ -100,7 +100,7 @@ test.describe('workspace sharing', () => {
       }
     } finally {
       // Always restore private so other workers/tests stay isolated.
-      const restore = await ownerApi.patch(`/api/workspaces/${seed.mutateWorkspace.id}`, {
+      const restore = await ownerApi.patch(`/api/workspaces/${seed.mutateWorkspace.id}/sharing`, {
         data: { privacy: 'private' },
       });
       expect(restore.status()).toBe(200);
