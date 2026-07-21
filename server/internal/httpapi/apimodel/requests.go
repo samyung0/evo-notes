@@ -13,18 +13,20 @@ import (
 // CreateWorkspaceReq is the body for POST /api/workspaces. Name and privacy are
 // required (todo #8); color and tags fall back to server defaults.
 type CreateWorkspaceReq struct {
-	Name    string          `json:"name" minLength:"1" maxLength:"100" doc:"Workspace name"`
-	Color   store.UserColor `json:"color,omitempty" doc:"User color; defaults to graphite"`
-	Privacy store.Privacy   `json:"privacy" doc:"Visibility"`
-	Tags    []TagInput      `json:"tags,omitempty" doc:"Tags; reuse existing by id or create new by value"`
+	Name      string          `json:"name" minLength:"1" maxLength:"100" doc:"Workspace name"`
+	Color     store.UserColor `json:"color,omitempty" doc:"User color; defaults to graphite"`
+	Privacy   store.Privacy   `json:"privacy" doc:"Visibility"`
+	ShareRole store.ShareRole `json:"shareRole,omitempty" doc:"Effective material role for signed-in nonmembers; defaults to viewer"`
+	Tags      []TagInput      `json:"tags,omitempty" doc:"Tags; reuse existing by id or create new by value"`
 }
 
 // UpdateWorkspaceReq is the (partial) body for PATCH /api/workspaces/{id}.
 type UpdateWorkspaceReq struct {
-	Name    *string          `json:"name,omitempty"`
-	Color   *store.UserColor `json:"color,omitempty"`
-	Privacy *store.Privacy   `json:"privacy,omitempty"`
-	Tags    *[]TagInput      `json:"tags,omitempty"`
+	Name      *string          `json:"name,omitempty"`
+	Color     *store.UserColor `json:"color,omitempty"`
+	Privacy   *store.Privacy   `json:"privacy,omitempty"`
+	ShareRole *store.ShareRole `json:"shareRole,omitempty"`
+	Tags      *[]TagInput      `json:"tags,omitempty"`
 }
 
 type AddChapterReq struct {
@@ -74,8 +76,8 @@ type UpdateMaterialReq struct {
 }
 
 type CreateWorkspaceInviteReq struct {
-	Email string              `json:"email" format:"email"`
-	Role  store.WorkspaceRole `json:"role"`
+	UserID string              `json:"userId" minLength:"1"`
+	Role   store.WorkspaceRole `json:"role"`
 }
 
 type UpdateWorkspaceMemberReq struct {
@@ -109,7 +111,9 @@ type CreateMaterialSuggestionReq struct {
 }
 
 type UpdateMaterialSuggestionStatusReq struct {
-	Status store.SuggestionStatus `json:"status" enum:"accepted,rejected,withdrawn"`
+	Status               store.SuggestionStatus `json:"status" enum:"accepted,rejected,withdrawn"`
+	FinalizedContent     *materialdoc.Envelope  `json:"finalizedContent,omitempty" doc:"Required when accepting; complete finalized Plate document"`
+	ExpectedBaseRevision *int64                 `json:"expectedBaseRevision,omitempty" minimum:"1" doc:"Required when accepting and must equal the pending suggestion base"`
 }
 
 type CreateQuizReq struct {

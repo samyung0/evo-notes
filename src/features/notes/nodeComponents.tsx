@@ -1,4 +1,12 @@
-import { NodeApi, KEYS } from 'platejs';
+import {
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
+import { useLink } from '@platejs/link/react';
+import { useTocElement, useTocElementState } from '@platejs/toc/react';
+import type { TLinkElement } from 'platejs';
 import {
   PlateElement,
   PlateLeaf,
@@ -17,7 +25,6 @@ import {
   CODE_MARK_CLASS,
   COLUMN_CLASS,
   COLUMN_GROUP_CLASS,
-  DATE_CLASS,
   EQUATION_BLOCK_CLASS,
   HEADING_CLASS,
   HIGHLIGHT_MARK_CLASS,
@@ -29,10 +36,6 @@ import {
   MENTION_CLASS,
   OL_CLASS,
   PARAGRAPH_CLASS,
-  TABLE_CLASS,
-  TABLE_WRAP_CLASS,
-  TD_CLASS,
-  TH_CLASS,
   TOC_BOX_CLASS,
   TOC_EMPTY_CLASS,
   TOC_ITEM_CLASS,
@@ -40,6 +43,12 @@ import {
   UL_CLASS,
   tocItemIndent,
 } from './nodeStyles';
+import {
+  TableCellElement,
+  TableCellHeaderElement,
+  TableElement,
+  TableRowElement,
+} from './TableNodes';
 
 /* ------------------------------------------------------------- block elements */
 
@@ -92,14 +101,33 @@ function CodeLine(props: PlateElementProps) {
 }
 
 function LinkElement(props: PlateElementProps) {
-  const url = String((props.element as { url?: string }).url ?? '#');
+  const [modifierDown, setModifierDown] = useState(false);
+  const { props: linkProps } = useLink({ element: props.element as TLinkElement });
+  const attributes = {
+    ...props.attributes,
+    rel: linkProps.target === '_blank' ? 'noopener noreferrer' : undefined,
+    style: { cursor: modifierDown ? 'pointer' : 'text' },
+    onBlur: (_event: FocusEvent<HTMLAnchorElement>) => setModifierDown(false),
+    onClick: (event: ReactMouseEvent<HTMLAnchorElement>) => {
+      event.preventDefault();
+      if (!(event.ctrlKey || event.metaKey) || !linkProps.href) return;
+      window.open(linkProps.href, '_blank', 'noopener,noreferrer');
+    },
+    onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => {
+      if (event.ctrlKey || event.metaKey) setModifierDown(true);
+    },
+    onKeyUp: (event: KeyboardEvent<HTMLAnchorElement>) => {
+      if (!event.ctrlKey && !event.metaKey) setModifierDown(false);
+    },
+    onMouseEnter: (event: ReactMouseEvent<HTMLAnchorElement>) =>
+      setModifierDown(event.ctrlKey || event.metaKey),
+    onMouseLeave: () => setModifierDown(false),
+    onMouseMove: (event: ReactMouseEvent<HTMLAnchorElement>) =>
+      setModifierDown(event.ctrlKey || event.metaKey),
+  } as PlateElementProps['attributes'];
+
   return (
-    <PlateElement
-      {...props}
-      as="a"
-      className={LINK_CLASS}
-      attributes={{ ...props.attributes, href: url } as PlateElementProps['attributes']}
-    >
+    <PlateElement {...props} {...linkProps} as="a" className={LINK_CLASS} attributes={attributes}>
       {props.children}
     </PlateElement>
   );
@@ -130,38 +158,6 @@ function Li(props: PlateElementProps) {
 function Lic(props: PlateElementProps) {
   return (
     <PlateElement {...props} as="span">
-      {props.children}
-    </PlateElement>
-  );
-}
-
-/* tables */
-function Table(props: PlateElementProps) {
-  return (
-    <PlateElement {...props} as="div" className={TABLE_WRAP_CLASS}>
-      <table className={TABLE_CLASS}>
-        <tbody>{props.children}</tbody>
-      </table>
-    </PlateElement>
-  );
-}
-function Tr(props: PlateElementProps) {
-  return (
-    <PlateElement {...props} as="tr">
-      {props.children}
-    </PlateElement>
-  );
-}
-function Td(props: PlateElementProps) {
-  return (
-    <PlateElement {...props} as="td" className={TD_CLASS}>
-      {props.children}
-    </PlateElement>
-  );
-}
-function Th(props: PlateElementProps) {
-  return (
-    <PlateElement {...props} as="th" className={TH_CLASS}>
       {props.children}
     </PlateElement>
   );
@@ -199,28 +195,25 @@ function Column(props: PlateElementProps) {
 
 /* toc — read-only outline placeholder (headings are the source of truth) */
 function Toc(props: PlateElementProps) {
-  const editor = useEditorRef();
-  const headings = editor.children
-    .map((node, index) => ({ node, index }))
-    .filter(({ node }) => KEYS.heading.includes(node.type as (typeof KEYS.heading)[number]));
+  const state = useTocElementState();
+  const { props: tocProps } = useTocElement(state);
+  const headings = state.headingList;
+
   return (
     <PlateElement {...props}>
       <div contentEditable={false} className={TOC_BOX_CLASS}>
         <p className={TOC_TITLE_CLASS}>Table of contents</p>
         {headings.length ? (
           <nav className="flex flex-col">
-            {headings.map(({ node, index }) => (
+            {headings.map((heading) => (
               <button
-                key={(node.id as string | undefined) ?? index}
+                key={heading.id ?? heading.path.join('-')}
                 type="button"
                 className={TOC_ITEM_CLASS}
-                style={tocItemIndent(node.type)}
-                onClick={() => {
-                  editor.tf.select([index, 0]);
-                  editor.tf.focus();
-                }}
+                style={tocItemIndent(heading.type)}
+                onClick={(event) => tocProps.onClick(event, heading, 'smooth')}
               >
-                {NodeApi.string(node)}
+                {heading.title}
               </button>
             ))}
           </nav>
@@ -239,17 +232,6 @@ function Mention(props: PlateElementProps) {
   return (
     <PlateElement {...props} as="span" className={MENTION_CLASS}>
       <span contentEditable={false}>@{value}</span>
-      {props.children}
-    </PlateElement>
-  );
-}
-
-/* date (inline void) */
-function DateElement(props: PlateElementProps) {
-  const date = String((props.element as { date?: string }).date ?? '');
-  return (
-    <PlateElement {...props} as="span" className={DATE_CLASS}>
-      <span contentEditable={false}>{date || 'date'}</span>
       {props.children}
     </PlateElement>
   );
@@ -338,17 +320,16 @@ export const noteComponents = {
   ol: Ol,
   li: Li,
   lic: Lic,
-  table: Table,
-  tr: Tr,
-  td: Td,
-  th: Th,
+  table: TableElement,
+  tr: TableRowElement,
+  td: TableCellElement,
+  th: TableCellHeaderElement,
   callout: Callout,
   column_group: ColumnGroup,
   column: Column,
   toc: Toc,
   mention: Mention,
   mention_input: MentionInputElement,
-  date: DateElement,
   equation: BlockEquation,
   inline_equation: InlineEquation,
   bold: mark('strong', BOLD_MARK_CLASS),

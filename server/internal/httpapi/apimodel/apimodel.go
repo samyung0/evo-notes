@@ -77,11 +77,42 @@ type (
 	Conversation       = store.Conversation
 	Message            = store.Message
 	Citation           = store.Citation
-	Material           = store.Material
 	MaterialRef        = store.MaterialRef
 )
 
-func FromMaterial(m store.Material) Material { return m }
+type Material struct {
+	ID            string                   `json:"id"`
+	WorkspaceID   string                   `json:"workspaceId"`
+	WorkspaceName string                   `json:"workspaceName"`
+	Kind          string                   `json:"kind"`
+	Title         string                   `json:"title"`
+	Content       materialdoc.Envelope     `json:"content"`
+	ChapterID     *string                  `json:"chapterId"`
+	ScopeChapters []string                 `json:"scopeChapters" nullable:"false"`
+	ScopeFileIDs  []string                 `json:"scopeFileIds" nullable:"false"`
+	Privacy       store.Privacy            `json:"privacy"`
+	Color         store.UserColor          `json:"color,omitempty"`
+	CreatedAt     time.Time                `json:"createdAt"`
+	UpdatedAt     time.Time                `json:"updatedAt"`
+	Revision      int64                    `json:"revision"`
+	IsOwner       bool                     `json:"isOwner"`
+	Role          *store.WorkspaceRole     `json:"role,omitempty"`
+	Capabilities  store.AccessCapabilities `json:"capabilities"`
+}
+
+func FromMaterial(m store.Material) Material {
+	content, err := materialdoc.Parse(m.Content)
+	if err != nil {
+		content = materialdoc.Empty()
+	}
+	return Material{
+		ID: m.ID, WorkspaceID: m.WorkspaceID, WorkspaceName: m.WorkspaceName,
+		Kind: m.Kind, Title: m.Title, Content: content, ChapterID: m.ChapterID,
+		ScopeChapters: m.ScopeChapters, ScopeFileIDs: m.ScopeFileIDs,
+		Privacy: m.Privacy, Color: m.Color, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt,
+		Revision: m.Revision, IsOwner: m.IsOwner, Role: m.Role, Capabilities: m.Capabilities,
+	}
+}
 
 type MaterialRevision struct {
 	MaterialID string               `json:"materialId"`
@@ -104,9 +135,10 @@ func FromMaterialRevision(r store.MaterialRevision) MaterialRevision {
 }
 
 type (
-	WorkspaceMember = store.WorkspaceMember
-	Discussion      = store.Discussion
-	Comment         = store.Comment
+	WorkspaceMember          = store.WorkspaceMember
+	WorkspaceInviteCandidate = store.WorkspaceInviteCandidate
+	Discussion               = store.Discussion
+	Comment                  = store.Comment
 )
 
 type MaterialSuggestion struct {
@@ -148,15 +180,16 @@ func FromMaterialSuggestions(suggestions []store.MaterialSuggestion) []MaterialS
 }
 
 type WorkspaceInvite struct {
-	ID          string              `json:"id"`
-	WorkspaceID string              `json:"workspaceId"`
-	Email       string              `json:"email"`
-	Role        store.WorkspaceRole `json:"role"`
-	InvitedBy   string              `json:"invitedBy"`
-	ExpiresAt   time.Time           `json:"expiresAt"`
-	AcceptedAt  *time.Time          `json:"acceptedAt,omitempty"`
-	RevokedAt   *time.Time          `json:"revokedAt,omitempty"`
-	CreatedAt   time.Time           `json:"createdAt"`
+	ID            string              `json:"id"`
+	WorkspaceID   string              `json:"workspaceId"`
+	InvitedUserID string              `json:"invitedUserId"`
+	Email         string              `json:"email"`
+	Role          store.WorkspaceRole `json:"role"`
+	InvitedBy     string              `json:"invitedBy"`
+	ExpiresAt     time.Time           `json:"expiresAt"`
+	AcceptedAt    *time.Time          `json:"acceptedAt,omitempty"`
+	RevokedAt     *time.Time          `json:"revokedAt,omitempty"`
+	CreatedAt     time.Time           `json:"createdAt"`
 }
 
 type CreatedWorkspaceInvite struct {
@@ -166,7 +199,8 @@ type CreatedWorkspaceInvite struct {
 
 func FromWorkspaceInvite(invite store.WorkspaceInvite) WorkspaceInvite {
 	return WorkspaceInvite{
-		ID: invite.ID, WorkspaceID: invite.WorkspaceID, Email: invite.Email, Role: invite.Role,
+		ID: invite.ID, WorkspaceID: invite.WorkspaceID, InvitedUserID: invite.InvitedUserID,
+		Email: invite.Email, Role: invite.Role,
 		InvitedBy: invite.InvitedBy, ExpiresAt: invite.ExpiresAt, AcceptedAt: invite.AcceptedAt,
 		RevokedAt: invite.RevokedAt, CreatedAt: invite.CreatedAt,
 	}
@@ -192,6 +226,7 @@ type Workspace struct {
 	Name           string                   `json:"name"`
 	Color          store.UserColor          `json:"color"`
 	Privacy        store.Privacy            `json:"privacy"`
+	ShareRole      store.ShareRole          `json:"shareRole"`
 	Tags           []Tag                    `json:"tags" nullable:"false"`
 	ChapterCount   int                      `json:"chapterCount"`
 	FileCount      int                      `json:"fileCount"`
@@ -205,7 +240,7 @@ type Workspace struct {
 func FromWorkspace(w store.Workspace) Workspace {
 	role := store.RoleOwner
 	return Workspace{
-		ID: w.ID, Name: w.Name, Color: w.Color, Privacy: w.Privacy,
+		ID: w.ID, Name: w.Name, Color: w.Color, Privacy: w.Privacy, ShareRole: w.ShareRole,
 		Tags: WrapTags(w.Tags), ChapterCount: w.ChapterCount, FileCount: w.FileCount,
 		CreatedAt: w.CreatedAt, LastAccessedAt: w.LastAccessedAt, IsOwner: true,
 		Role: &role, Capabilities: store.CapabilitiesForRole(role, true),

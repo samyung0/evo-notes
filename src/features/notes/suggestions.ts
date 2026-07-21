@@ -8,6 +8,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function suggestionTypes(node: Record<string, unknown>): Set<string> {
   const types = new Set<string>();
+  if (isRecord(node.suggestion) && typeof node.suggestion.type === 'string') {
+    types.add(node.suggestion.type);
+  }
   for (const [key, value] of Object.entries(node)) {
     if (!key.startsWith('suggestion_') || !isRecord(value)) continue;
     if (typeof value.type === 'string') types.add(value.type);
@@ -17,15 +20,16 @@ function suggestionTypes(node: Record<string, unknown>): Set<string> {
 
 function cleanNode(node: unknown, decision: SuggestionDecision): Record<string, unknown> | null {
   if (!isRecord(node)) return null;
+  const types = suggestionTypes(node);
+  if (decision === 'accept' && types.has('remove')) return null;
+  if (decision === 'reject' && types.has('insert')) return null;
+
+  const cleanProperties = Object.fromEntries(
+    Object.entries(node).filter(([key]) => key !== 'suggestion' && !key.startsWith('suggestion_'))
+  );
 
   if (typeof node.text === 'string') {
-    const types = suggestionTypes(node);
-    if (decision === 'accept' && types.has('remove')) return null;
-    if (decision === 'reject' && types.has('insert')) return null;
-
-    return Object.fromEntries(
-      Object.entries(node).filter(([key]) => key !== 'suggestion' && !key.startsWith('suggestion_'))
-    );
+    return cleanProperties;
   }
 
   const children = Array.isArray(node.children)
@@ -35,7 +39,7 @@ function cleanNode(node: unknown, decision: SuggestionDecision): Record<string, 
     : [];
 
   return {
-    ...node,
+    ...cleanProperties,
     children: children.length ? children : [{ text: '' }],
   };
 }

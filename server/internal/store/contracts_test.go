@@ -35,6 +35,22 @@ func TestWorkspaceRoleCapabilities(t *testing.T) {
 	}
 }
 
+func TestShareRoleIsSafeWorkspaceRoleSubset(t *testing.T) {
+	cases := map[ShareRole]WorkspaceRole{
+		ShareViewer:    RoleViewer,
+		ShareCommenter: RoleCommenter,
+		ShareEditor:    RoleEditor,
+	}
+	for shareRole, expected := range cases {
+		if got := shareRole.WorkspaceRole(); got != expected {
+			t.Errorf("%q maps to %q, want %q", shareRole, got, expected)
+		}
+	}
+	if got := ShareRole("invalid").WorkspaceRole(); got != RoleViewer {
+		t.Fatalf("unknown persisted share role must fail closed to viewer, got %q", got)
+	}
+}
+
 func TestInviteTokensAreBearerSafe(t *testing.T) {
 	first, err := inviteToken()
 	if err != nil {

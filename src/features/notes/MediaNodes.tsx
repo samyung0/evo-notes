@@ -15,6 +15,8 @@ import { uploadEditorAsset } from '@/api/editorAssets';
 import { MediaAssetView, type MediaAssetNode } from '@/features/materials/MediaAssetView';
 import { cn } from '@/lib/cn';
 import { useEditorRuntime } from './EditorRuntime';
+import { canCreateExternalEditorAssets } from './editorMode';
+import { insertEditorNode } from './insertEditorNode';
 import {
   MEDIA_ACCEPT,
   acceptsPurpose,
@@ -43,7 +45,8 @@ export const MediaPlaceholderElement = withHOC(
   PlaceholderProvider,
   function MediaPlaceholderElement(props: PlateElementProps<TPlaceholderElement>) {
     const { editor, element } = props;
-    const { workspaceId } = useEditorRuntime();
+    const { workspaceId, mode, allowExternalAssets } = useEditorRuntime();
+    const canCreateAssets = canCreateExternalEditorAssets(mode, allowExternalAssets);
     const { api } = useEditorPlugin(PlaceholderPlugin);
     const [progress, setProgress] = useState(0);
     const [uploading, setUploading] = useState<File | null>(null);
@@ -56,6 +59,7 @@ export const MediaPlaceholderElement = withHOC(
 
     const replaceCurrentPlaceholder = useCallback(
       async (file: File) => {
+        if (!canCreateAssets) return;
         if (!acceptsPurpose(file, purpose)) {
           setError(`Choose a ${purpose} file.`);
           return;
@@ -90,13 +94,14 @@ export const MediaPlaceholderElement = withHOC(
           setUploading(null);
         }
       },
-      [api.placeholder, editor, element, purpose, workspaceId]
+      [api.placeholder, canCreateAssets, editor, element, purpose, workspaceId]
     );
 
     const { openFilePicker } = useFilePicker({
       accept: [MEDIA_ACCEPT[purpose]],
       multiple: true,
       onFilesSelected: ({ plainFiles }) => {
+        if (!canCreateAssets) return;
         const [first, ...rest] = plainFiles;
         if (first) void replaceCurrentPlaceholder(first);
         if (rest.length) editor.getTransforms(PlaceholderPlugin).insert.media(rest);
@@ -104,10 +109,11 @@ export const MediaPlaceholderElement = withHOC(
     });
 
     useEffect(() => {
+      if (!canCreateAssets) return;
       const dropped = api.placeholder.getUploadingFile(element.id as string);
       if (dropped) void replaceCurrentPlaceholder(dropped);
       return () => abortRef.current?.abort();
-    }, [api.placeholder, element.id, replaceCurrentPlaceholder]);
+    }, [api.placeholder, canCreateAssets, element.id, replaceCurrentPlaceholder]);
 
     return (
       <PlateElement {...props} className="my-2">
@@ -115,14 +121,16 @@ export const MediaPlaceholderElement = withHOC(
           contentEditable={false}
           className={cn(
             'flex min-h-18 items-center gap-3 rounded-card border border-dashed border-line bg-surface-hover-bg px-4 py-3',
-            !uploading && 'cursor-pointer hover:border-line-strong'
+            canCreateAssets && !uploading && 'cursor-pointer hover:border-line-strong'
           )}
-          onClick={() => !uploading && openFilePicker()}
+          onClick={() => canCreateAssets && !uploading && openFilePicker()}
           onKeyDown={(event) => {
-            if (!uploading && (event.key === 'Enter' || event.key === ' ')) openFilePicker();
+            if (canCreateAssets && !uploading && (event.key === 'Enter' || event.key === ' ')) {
+              openFilePicker();
+            }
           }}
-          role="button"
-          tabIndex={0}
+          role={canCreateAssets ? 'button' : undefined}
+          tabIndex={canCreateAssets ? 0 : undefined}
         >
           {uploading ? (
             <LoaderCircle className="size-5 animate-spin text-action-accent" />
@@ -134,7 +142,12 @@ export const MediaPlaceholderElement = withHOC(
               {uploading?.name ?? content.label}
             </p>
             <p className={cn('text-xs text-fg-muted', error && 'text-solid-error')}>
-              {error ?? (uploading ? `${progress}% uploaded` : 'Choose, paste, or drop a file')}
+              {error ??
+                (uploading
+                  ? `${progress}% uploaded`
+                  : canCreateAssets
+                    ? 'Choose, paste, or drop a file'
+                    : 'Uploads are unavailable in suggestion mode')}
             </p>
             {uploading && (
               <div className="mt-2 h-1 overflow-hidden rounded-full bg-divider">
@@ -157,9 +170,9 @@ export const MediaPlaceholderElement = withHOC(
             >
               <X className="size-4" />
             </button>
-          ) : (
+          ) : canCreateAssets ? (
             <Upload className="size-4 text-fg-muted" />
-          )}
+          ) : null}
         </div>
         {props.children}
       </PlateElement>
@@ -179,7 +192,7 @@ export function MediaAssetElement(props: PlateElementProps) {
 
 /** Exposed for the toolbar and slash menu. */
 export function insertMediaPlaceholder(editor: ReturnType<typeof useEditorRef>, type: MediaType) {
-  editor.tf.insertNodes({
+  insertEditorNode(editor, {
     type: KEYS.placeholder,
     mediaType: type,
     children: [{ text: '' }],

@@ -1,23 +1,31 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { BaseCommentPlugin, getCommentKey } from '@platejs/comment';
 import { BaseSuggestionPlugin } from '@platejs/suggestion';
-import { KEYS, NodeApi, TextApi, type TSuggestionData } from 'platejs';
+import {
+  KEYS,
+  NodeApi,
+  TextApi,
+  type TElement,
+  type TInlineSuggestionData,
+  type TSuggestionData,
+  type TSuggestionText,
+} from 'platejs';
 import {
   PlateLeaf,
+  type PlateElementProps,
   type PlateLeafProps,
+  type RenderNodeWrapper,
   createPlatePlugin,
   toTPlatePlugin,
   useEditorRef,
 } from 'platejs/react';
-import { MessageSquarePlus, MessagesSquare } from 'lucide-react';
+import { CornerDownLeft, MessageSquarePlus, MessagesSquare } from 'lucide-react';
 import {
   useCreateMaterialComment,
   useCreateMaterialDiscussion,
   useCreateMaterialSuggestion,
-  useMaterialDiscussions,
   useMaterialSuggestions,
   useResolveMaterialDiscussion,
-  useUpdateMaterial,
   useUpdateMaterialSuggestionStatus,
 } from '@/api/hooks';
 import type { MaterialDiscussion, MaterialSuggestion, WorkspaceMember } from '@/api/types';
@@ -29,12 +37,14 @@ import {
   type MaterialValue,
 } from '@/features/materials/document';
 import { useEditorRuntime } from './EditorRuntime';
+import type { NoteEditorMode } from './editorMode';
 import { finalizeSuggestionValue, materialValueText } from './suggestions';
 
 export interface EditorCollaborationOptions {
   currentUserId: string | null;
   discussions: MaterialDiscussion[];
   users: Record<string, WorkspaceMember>;
+  mode: NoteEditorMode;
 }
 
 export const discussionPlugin = createPlatePlugin({
@@ -52,27 +62,23 @@ export const commentPlugin = toTPlatePlugin(BaseCommentPlugin, {
     commentingBlock: null,
     hoverId: null as string | null,
   },
-}).configure({
-  node: { component: CommentLeaf },
+  render: { node: CommentLeaf },
   shortcuts: { setDraft: { keys: 'mod+shift+m' } },
 });
 
-export const suggestionPlugin = toTPlatePlugin(BaseSuggestionPlugin, ({ editor }) => ({
-  options: {
-    activeId: null as string | null,
-    currentUserId: editor.getOption(discussionPlugin, 'currentUserId') ?? '',
-    hoverId: null as string | null,
-  },
-})).configure({
-  node: { component: SuggestionLeaf },
-});
-
 export function buildCollaborationPlugins(options: EditorCollaborationOptions) {
+  const currentUserId = options.currentUserId?.trim() || 'current-user';
   return [
-    discussionPlugin.configure({ options }),
+    discussionPlugin.configure({ options: { ...options, currentUserId } }),
     commentPlugin,
     suggestionPlugin.configure({
-      options: { currentUserId: options.currentUserId ?? '' },
+      options: {
+        // Suggestion normalization drops marks without an author. Interactive
+        // modes are authenticated, but keep a stable fallback while /me data
+        // is unavailable so the first keystroke is not discarded.
+        currentUserId,
+        isSuggesting: options.mode === 'suggestion',
+      },
     }),
   ];
 }
@@ -88,23 +94,128 @@ function CommentLeaf(props: PlateLeafProps) {
   );
 }
 
-function SuggestionLeaf(props: PlateLeafProps) {
-  const data = Object.entries(props.leaf)
-    .filter(([key]) => key.startsWith('suggestion_'))
-    .map(([, value]) => value)
-    .find(Boolean) as TSuggestionData | undefined;
+function getInlineSuggestionData(editor: any, element: TElement) {
+  const api = editor.getApi(BaseSuggestionPlugin).suggestion;
+  const direct = api.suggestionData(element) as TSuggestionData | TInlineSuggestionData | undefined;
+  if (direct) return direct;
+  if (typeof api.dataList !== 'function') return;
+  for (const child of element.children) {
+    if (!TextApi.isText(child)) continue;
+    const data = api.dataList(child as TSuggestionText).at(-1);
+    if (data) return data;
+  }
+}
+
+function SuggestionLeaf(props: PlateLeafProps<TSuggestionText>) {
+  const editor = useEditorRef();
+  const dataList = editor.getApi(BaseSuggestionPlugin).suggestion.dataList(props.leaf);
+  const hasRemove = dataList.some((data) => data.type === 'remove');
   return (
     <PlateLeaf
       {...props}
+      as={hasRemove ? 'del' : 'ins'}
       className={cn(
-        data?.type === 'remove' && 'bg-tint-error text-fg-muted line-through',
-        data?.type === 'insert' && 'bg-tint-success underline decoration-solid-success'
+        'rounded-sm bg-tint-accent-2 text-tint-accent-2-fg no-underline',
+        hasRemove && 'bg-tint-error text-solid-error line-through decoration-solid-error'
       )}
     >
       {props.children}
     </PlateLeaf>
   );
 }
+
+const SuggestionLineBreak: RenderNodeWrapper = ({ api, element }) => {
+  if (!(api as any).suggestion.isBlockSuggestion(element)) return;
+  const data = (element as TElement & { suggestion: TSuggestionData }).suggestion;
+  return ({ children }) => {
+    const remove = data.type === 'remove';
+    if (data.isLineBreak) {
+      return (
+        <>
+          {children}
+          <span
+            contentEditable={false}
+            className={cn(
+              'inline-flex h-[calc(1lh+2px)] w-[1lh] items-center justify-center',
+              remove ? 'text-solid-error' : 'text-tint-accent-2-fg'
+            )}
+          >
+            <CornerDownLeft className="size-4" />
+          </span>
+        </>
+      );
+    }
+    return (
+      <div
+        data-block-suggestion={data.type}
+        className={cn(
+          'rounded-sm bg-tint-accent-2 text-tint-accent-2-fg',
+          remove && 'bg-tint-error text-solid-error line-through decoration-solid-error'
+        )}
+      >
+        {children}
+      </div>
+    );
+  };
+};
+
+function VoidRemoveSuggestionOverlay({ editor, element }: PlateElementProps) {
+  const data = editor.getApi(BaseSuggestionPlugin).suggestion.suggestionData(element);
+  if (!editor.api.isVoid(element) || editor.api.isInline(element) || data?.type !== 'remove') {
+    return null;
+  }
+  return (
+    <div
+      contentEditable={false}
+      data-slot="void-remove-suggestion"
+      className="pointer-events-none absolute inset-0 z-20 rounded-[inherit] border border-solid-error bg-tint-error/55 after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:text-2xl after:font-semibold after:text-solid-error after:content-['×']"
+    />
+  );
+}
+
+// Everything structural (node/render/inject) must live in this extend config,
+// NOT a chained `.configure()`: Plate keeps a single configuration slot per
+// plugin, so a later `.configure({ options })` in buildCollaborationPlugins
+// would silently replace an earlier `.configure({ render, ... })` — dropping
+// the ins/del renderers. The same slot rule means currentUserId/isSuggesting
+// must come from that one runtime configure, never from a lazy function here
+// (a creation-time function would reset currentUserId to '', and the base
+// plugin's normalizer deletes authorless suggestion marks on every keystroke).
+export const suggestionPlugin = toTPlatePlugin(BaseSuggestionPlugin, {
+  options: {
+    activeId: null as string | null,
+    hoverId: null as string | null,
+  },
+  inject: {
+    isElement: true,
+    nodeProps: {
+      nodeKey: '',
+      styleKey: 'cssText',
+      transformProps: ({ editor, element, props }) => {
+        if (!element) return props;
+        const data = getInlineSuggestionData(editor, element);
+        if (!data) return props;
+        return {
+          ...props,
+          'data-inline-suggestion': data.type,
+          className: cn(
+            (props as { className?: string }).className,
+            'rounded-sm bg-tint-accent-2 text-tint-accent-2-fg',
+            data.type === 'remove' &&
+              'bg-tint-error text-solid-error line-through decoration-solid-error'
+          ),
+        };
+      },
+      transformStyle: () => ({}) as CSSStyleDeclaration,
+    },
+    targetPlugins: [KEYS.inlineEquation, KEYS.link, KEYS.mention],
+  },
+  render: {
+    belowNodes: SuggestionLineBreak,
+    belowRootNodes: VoidRemoveSuggestionOverlay,
+    node: SuggestionLeaf,
+  },
+});
 
 interface CollaborationActions {
   openComment: () => void;
@@ -125,42 +236,99 @@ function richComment(text: string): MaterialValue {
   return [{ type: 'p', children: [{ text }] }];
 }
 
+export async function reviewSuggestionAtomically({
+  suggestion,
+  accept,
+  currentRevision,
+  updateStatus,
+}: {
+  suggestion: MaterialSuggestion;
+  accept: boolean;
+  currentRevision: number;
+  updateStatus: (variables: {
+    suggestionId: string;
+    status: 'accepted' | 'rejected';
+    finalizedContent?: MaterialDocument;
+    expectedBaseRevision?: number;
+  }) => Promise<MaterialSuggestion>;
+}): Promise<MaterialDocument | null> {
+  if (accept) {
+    if (suggestion.baseRevision !== currentRevision) {
+      throw new Error('This suggestion is based on a stale material revision.');
+    }
+    if (!suggestion.proposedFragment) throw new Error('Suggestion has no proposed content');
+    const finalizedContent = createMaterialDocument(
+      finalizeSuggestionValue(suggestion.proposedFragment, 'accept')
+    );
+    await updateStatus({
+      suggestionId: suggestion.id,
+      status: 'accepted',
+      finalizedContent,
+      expectedBaseRevision: suggestion.baseRevision,
+    });
+    return finalizedContent;
+  }
+  await updateStatus({
+    suggestionId: suggestion.id,
+    status: 'rejected',
+  });
+  return null;
+}
+
 export function CollaborationProvider({
   children,
   baseDocument,
   baseRevision,
+  currentDocument,
+  currentRevision,
+  discussions,
   suggestionDirty,
   onSuggestionReset,
+  onBaseDocumentChange,
+  replaceEditorDocument,
 }: {
   children: React.ReactNode;
   baseDocument: MaterialDocument;
   baseRevision: number;
+  currentDocument: MaterialDocument;
+  currentRevision: number;
+  discussions: MaterialDiscussion[];
   suggestionDirty: boolean;
   onSuggestionReset: () => void;
+  onBaseDocumentChange: (document: MaterialDocument, revision: number) => void;
+  replaceEditorDocument: (value: MaterialValue) => void;
 }) {
   const editor = useEditorRef();
-  const { materialId, workspaceId, role, canEdit, canComment } = useEditorRuntime();
-  const { data: discussions = [] } = useMaterialDiscussions(materialId);
+  const { materialId, mode: editorMode, canEdit, canComment } = useEditorRuntime();
   const { data: suggestions = [] } = useMaterialSuggestions(materialId);
   const createDiscussion = useCreateMaterialDiscussion(materialId);
   const addComment = useCreateMaterialComment(materialId);
   const resolveDiscussion = useResolveMaterialDiscussion(materialId);
   const createSuggestion = useCreateMaterialSuggestion(materialId);
   const updateSuggestion = useUpdateMaterialSuggestionStatus(materialId);
-  const updateMaterial = useUpdateMaterial(workspaceId);
   const [mode, setMode] = useState<'new' | 'threads' | null>(null);
   const [comment, setComment] = useState('');
   const [replyByDiscussion, setReplyByDiscussion] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
-  function resetSuggestionDraft(value = baseDocument.value) {
-    editor.tf.setValue(structuredClone(value));
+  function resetSuggestionDraft() {
+    const resetDocument = currentRevision === baseRevision ? baseDocument : currentDocument;
+    replaceEditorDocument(resetDocument.value);
+    if (currentRevision !== baseRevision) {
+      onBaseDocumentChange(currentDocument, currentRevision);
+    }
     onSuggestionReset();
   }
 
   async function submitSuggestion() {
-    if (role !== 'commenter' || !suggestionDirty) return;
+    if (editorMode !== 'suggestion' || (!canEdit && !canComment) || !suggestionDirty) {
+      return;
+    }
     setError(null);
+    if (baseRevision !== currentRevision) {
+      setError('This material changed since the suggestion draft began. Discard and try again.');
+      return;
+    }
     try {
       await createSuggestion.mutateAsync({
         baseRevision,
@@ -178,45 +346,34 @@ export function CollaborationProvider({
   async function reviewSuggestion(suggestion: MaterialSuggestion, accept: boolean) {
     setError(null);
     try {
-      if (accept) {
-        if (!suggestion.proposedFragment) throw new Error('Suggestion has no proposed content');
-        const finalValue = finalizeSuggestionValue(suggestion.proposedFragment, 'accept');
-        const saved = await updateMaterial.mutateAsync({
-          id: materialId,
-          patch: {
-            content: createMaterialDocument(finalValue),
-            expectedRevision: suggestion.baseRevision,
-          },
-        });
-        editor.tf.setValue(structuredClone(saved.content.value));
-      }
-      await updateSuggestion.mutateAsync({
-        suggestionId: suggestion.id,
-        status: accept ? 'accepted' : 'rejected',
+      const saved = await reviewSuggestionAtomically({
+        suggestion,
+        accept,
+        currentRevision,
+        updateStatus: updateSuggestion.mutateAsync,
       });
+      if (saved) {
+        replaceEditorDocument(saved.value);
+        onBaseDocumentChange(saved, currentRevision + 1);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to review suggestion');
     }
   }
 
-  const actions = useMemo(
-    () => ({
-      openComment: () => {
-        if (!canComment) return;
-        setComment('');
-        setError(null);
-        setMode('new');
-      },
-      openThreads: () => setMode('threads'),
-      submitSuggestion: () => void submitSuggestion(),
-      discardSuggestion: () => resetSuggestionDraft(),
-      suggestionDirty,
-      suggestionPending: createSuggestion.isPending,
-    }),
-    // Editor transforms are stable for this provider's lifetime.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [canComment, createSuggestion.isPending, suggestionDirty]
-  );
+  const actions: CollaborationActions = {
+    openComment: () => {
+      if (!canComment) return;
+      setComment('');
+      setError(null);
+      setMode('new');
+    },
+    openThreads: () => setMode('threads'),
+    submitSuggestion: () => void submitSuggestion(),
+    discardSuggestion: () => resetSuggestionDraft(),
+    suggestionDirty,
+    suggestionPending: createSuggestion.isPending,
+  };
 
   async function submitNewComment() {
     const text = comment.trim();
@@ -299,12 +456,12 @@ export function CollaborationProvider({
               key={suggestion.id}
               suggestion={suggestion}
               canReview={canEdit}
-              pending={updateSuggestion.isPending || updateMaterial.isPending}
+              pending={updateSuggestion.isPending}
               onAccept={() => void reviewSuggestion(suggestion, true)}
               onReject={() => void reviewSuggestion(suggestion, false)}
             />
           ))}
-          {!discussions.length && (
+          {!discussions.length && !suggestions.length && (
             <div className="rounded-card border border-dashed border-line p-6 text-center text-sm text-fg-muted">
               No discussions yet.
             </div>
@@ -432,7 +589,7 @@ function DiscussionThread({
 
 export function CommentToolbarActions() {
   const actions = useCollaborationActions();
-  const { canComment, role } = useEditorRuntime();
+  const { canComment, mode } = useEditorRuntime();
   if (!actions) return null;
   return (
     <>
@@ -446,7 +603,7 @@ export function CommentToolbarActions() {
         <MessagesSquare className="size-4" />
         Threads
       </Button>
-      {role === 'commenter' && (
+      {mode === 'suggestion' && (
         <>
           <Button
             variant="accent"

@@ -64,6 +64,20 @@ func materialWithAccess(material store.Material, role store.WorkspaceRole) apimo
 	return apimodel.FromMaterial(material)
 }
 
+// sharedMaterialPatchAllowed is deliberately narrow: effective shared editors
+// may only replace the versioned Plate document under optimistic concurrency.
+// Metadata, filing, scope, visibility, title, and deletion remain explicit
+// member operations.
+func sharedMaterialPatchAllowed(body apimodel.UpdateMaterialReq) bool {
+	return body.Content != nil &&
+		body.ExpectedRevision != nil &&
+		body.Title == nil &&
+		body.ChapterID == nil &&
+		body.ScopeChapters == nil &&
+		body.ScopeFileIDs == nil &&
+		body.Privacy == nil
+}
+
 func (a *api) listMaterials(ctx context.Context, in *workspaceIDInput) (*materialRefsOutput, error) {
 	if _, err := a.workspaceRead(ctx, in.ID); err != nil {
 		return nil, hErr(err)
@@ -120,7 +134,7 @@ func (a *api) createMaterial(ctx context.Context, in *createMaterialInput) (*mat
 	if err != nil {
 		return nil, hErr(err)
 	}
-	role, err := a.s.MaterialRole(ctx, userID(ctx), res.ID)
+	role, err := a.s.MaterialEffectiveRole(ctx, userID(ctx), res.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
@@ -131,7 +145,7 @@ func (a *api) getMaterial(ctx context.Context, in *materialIDInput) (*materialOu
 	if _, err := a.materialRead(ctx, in.ID); err != nil {
 		return nil, hErr(err)
 	}
-	role, err := a.s.MaterialRole(ctx, userID(ctx), in.ID)
+	role, err := a.s.MaterialEffectiveRole(ctx, userID(ctx), in.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}
@@ -143,8 +157,12 @@ func (a *api) getMaterial(ctx context.Context, in *materialIDInput) (*materialOu
 }
 
 func (a *api) updateMaterial(ctx context.Context, in *updateMaterialInput) (*materialOutput, error) {
-	if err := a.assertMaterialOwner(ctx, in.ID); err != nil {
+	access, err := a.s.AssertMaterialContentEditor(ctx, userID(ctx), in.ID)
+	if err != nil {
 		return nil, collaborationError(err)
+	}
+	if !access.Explicit && !sharedMaterialPatchAllowed(in.Body) {
+		return nil, collaborationError(store.ErrForbidden)
 	}
 	if (in.Body.Title != nil || in.Body.Content != nil) && in.Body.ExpectedRevision == nil {
 		return nil, huma.Error400BadRequest("expectedRevision is required when changing title or content")
@@ -194,7 +212,7 @@ func (a *api) updateMaterial(ctx context.Context, in *updateMaterialInput) (*mat
 		}
 		return nil, hErr(err)
 	}
-	role, err := a.s.MaterialRole(ctx, userID(ctx), res.ID)
+	role, err := a.s.MaterialEffectiveRole(ctx, userID(ctx), res.ID)
 	if err != nil {
 		return nil, hErr(err)
 	}

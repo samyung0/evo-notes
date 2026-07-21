@@ -1,13 +1,20 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import {
+  Button,
   Icon,
   IconButton,
   type IconName,
   ProgressBar,
-  SegmentedControl,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Spinner,
 } from '@/components/ui';
-import { useFile, useMaterial } from '@/api/hooks';
+import { useDeck, useFile, useMaterial, useQuiz } from '@/api/hooks';
 import { FileViewer } from '@/features/files/FileViewer';
 import {
   clampImageZoom,
@@ -16,14 +23,19 @@ import {
   IMAGE_ZOOM_STEP,
   isImageFile,
 } from '@/features/files/fileUtils';
-import { QuizPreview } from './QuizPreview';
-import { DeckPreview } from './DeckPreview';
 import { MaterialPreview } from './MaterialPreview';
+import type { MaterialDocument } from './document';
+import {
+  isInteractiveMaterialMode,
+  materialModePolicy,
+  resolveMaterialMode,
+  type MaterialMode,
+} from './modePolicy';
 import type { OpenItem } from './openItem';
 import { type MaterialKind, UserColor } from '@/api/types';
 
-/* The editable Plate editor is by far the heaviest chunk in this route; only
- * load it when the user actually switches a material into Edit mode. */
+/* Interactive Plate is the heaviest chunk in this route. View and study modes
+ * deliberately never load it. */
 const NoteEditor = lazy(() =>
   import('@/features/notes/NoteEditor').then((m) => ({ default: m.NoteEditor }))
 );
@@ -36,18 +48,40 @@ export function CenterContent({
   item,
   readOnly = false,
   color,
+  onSuggestionDirtyChange,
 }: {
   item: OpenItem | null;
   readOnly?: boolean;
   color?: UserColor;
+  onSuggestionDirtyChange?: (dirty: boolean) => void;
 }) {
   const [imageZoom, setImageZoom] = useState(IMAGE_MIN_ZOOM);
   const [materialMode, setMaterialMode] = useState<MaterialMode | null>(null);
+  const [suggestionDirty, setSuggestionDirty] = useState(false);
+  const updateSuggestionDirty = useCallback(
+    (dirty: boolean) => {
+      setSuggestionDirty(dirty);
+      onSuggestionDirtyChange?.(dirty);
+    },
+    [onSuggestionDirtyChange]
+  );
 
   useEffect(() => {
     setImageZoom(IMAGE_MIN_ZOOM);
     setMaterialMode(null);
-  }, [item?.kind, item?.id]);
+    updateSuggestionDirty(false);
+  }, [item?.kind, item?.id, updateSuggestionDirty]);
+
+  const changeMaterialMode = (nextMode: MaterialMode) => {
+    if (
+      suggestionDirty &&
+      !window.confirm('Discard the unsubmitted suggestion draft and change modes?')
+    ) {
+      return;
+    }
+    updateSuggestionDirty(false);
+    setMaterialMode(nextMode);
+  };
 
   if (!item) {
     return <EmptyCenter />;
@@ -59,16 +93,16 @@ export function CenterContent({
         imageZoom={imageZoom}
         onImageZoomChange={setImageZoom}
         materialMode={materialMode}
-        onMaterialModeChange={setMaterialMode}
-        readOnly={readOnly}
+        onMaterialModeChange={changeMaterialMode}
       />
       <div className="relative min-h-0 flex-1 overflow-auto">
         {item.kind === 'material' && (
           <MaterialBody
             key={item.id}
             materialId={item.id}
-            readOnly={readOnly}
             mode={materialMode}
+            allowExternalAssets={!readOnly}
+            onSuggestionDirtyChange={updateSuggestionDirty}
           />
         )}
         {item.kind === 'file' && (
@@ -84,19 +118,30 @@ export function CenterContent({
   );
 }
 
-type MaterialMode = 'study' | 'preview' | 'edit';
+const MATERIALMODE_ICON: Record<MaterialMode, IconName> = {
+  view: 'eye',
+  study: 'quiz',
+  edit: 'write',
+  suggestion: 'write',
+};
 
-/** Default mode: notes → edit, quiz/flashcards → study, everything else →
- * inert preview. The editable Plate editor is lazy-loaded and only mounts
- * when Edit is active. */
+const MATERIALMODE_LABEL: Record<MaterialMode, string> = {
+  view: 'View',
+  study: 'Study',
+  edit: 'Edit',
+  suggestion: 'Suggestion',
+};
+
 function MaterialBody({
   materialId,
-  readOnly,
   mode,
+  allowExternalAssets,
+  onSuggestionDirtyChange,
 }: {
   materialId: string;
-  readOnly: boolean;
   mode: MaterialMode | null;
+  allowExternalAssets: boolean;
+  onSuggestionDirtyChange: (dirty: boolean) => void;
 }) {
   const { data: material, isLoading, isError } = useMaterial(materialId);
   if (isLoading) {
@@ -105,26 +150,102 @@ function MaterialBody({
   if (isError || !material) {
     return <FileError />;
   }
-  const activeMode = mode ?? defaultMaterialMode(material.kind);
+  const policy = materialModePolicy(material.kind, material.capabilities);
+  const activeMode = resolveMaterialMode(mode, policy);
 
   return (
     <div className="h-full min-h-0">
-      {activeMode === 'study' && material.kind === 'quiz' && (
-        <QuizPreview quizId={materialId} readOnly={readOnly} />
-      )}
-      {activeMode === 'study' && material.kind === 'flashcards' && (
-        <DeckPreview deckId={materialId} readOnly={readOnly} />
-      )}
-      {activeMode === 'preview' && (
-        <div className="h-full overflow-auto">
+      {activeMode === 'view' && (
+        <div className="h-full min-h-0 overflow-auto">
           <MaterialPreview content={material.content} className="mx-auto max-w-175" />
         </div>
       )}
-      {activeMode === 'edit' && (
+      {activeMode === 'study' && (
+        <MaterialStudyView
+          materialId={materialId}
+          kind={material.kind}
+          content={material.content}
+        />
+      )}
+      {isInteractiveMaterialMode(activeMode) && (
         <Suspense fallback={<FileLoading />}>
-          <NoteEditor materialId={materialId} readOnly={readOnly} />
+          <NoteEditor
+            key={`${materialId}:${activeMode}`}
+            materialId={materialId}
+            mode={activeMode}
+            allowExternalAssets={allowExternalAssets}
+            onSuggestionDirtyChange={onSuggestionDirtyChange}
+          />
         </Suspense>
       )}
+    </div>
+  );
+}
+
+function MaterialStudyView({
+  materialId,
+  kind,
+  content,
+}: {
+  materialId: string;
+  kind: MaterialKind;
+  content: string | MaterialDocument;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {kind === 'quiz' && <QuizPreviewActions quizId={materialId} />}
+      {kind === 'flashcards' && <DeckPreviewActions deckId={materialId} />}
+      <div className="min-h-0 flex-1 overflow-auto">
+        <MaterialPreview content={content} className="mx-auto max-w-175" />
+      </div>
+    </div>
+  );
+}
+
+function QuizPreviewActions({ quizId }: { quizId: string }) {
+  const quiz = useQuiz(quizId);
+  const navigate = useNavigate();
+  const summary = quiz.data
+    ? `${quiz.data.questions.length} questions`
+    : quiz.isLoading
+      ? 'Loading quiz details…'
+      : 'Quiz';
+
+  return (
+    <div className="flex items-center gap-3 border-b border-divider px-6 py-3">
+      <span className="t-meta min-w-0 flex-1 truncate text-fg-muted">{summary}</span>
+      <Button
+        size="sm"
+        variant="accent"
+        iconRight="arrowRight"
+        onClick={() => navigate({ to: '/quizzes/$quizId/attempt', params: { quizId } })}
+      >
+        Start quiz
+      </Button>
+    </div>
+  );
+}
+
+function DeckPreviewActions({ deckId }: { deckId: string }) {
+  const deck = useDeck(deckId);
+  const navigate = useNavigate();
+  const summary = deck.data
+    ? `${deck.data.cardCount} cards · ${deck.data.knownPct}% known`
+    : deck.isLoading
+      ? 'Loading deck details…'
+      : 'Flashcards';
+
+  return (
+    <div className="flex items-center gap-3 border-b border-divider px-6 py-3">
+      <span className="t-meta min-w-0 flex-1 truncate text-fg-muted">{summary}</span>
+      <Button
+        size="sm"
+        variant="accent"
+        iconRight="arrowRight"
+        onClick={() => navigate({ to: '/flashcards/$deckId', params: { deckId } })}
+      >
+        Study
+      </Button>
     </div>
   );
 }
@@ -152,76 +273,73 @@ function Header({
   onImageZoomChange,
   materialMode,
   onMaterialModeChange,
-  readOnly,
 }: {
   item: OpenItem;
   imageZoom: number;
   onImageZoomChange: (next: number) => void;
   materialMode: MaterialMode | null;
   onMaterialModeChange: (mode: MaterialMode) => void;
-  readOnly: boolean;
 }) {
   // TODO: magic wand for summary/AI related stuff, then some tool box? same action menu
-  const { icon, title, showImageZoom, modeOptions, defaultMode } = useHeader(item, readOnly);
-  const activeMode = materialMode ?? defaultMode;
+  const { icon, title, showImageZoom, modeOptions, defaultMode } = useHeader(item);
+  const activeMode =
+    materialMode && modeOptions?.some((option) => option.value === materialMode)
+      ? materialMode
+      : defaultMode;
   return (
     <div className="flex h-14 items-center gap-3 border-b border-divider px-5 py-4">
       <Icon name={icon} className="size-5.5" />
       <h2 className="t-subtitle min-w-0 flex-1 translate-y-px truncate">{title ?? '--'}</h2>
-      {modeOptions && activeMode && (
-        <SegmentedControl
-          size="sm"
-          options={modeOptions}
-          value={activeMode}
-          onChange={(value) => onMaterialModeChange(value as MaterialMode)}
-        />
-      )}
-      {showImageZoom && (
-        <div className="flex items-center gap-0.5">
-          <IconButton
-            icon="zoomOut"
-            size="sm"
-            variant="ghost-hover"
-            strokeWidth={1.5}
-            className="p-1.5"
-            label="Zoom out"
-            disabled={imageZoom <= IMAGE_MIN_ZOOM}
-            onClick={() => onImageZoomChange(clampImageZoom(imageZoom - IMAGE_ZOOM_STEP))}
-          />
-          <IconButton
-            icon="zoomIn"
-            size="sm"
-            variant="ghost-hover"
-            strokeWidth={1.5}
-            className="p-1.5"
-            label="Zoom in"
-            disabled={imageZoom >= IMAGE_MAX_ZOOM}
-            onClick={() => onImageZoomChange(clampImageZoom(imageZoom + IMAGE_ZOOM_STEP))}
-          />
-        </div>
-      )}
+      <div className="ml-auto flex items-center gap-2">
+        {modeOptions && modeOptions.length > 1 && activeMode && (
+          <Select
+            value={activeMode}
+            onValueChange={(value) => onMaterialModeChange(value as MaterialMode)}
+          >
+            <SelectTrigger variant="noOutline">
+              <SelectValue></SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {modeOptions.map((o) => (
+                  <SelectItem size="sm" key={o.value} value={o.value} className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <Icon name={MATERIALMODE_ICON[o.value]} className="size-4 -translate-y-px" />
+                      <span>{o.label}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        )}
+        {showImageZoom && (
+          <div className="flex items-center gap-0.5">
+            <IconButton
+              icon="zoomOut"
+              size="sm"
+              variant="ghost-hover"
+              strokeWidth={1.5}
+              className="p-1.5"
+              label="Zoom out"
+              disabled={imageZoom <= IMAGE_MIN_ZOOM}
+              onClick={() => onImageZoomChange(clampImageZoom(imageZoom - IMAGE_ZOOM_STEP))}
+            />
+            <IconButton
+              icon="zoomIn"
+              size="sm"
+              variant="ghost-hover"
+              strokeWidth={1.5}
+              className="p-1.5"
+              label="Zoom in"
+              disabled={imageZoom >= IMAGE_MAX_ZOOM}
+              onClick={() => onImageZoomChange(clampImageZoom(imageZoom + IMAGE_ZOOM_STEP))}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
-}
-
-function defaultMaterialMode(kind: MaterialKind): MaterialMode {
-  if (kind === 'note') return 'edit';
-  if (kind === 'quiz' || kind === 'flashcards') return 'study';
-  return 'preview';
-}
-
-function materialModeOptions(
-  kind: MaterialKind,
-  readOnly: boolean
-): { value: string; label: string }[] {
-  const hasStudyView = kind === 'quiz' || kind === 'flashcards';
-  return [
-    ...(hasStudyView
-      ? [{ value: 'study', label: kind === 'quiz' ? 'Take quiz' : 'Study cards' }]
-      : []),
-    { value: 'preview', label: 'Preview' },
-    { value: 'edit', label: readOnly ? 'Open document' : 'Edit' },
-  ];
 }
 
 function materialIcon(kind: MaterialKind): IconName {
@@ -233,21 +351,18 @@ function materialIcon(kind: MaterialKind): IconName {
     case 'flashcards':
       return 'flashcards';
     case 'note':
-      return 'notes';
+      return 'write';
     case 'mindmap':
     default:
       return 'workspaces';
   }
 }
 
-function useHeader(
-  item: OpenItem,
-  readOnly: boolean
-): {
+function useHeader(item: OpenItem): {
   icon: IconName;
   title?: string;
   showImageZoom: boolean;
-  modeOptions?: { value: string; label: string }[];
+  modeOptions?: { value: MaterialMode; label: string }[];
   defaultMode?: MaterialMode;
 } {
   const file = useFile(item.kind === 'file' ? item.id : null);
@@ -265,8 +380,11 @@ function useHeader(
     icon: materialIcon(mt.kind),
     title: mt.title,
     showImageZoom: false,
-    modeOptions: materialModeOptions(mt.kind, readOnly),
-    defaultMode: defaultMaterialMode(mt.kind),
+    modeOptions: materialModePolicy(mt.kind, mt.capabilities).modes.map((value) => ({
+      value,
+      label: MATERIALMODE_LABEL[value],
+    })),
+    defaultMode: materialModePolicy(mt.kind, mt.capabilities).defaultMode,
   };
 }
 

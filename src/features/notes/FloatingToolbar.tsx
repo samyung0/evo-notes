@@ -1,6 +1,5 @@
 import { flip, offset, useFloatingToolbar, useFloatingToolbarState } from '@platejs/floating';
 import { AIChatPlugin } from '@platejs/ai/react';
-import { SuggestionPlugin } from '@platejs/suggestion/react';
 import { KEYS } from 'platejs';
 import { useEditorId, useEditorRef, useEventEditorValue, usePluginOption } from 'platejs/react';
 import {
@@ -9,7 +8,6 @@ import {
   Italic,
   Link,
   MessageSquarePlus,
-  PencilLine,
   Sigma,
   Sparkles,
   Strikethrough,
@@ -24,8 +22,7 @@ export function FloatingToolbar() {
   const editorId = useEditorId();
   const focusedEditorId = useEventEditorValue('focus');
   const aiOpen = usePluginOption(AIChatPlugin, 'open');
-  const suggesting = usePluginOption(SuggestionPlugin, 'isSuggesting');
-  const { canEdit, canComment } = useEditorRuntime();
+  const { canComment } = useEditorRuntime();
   const collaboration = useCollaborationActions();
   const state = useFloatingToolbarState({
     editorId,
@@ -44,7 +41,7 @@ export function FloatingToolbar() {
   });
   const { clickOutsideRef, hidden, props, ref } = useFloatingToolbar(state);
 
-  if (hidden || (!canEdit && !canComment)) return null;
+  if (hidden) return null;
 
   const mark = (key: string) => {
     editor.tf.focus();
@@ -60,54 +57,50 @@ export function FloatingToolbar() {
         aria-label="Selection actions"
         className="absolute z-50 flex max-w-[90vw] items-center gap-0.5 overflow-x-auto rounded-card border border-line bg-surface p-1 shadow-pop"
       >
-        {canEdit && (
-          <>
-            <FloatingButton
-              label="AI commands"
-              onClick={() => editor.getApi(AIChatPlugin).aiChat.show()}
-            >
-              <Sparkles /> <span className="pr-1 text-xs">Ask AI</span>
-            </FloatingButton>
-            <Separator />
-            <FloatingButton label="Bold" onClick={() => mark(KEYS.bold)}>
-              <Bold />
-            </FloatingButton>
-            <FloatingButton label="Italic" onClick={() => mark(KEYS.italic)}>
-              <Italic />
-            </FloatingButton>
-            <FloatingButton label="Underline" onClick={() => mark(KEYS.underline)}>
-              <Underline />
-            </FloatingButton>
-            <FloatingButton label="Strikethrough" onClick={() => mark(KEYS.strikethrough)}>
-              <Strikethrough />
-            </FloatingButton>
-            <FloatingButton label="Inline code" onClick={() => mark(KEYS.code)}>
-              <Code2 />
-            </FloatingButton>
-            <FloatingButton
-              label="Inline equation"
-              onClick={() =>
-                editor.tf.insertNodes({
-                  type: KEYS.inlineEquation,
-                  texExpression: '',
-                  children: [{ text: '' }],
-                })
-              }
-            >
-              <Sigma />
-            </FloatingButton>
-            <FloatingButton
-              label="Link"
-              onClick={() =>
-                (
-                  document.querySelector('button[aria-label="Link"]') as HTMLButtonElement | null
-                )?.click()
-              }
-            >
-              <Link />
-            </FloatingButton>
-          </>
-        )}
+        <FloatingButton
+          label="AI commands"
+          onClick={() => editor.getApi(AIChatPlugin).aiChat.show()}
+        >
+          <Sparkles /> <span className="pr-1 text-xs">Ask AI</span>
+        </FloatingButton>
+        <Separator />
+        <FloatingButton label="Bold" onClick={() => mark(KEYS.bold)}>
+          <Bold />
+        </FloatingButton>
+        <FloatingButton label="Italic" onClick={() => mark(KEYS.italic)}>
+          <Italic />
+        </FloatingButton>
+        <FloatingButton label="Underline" onClick={() => mark(KEYS.underline)}>
+          <Underline />
+        </FloatingButton>
+        <FloatingButton label="Strikethrough" onClick={() => mark(KEYS.strikethrough)}>
+          <Strikethrough />
+        </FloatingButton>
+        <FloatingButton label="Inline code" onClick={() => mark(KEYS.code)}>
+          <Code2 />
+        </FloatingButton>
+        <FloatingButton
+          label="Inline equation"
+          onClick={() =>
+            editor.tf.insertNodes({
+              type: KEYS.inlineEquation,
+              texExpression: '',
+              children: [{ text: '' }],
+            })
+          }
+        >
+          <Sigma />
+        </FloatingButton>
+        <FloatingButton
+          label="Link"
+          onClick={() =>
+            (
+              document.querySelector('button[aria-label="Link"]') as HTMLButtonElement | null
+            )?.click()
+          }
+        >
+          <Link />
+        </FloatingButton>
         {canComment && collaboration && (
           <>
             <Separator />
@@ -115,15 +108,6 @@ export function FloatingToolbar() {
               <MessageSquarePlus />
             </FloatingButton>
           </>
-        )}
-        {canEdit && (
-          <FloatingButton
-            label={suggesting ? 'Stop suggesting' : 'Suggest edits'}
-            active={suggesting}
-            onClick={() => editor.setOption(SuggestionPlugin, 'isSuggesting', !suggesting)}
-          >
-            <PencilLine />
-          </FloatingButton>
         )}
       </div>
     </div>

@@ -2,16 +2,25 @@
  * a Plate store: no Plate hooks, no editor transforms, no edit affordances.
  * Styling is shared with the editable components via nodeStyles. */
 import type { MouseEvent } from 'react';
-import { KEYS, NodeApi, type Path } from 'platejs';
+import { getTableColumnCount } from '@platejs/table';
+import { KEYS, NodeApi, type Path, type TTableElement } from 'platejs';
 import {
   SlateElement,
   SlateLeaf,
   type SlateElementProps,
   type SlateLeafProps,
 } from 'platejs/static';
+import { cn } from '@/lib/cn';
 import { Katex } from './Katex';
 import { MediaAssetView, type MediaAssetNode } from './MediaAssetView';
 import { Mermaid } from './Mermaid';
+import {
+  QuizOptionView,
+  QuizQuestionHeader,
+  StudyBlockTimeLimit,
+  quizOptionClassName,
+  type QuizOptionRole,
+} from './StudyBlockViews';
 import type {
   FlashcardElement as FlashcardNode,
   MermaidElement as MermaidNode,
@@ -27,7 +36,6 @@ import {
   CODE_MARK_CLASS,
   COLUMN_CLASS,
   COLUMN_GROUP_CLASS,
-  DATE_CLASS,
   EQUATION_BLOCK_CLASS,
   FLASHCARD_BACK_CLASS,
   FLASHCARD_CLASS,
@@ -44,9 +52,9 @@ import {
   OL_CLASS,
   PARAGRAPH_CLASS,
   QUIZ_EXPLANATION_CLASS,
-  QUIZ_OPTION_CLASS,
-  QUIZ_PROMPT_CLASS,
-  QUIZ_QUESTION_CLASS,
+  QUIZ_REVIEW_PROMPT_CLASS,
+  QUIZ_REVIEW_QUESTION_CLASS,
+  STUDY_BLOCK_LIST_CLASS,
   TABLE_CLASS,
   TABLE_WRAP_CLASS,
   TD_CLASS,
@@ -61,10 +69,7 @@ import {
 
 /* ------------------------------------------------------------- helpers */
 
-function element(
-  as: keyof HTMLElementTagNameMap | undefined,
-  className?: string
-) {
+function element(as: keyof HTMLElementTagNameMap | undefined, className?: string) {
   return function StaticEl(props: SlateElementProps) {
     return (
       <SlateElement {...props} as={as} className={className}>
@@ -96,7 +101,6 @@ function Hr(props: SlateElementProps) {
 }
 
 function LinkElement(props: SlateElementProps) {
-  const url = String((props.element as { url?: string }).url ?? '#');
   return (
     <SlateElement
       {...props}
@@ -105,9 +109,8 @@ function LinkElement(props: SlateElementProps) {
       attributes={
         {
           ...props.attributes,
-          href: url,
           target: '_blank',
-          rel: 'noreferrer',
+          rel: 'noopener noreferrer',
         } as SlateElementProps['attributes']
       }
     >
@@ -117,9 +120,23 @@ function LinkElement(props: SlateElementProps) {
 }
 
 function Table(props: SlateElementProps) {
+  const table = props.element as TTableElement;
+  const colSizes = Array.from(
+    { length: getTableColumnCount(table) },
+    (_, index) => table.colSizes?.[index] || 120
+  );
+
   return (
     <SlateElement {...props} className={TABLE_WRAP_CLASS}>
-      <table className={TABLE_CLASS}>
+      <table
+        className={cn(TABLE_CLASS, 'table-fixed')}
+        style={{ width: colSizes.reduce((total, width) => total + width, 0) }}
+      >
+        <colgroup>
+          {colSizes.map((width, index) => (
+            <col key={index} style={{ width }} />
+          ))}
+        </colgroup>
         <tbody>{props.children}</tbody>
       </table>
     </SlateElement>
@@ -143,7 +160,9 @@ function Column(props: SlateElementProps) {
 function scrollToHeading(event: MouseEvent, headingOrder: number) {
   const root = (event.currentTarget as HTMLElement).closest('[data-slate-editor]');
   if (!root) return;
-  const heads = root.querySelectorAll(':scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6');
+  const heads = root.querySelectorAll(
+    ':scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6'
+  );
   heads[headingOrder]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -183,16 +202,6 @@ function Mention(props: SlateElementProps) {
   return (
     <SlateElement {...props} as="span" className={MENTION_CLASS}>
       <span>@{value}</span>
-      {props.children}
-    </SlateElement>
-  );
-}
-
-function DateElement(props: SlateElementProps) {
-  const date = String((props.element as { date?: string }).date ?? '');
-  return (
-    <SlateElement {...props} as="span" className={DATE_CLASS}>
-      <span>{date || 'date'}</span>
       {props.children}
     </SlateElement>
   );
@@ -254,16 +263,19 @@ function BlockShell({
 function QuizElement(props: SlateElementProps) {
   const timeLimitMin = (props.element as { timeLimitMin?: number }).timeLimitMin;
   return (
-    <BlockShell props={props} label="Quiz">
-      {timeLimitMin != null && (
-        <div className="mb-2 text-xs text-fg-muted">Time limit: {timeLimitMin} min</div>
-      )}
-    </BlockShell>
+    <SlateElement {...props} className={STUDY_BLOCK_LIST_CLASS}>
+      <StudyBlockTimeLimit minutes={timeLimitMin} />
+      {props.children}
+    </SlateElement>
   );
 }
 
 function FlashcardsElement(props: SlateElementProps) {
-  return <BlockShell props={props} label="Flashcards" />;
+  return (
+    <SlateElement {...props} className={cn(STUDY_BLOCK_LIST_CLASS, 'gap-2')}>
+      {props.children}
+    </SlateElement>
+  );
 }
 
 function MermaidElement(props: SlateElementProps) {
@@ -277,25 +289,58 @@ function MermaidElement(props: SlateElementProps) {
 
 function QuizQuestionElement(props: SlateElementProps) {
   const element = props.element as unknown as QuizQuestionNode;
+  const path = (props as { path?: Path }).path;
+  const pathIndex = path?.[path.length - 1];
+  const questionNumber = typeof pathIndex === 'number' ? pathIndex + 1 : undefined;
   return (
-    <SlateElement {...props} className={QUIZ_QUESTION_CLASS}>
-      <div className="mb-2 text-xs font-medium text-fg-muted">
-        {element.questionType.toUpperCase()}
-      </div>
+    <SlateElement {...props} className={QUIZ_REVIEW_QUESTION_CLASS}>
+      <QuizQuestionHeader
+        questionNumber={questionNumber}
+        questionType={element.questionType}
+        level={element.level}
+      />
+      {props.children}
+    </SlateElement>
+  );
+}
+
+function QuizPromptElement(props: SlateElementProps) {
+  return (
+    <SlateElement {...props} as="p" className={QUIZ_REVIEW_PROMPT_CLASS}>
       {props.children}
     </SlateElement>
   );
 }
 
 function QuizOptionElement(props: SlateElementProps) {
-  const element = props.element as unknown as QuizOptionNode;
+  const element = props.element as unknown as QuizOptionNode & {
+    explanation?: string;
+    role?: QuizOptionRole;
+  };
   const path = (props as { path?: Path }).path;
   const parent = path?.length ? NodeApi.get(props.editor, path.slice(0, -1)) : undefined;
   const question = parent?.type === 'quiz_question' ? (parent as QuizQuestionNode) : undefined;
   const correct = question?.correctOptionIds?.includes(element.id);
+  const pathIndex = path?.[path.length - 1];
+  const optionNumber = typeof pathIndex === 'number' ? pathIndex : undefined;
+
   return (
-    <SlateElement {...props} as="p" className={QUIZ_OPTION_CLASS}>
-      <span className="mr-2 text-xs text-fg-muted">{correct ? '✓' : '○'}</span>
+    <SlateElement {...props} className={quizOptionClassName(Boolean(correct), element.role)}>
+      <QuizOptionView
+        correct={Boolean(correct)}
+        role={element.role}
+        optionNumber={optionNumber}
+        explanation={element.explanation}
+      >
+        {props.children}
+      </QuizOptionView>
+    </SlateElement>
+  );
+}
+
+function QuizExplanationElement(props: SlateElementProps) {
+  return (
+    <SlateElement {...props} as="p" className={cn('col-span-2', QUIZ_EXPLANATION_CLASS)}>
       {props.children}
     </SlateElement>
   );
@@ -343,15 +388,14 @@ export const staticNoteComponents = {
   column: Column,
   toc: Toc,
   mention: Mention,
-  date: DateElement,
   equation: BlockEquation,
   inline_equation: InlineEquation,
   /* study blocks */
   quiz: QuizElement,
   quiz_question: QuizQuestionElement,
-  quiz_prompt: element('p', QUIZ_PROMPT_CLASS),
+  quiz_prompt: QuizPromptElement,
   quiz_option: QuizOptionElement,
-  quiz_explanation: element('p', QUIZ_EXPLANATION_CLASS),
+  quiz_explanation: QuizExplanationElement,
   flashcards: FlashcardsElement,
   flashcard: FlashcardElement,
   flashcard_front: element('p', FLASHCARD_FRONT_CLASS),

@@ -131,7 +131,7 @@ function ThinkingSection() {
             >
               <h4 className="t-subtitle text-inherit">{c.name}</h4>
               <span className="flex items-center gap-1.5 text-[0.72rem] opacity-70">
-                <Icon name="notes" size={13} /> Updated {new Date(c.updatedAt).toLocaleDateString()}
+                <Icon name="write" size={13} /> Updated {new Date(c.updatedAt).toLocaleDateString()}
               </span>
             </div>
           </Link>
@@ -200,7 +200,7 @@ function TasksCard() {
               items={[
                 {
                   label: m.action_edit(),
-                  icon: 'notes',
+                  icon: 'write',
                   onClick: () => openTaskEdit(t),
                 },
                 {

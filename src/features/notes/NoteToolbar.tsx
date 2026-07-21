@@ -1,21 +1,29 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { AIChatPlugin } from '@platejs/ai/react';
+import { toUnitLess } from '@platejs/basic-styles';
+import { FontSizePlugin } from '@platejs/basic-styles/react';
+import { encodeUrlIfNeeded, upsertLink, validateUrl } from '@platejs/link';
 import { ListStyleType, toggleList } from '@platejs/list';
-import { SuggestionPlugin } from '@platejs/suggestion/react';
-import { TablePlugin } from '@platejs/table/react';
+import { TablePlugin, useTableMergeState } from '@platejs/table/react';
 import { KEYS } from 'platejs';
-import { useEditorRef, useEditorSelector, usePluginOption } from 'platejs/react';
+import { useEditorPlugin, useEditorRef, useEditorSelector } from 'platejs/react';
 import type { SlatePlugin } from 'platejs';
 import {
   AlignCenter,
   AlignJustify,
   AlignLeft,
   AlignRight,
+  ArrowDown,
   ArrowDownToLine,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
   ArrowUpFromLine,
+  Baseline,
   Bold,
   Braces,
   ChevronDown,
+  Combine,
   Code2,
   FileAudio,
   FileText,
@@ -32,46 +40,69 @@ import {
   List,
   ListChecks,
   ListOrdered,
-  MessageSquarePlus,
-  MoreHorizontal,
+  Minus,
+  PaintBucket,
   Pilcrow,
+  Plus,
   Quote,
   Redo2,
   Settings2,
   Sparkles,
   Strikethrough,
   Table2,
+  Trash2,
+  Ungroup,
   Underline,
   Undo2,
+  X,
+  Grid3X3,
 } from 'lucide-react';
 import {
   Button,
+  ColorPicker,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  Input,
+  InputError,
+  InputTitle,
   Popover,
   PopoverContent,
   PopoverTrigger,
   Switch,
+  userToast,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { useNoteBlockDialogs } from './blocks/dialogContext';
 import { customBlockNode } from './blocks/shared';
-import { CommentToolbarActions, useCollaborationActions } from './Collaboration';
+import { CommentToolbarActions } from './Collaboration';
 import {
   downloadEditorFile,
   downloadEditorText,
   exportDocxDocument,
   exportMarkdownDocument,
   importDocxDocument,
+  importJsonDocument,
   importMarkdownDocument,
 } from './documentAdapters';
 import { insertMediaPlaceholder } from './MediaNodes';
 import { MaterialKit } from './plugins';
 import { type WidgetGroupId, useNoteEditorPrefs, WIDGET_GROUPS } from './noteEditorPrefs';
 import { useEditorRuntime } from './EditorRuntime';
+import { canCreateExternalEditorAssets } from './editorMode';
+import { insertEditorNode } from './insertEditorNode';
+import { getHiddenToolbarGroupIndexes } from './responsiveToolbar';
 
+// TODO: what is this
 // Plate's plugin transforms are intentionally richer than its base editor type.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyEditor = any;
@@ -82,16 +113,17 @@ function ToolbarButton({
   onClick,
   active,
   disabled,
-}: {
+  className,
+  ...rest
+}: React.ComponentProps<'button'> & {
   label: string;
-  children: React.ReactNode;
-  onClick: () => void;
   active?: boolean;
-  disabled?: boolean;
+  className?: string;
 }) {
   return (
     <button
       type="button"
+      data-slot="button"
       title={label}
       aria-label={label}
       aria-pressed={active}
@@ -100,40 +132,96 @@ function ToolbarButton({
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       className={cn(
-        'inline-flex size-8 shrink-0 items-center justify-center rounded-row outline-none',
+        'relative inline-flex size-8 shrink-0 items-center justify-center gap-1 rounded-row px-0.5 outline-none',
         'focus-visible:ring-focus hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2',
         'disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4',
-        active && 'bg-tint-accent-1 text-tint-accent-1-fg'
+        'font-semibold whitespace-nowrap transition-all duration-150 outline-none select-none',
+        active && 'bg-tint-accent-1 text-tint-accent-1-fg',
+        className
       )}
+      {...rest}
     >
       {children}
     </button>
   );
 }
 
-function ToolbarGroup({ children }: { children: React.ReactNode }) {
+function ToolbarGroup({
+  children,
+  className,
+  persistent = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  persistent?: boolean;
+}) {
   return (
-    <div className="flex shrink-0 items-center gap-0.5 after:mx-1.5 after:h-5 after:w-px after:bg-divider last:after:hidden">
+    <div
+      data-toolbar-group
+      data-toolbar-persistent={persistent || undefined}
+      className={cn(
+        'flex h-full shrink-0 items-center gap-0 after:mx-1.5 after:h-7 after:w-px after:bg-divider last:after:hidden',
+        className
+      )}
+    >
       {children}
     </div>
   );
 }
 
+function updateResponsiveToolbar(container: HTMLDivElement) {
+  const elements = Array.from(
+    container.querySelectorAll<HTMLElement>(':scope > [data-toolbar-group]')
+  );
+  elements.forEach((element) => {
+    element.hidden = false;
+  });
+  const groups = elements.map((element) => ({
+    width: element.getBoundingClientRect().width,
+    persistent: element.hasAttribute('data-toolbar-persistent'),
+  }));
+  const hiddenIndexes = getHiddenToolbarGroupIndexes(
+    groups,
+    Math.max(0, container.clientWidth - 2)
+  );
+
+  elements.forEach((element, index) => {
+    element.hidden = hiddenIndexes.has(index);
+  });
+}
+
 export function NoteToolbar({ right, className }: { right?: React.ReactNode; className?: string }) {
   const editor = useEditorRef() as AnyEditor;
-  const { canEdit, canComment } = useEditorRuntime();
+  const toolbarGroupsRef = useRef<HTMLDivElement>(null);
+  const { mode, allowExternalAssets } = useEditorRuntime();
+  const canCreateAssets = canCreateExternalEditorAssets(mode, allowExternalAssets);
   const enabled = useNoteEditorPrefs((state) => state.enabled);
   const dialogs = useNoteBlockDialogs();
-  const collaboration = useCollaborationActions();
-  const suggesting = usePluginOption(SuggestionPlugin, 'isSuggesting');
   const canUndo = useEditorSelector((ed) => ed.history.undos.length > 0, []);
   const canRedo = useEditorSelector((ed) => ed.history.redos.length > 0, []);
-  const importInput = useRef<HTMLInputElement>(null);
-  const [insertOpen, setInsertOpen] = useState(false);
+
   const [moreOpen, setMoreOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const [linkError, setLinkError] = useState('');
+
+  useLayoutEffect(() => {
+    const container = toolbarGroupsRef.current;
+    if (!container) return;
+
+    const update = () => updateResponsiveToolbar(container);
+    const resizeObserver = new ResizeObserver(update);
+    const mutationObserver = new MutationObserver(update);
+
+    update();
+    resizeObserver.observe(container);
+    mutationObserver.observe(container, { childList: true, subtree: true });
+
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, []);
 
   const mark = (key: string) => {
     editor.tf.focus();
@@ -143,30 +231,34 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
     editor.tf.focus();
     editor.tf.toggleBlock(type);
   };
-  const insertNode = (node: unknown) => {
-    editor.tf.focus();
-    editor.tf.insertNodes(node, { select: true });
-  };
-  const tableTf = editor.getTransforms(TablePlugin) as AnyEditor;
-
-  async function importFile(file: File) {
-    const document = file.name.toLowerCase().endsWith('.docx')
-      ? await importDocxDocument(editor, await file.arrayBuffer())
-      : importMarkdownDocument(editor, await file.text());
+  const insertNode = (node: unknown) => insertEditorNode(editor, node);
+  async function importFile(file: File, kind: ImportKind) {
+    const document =
+      kind === 'docx'
+        ? await importDocxDocument(editor, await file.arrayBuffer())
+        : kind === 'json'
+          ? importJsonDocument(editor, await file.text())
+          : importMarkdownDocument(editor, await file.text());
     editor.tf.insertNodes(document.value);
   }
 
   function applyLink() {
-    const url = linkUrl.trim();
+    const url = encodeUrlIfNeeded(linkUrl.trim());
     if (!url) return;
-    editor.tf.focus();
-    if (editor.api.isCollapsed()) {
-      insertNode({ type: KEYS.link, url, children: [{ text: url }] });
-    } else {
-      editor.tf.wrapNodes({ type: KEYS.link, url, children: [] }, { split: true });
+    if (!validateUrl(editor, url)) {
+      setLinkError('Enter a valid web, email, telephone, document, or anchor URL.');
+      return;
     }
+
+    editor.tf.focus();
+    if (!upsertLink(editor, { url })) {
+      setLinkError('Select text or place the cursor where the link should be inserted.');
+      return;
+    }
+
     setLinkOpen(false);
     setLinkUrl('');
+    setLinkError('');
   }
 
   return (
@@ -175,29 +267,24 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
         role="toolbar"
         aria-label="Document formatting"
         className={cn(
-          'sticky top-0 z-20 flex min-h-10 items-center border-b border-divider bg-surface/95 px-2 backdrop-blur-sm',
+          'sticky top-0 z-20 flex h-10 items-center border-b border-divider bg-surface/95 px-2 backdrop-blur-sm',
           className
         )}
       >
-        <div className="flex min-w-0 flex-1 scrollbar-none items-center overflow-x-auto">
-          {canEdit && (
-            <>
-              <ToolbarGroup>
-                <ToolbarButton
-                  label="Undo"
-                  disabled={!canUndo}
-                  onClick={() => editor.tf.undo()}
-                >
-                  <Undo2 />
-                </ToolbarButton>
-                <ToolbarButton
-                  label="Redo"
-                  disabled={!canRedo}
-                  onClick={() => editor.tf.redo()}
-                >
-                  <Redo2 />
-                </ToolbarButton>
-              </ToolbarGroup>
+        <div
+          ref={toolbarGroupsRef}
+          className="flex h-full min-w-0 flex-1 items-center overflow-hidden"
+        >
+          <>
+            <ToolbarGroup>
+              <ToolbarButton label="Undo" disabled={!canUndo} onClick={() => editor.tf.undo()}>
+                <Undo2 />
+              </ToolbarButton>
+              <ToolbarButton label="Redo" disabled={!canRedo} onClick={() => editor.tf.redo()}>
+                <Redo2 />
+              </ToolbarButton>
+            </ToolbarGroup>
+            {allowExternalAssets && (
               <ToolbarGroup>
                 <ToolbarButton
                   label="AI commands (Ctrl/Cmd+J)"
@@ -206,301 +293,243 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                   <Sparkles />
                 </ToolbarButton>
               </ToolbarGroup>
-              <ToolbarGroup>
-                <ToolbarButton
-                  label="Import Markdown, MDX, or DOCX"
-                  onClick={() => importInput.current?.click()}
-                >
-                  <ArrowUpFromLine />
-                </ToolbarButton>
-                <input
-                  ref={importInput}
-                  type="file"
-                  className="hidden"
-                  accept=".md,.mdx,.docx,text/markdown"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void importFile(file);
-                    event.target.value = '';
-                  }}
-                />
-                <Popover open={exportOpen} onOpenChange={setExportOpen}>
-                  <PopoverTrigger asChild>
-                    <span>
-                      <ToolbarButton label="Export document" onClick={() => setExportOpen(true)}>
-                        <ArrowDownToLine />
-                      </ToolbarButton>
-                    </span>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    className="w-52 border border-line bg-surface p-1 shadow-pop"
-                  >
-                    <MenuRow
-                      label="Markdown (.md)"
-                      onClick={() =>
-                        downloadEditorText(
-                          exportMarkdownDocument(editor),
-                          'document.md',
-                          'text/markdown'
-                        )
-                      }
-                    />
-                    <MenuRow
-                      label="MDX (.mdx)"
-                      onClick={() =>
-                        downloadEditorText(
-                          exportMarkdownDocument(editor),
-                          'document.mdx',
-                          'text/mdx'
-                        )
-                      }
-                    />
-                    <MenuRow
-                      label="Word (.docx)"
-                      onClick={() =>
-                        void exportDocxDocument(editor, MaterialKit as SlatePlugin[]).then((blob) =>
-                          downloadEditorFile(blob, 'document.docx')
-                        )
-                      }
-                    />
-                    <MenuRow
-                      label="Plate JSON"
-                      onClick={() =>
-                        downloadEditorText(
-                          JSON.stringify({ schemaVersion: 1, value: editor.children }, null, 2),
-                          'document.plate.json',
-                          'application/json'
-                        )
-                      }
-                    />
-                  </PopoverContent>
-                </Popover>
-              </ToolbarGroup>
-              <ToolbarGroup>
-                <BlockTypeMenu onBlock={block} />
-              </ToolbarGroup>
-              <ToolbarGroup>
-                <ToolbarButton label="Bold" onClick={() => mark(KEYS.bold)}>
-                  <Bold />
-                </ToolbarButton>
-                <ToolbarButton label="Italic" onClick={() => mark(KEYS.italic)}>
-                  <Italic />
-                </ToolbarButton>
-                <ToolbarButton label="Underline" onClick={() => mark(KEYS.underline)}>
-                  <Underline />
-                </ToolbarButton>
-                <ToolbarButton label="Strikethrough" onClick={() => mark(KEYS.strikethrough)}>
-                  <Strikethrough />
-                </ToolbarButton>
-                <ToolbarButton label="Inline code" onClick={() => mark(KEYS.code)}>
-                  <Code2 />
-                </ToolbarButton>
-                <ToolbarButton label="Highlight" onClick={() => mark(KEYS.highlight)}>
-                  <Highlighter />
-                </ToolbarButton>
-              </ToolbarGroup>
-              <ToolbarGroup>
-                <AlignMenu editor={editor} />
-                <ToolbarButton
-                  label="Numbered list"
-                  onClick={() => toggleList(editor, { listStyleType: ListStyleType.Decimal })}
-                >
-                  <ListOrdered />
-                </ToolbarButton>
-                <ToolbarButton
-                  label="Bulleted list"
-                  onClick={() => toggleList(editor, { listStyleType: ListStyleType.Disc })}
-                >
-                  <List />
-                </ToolbarButton>
-                <ToolbarButton
-                  label="Task list"
-                  onClick={() => {
-                    toggleList(editor, { listStyleType: ListStyleType.Disc });
-                    editor.tf.setNodes({ checked: false });
-                  }}
-                >
-                  <ListChecks />
-                </ToolbarButton>
-              </ToolbarGroup>
-              <ToolbarGroup>
-                <ToolbarButton label="Link" onClick={() => setLinkOpen(true)}>
-                  <Link />
-                </ToolbarButton>
-                {enabled.table && (
-                  <TableMenu
-                    onInsert={() =>
-                      tableTf.insert.table({ rowCount: 3, colCount: 3 }, { select: true })
-                    }
-                    transforms={tableTf}
-                  />
-                )}
-              </ToolbarGroup>
-              {enabled.media && (
-                <ToolbarGroup>
-                  <ToolbarButton
-                    label="Upload image"
-                    onClick={() => insertMediaPlaceholder(editor, 'img')}
-                  >
-                    <Image />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Upload video"
-                    onClick={() => insertMediaPlaceholder(editor, 'video')}
-                  >
-                    <FileVideo />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Upload audio"
-                    onClick={() => insertMediaPlaceholder(editor, 'audio')}
-                  >
-                    <FileAudio />
-                  </ToolbarButton>
-                  <ToolbarButton
-                    label="Upload file"
-                    onClick={() => insertMediaPlaceholder(editor, 'file')}
-                  >
-                    <FileText />
-                  </ToolbarButton>
-                </ToolbarGroup>
-              )}
-              <ToolbarGroup>
-                <ToolbarButton label="Outdent" onClick={() => editor.tf.outdent()}>
-                  <IndentDecrease />
-                </ToolbarButton>
-                <ToolbarButton label="Indent" onClick={() => editor.tf.indent()}>
-                  <IndentIncrease />
-                </ToolbarButton>
-                <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-                  <PopoverTrigger asChild>
-                    <span>
-                      <ToolbarButton label="More formatting" onClick={() => setMoreOpen(true)}>
-                        <MoreHorizontal />
-                      </ToolbarButton>
-                    </span>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    className="w-60 border border-line bg-surface p-1 shadow-pop"
-                  >
-                    {enabled.callout && (
-                      <MenuRow
-                        label="Callout"
-                        onClick={() =>
-                          insertNode({
-                            type: KEYS.callout,
-                            children: [{ type: KEYS.p, children: [{ text: '' }] }],
-                          })
-                        }
-                      />
-                    )}
-                    {enabled.columns && (
-                      <MenuRow label="Two columns" onClick={() => insertNode(twoColumns())} />
-                    )}
-                    {enabled.math && (
-                      <MenuRow
-                        label="Equation"
-                        onClick={() =>
-                          insertNode({
-                            type: KEYS.equation,
-                            texExpression: '',
-                            children: [{ text: '' }],
-                          })
-                        }
-                      />
-                    )}
-                    {enabled.date && (
-                      <MenuRow
-                        label="Date"
-                        onClick={() =>
-                          insertNode({
-                            type: KEYS.date,
-                            date: new Date().toISOString().slice(0, 10),
-                            children: [{ text: '' }],
-                          })
-                        }
-                      />
-                    )}
-                    {enabled.toc && (
-                      <MenuRow
-                        label="Table of contents"
-                        onClick={() => insertNode({ type: KEYS.toc, children: [{ text: '' }] })}
-                      />
-                    )}
-                    {enabled.quiz && (
-                      <MenuRow
-                        label="Quiz"
-                        onClick={() =>
-                          dialogs.openQuiz(undefined, (code) =>
-                            insertNode(customBlockNode('quiz', code))
-                          )
-                        }
-                      />
-                    )}
-                    {enabled.flashcards && (
-                      <MenuRow
-                        label="Flashcards"
-                        onClick={() =>
-                          dialogs.openFlashcards(undefined, (code) =>
-                            insertNode(customBlockNode('flashcards', code))
-                          )
-                        }
-                      />
-                    )}
-                    {enabled.mermaid && (
-                      <MenuRow
-                        label="Diagram"
-                        onClick={() =>
-                          insertNode(customBlockNode('mermaid', 'flowchart LR\n  A --> B'))
-                        }
-                      />
-                    )}
-                    <MenuRow label="Code block" onClick={() => block(KEYS.codeBlock)} />
-                    <MenuRow label="Blockquote" onClick={() => block(KEYS.blockquote)} />
-                    <MenuRow label="Subscript" onClick={() => mark(KEYS.sub)} />
-                    <MenuRow label="Superscript" onClick={() => mark(KEYS.sup)} />
-                    <MenuRow label="Clear formatting" onClick={() => editor.tf.removeMarks()} />
-                  </PopoverContent>
-                </Popover>
-              </ToolbarGroup>
-              <ToolbarGroup>
-                <ToolbarButton
-                  label={suggesting ? 'Stop suggesting' : 'Suggest edits'}
-                  active={suggesting}
-                  onClick={() => editor.setOption(SuggestionPlugin, 'isSuggesting', !suggesting)}
-                >
-                  <MessageSquarePlus />
-                </ToolbarButton>
-              </ToolbarGroup>
-            </>
-          )}
-          {(canComment || !canEdit) && (
-            <ToolbarGroup>
-              <CommentToolbarActions />
+            )}
+            <ToolbarGroup className="gap-2">
+              {canCreateAssets && <ImportMenu importFile={importFile} />}
+              <ExportMenu editor={editor} />
             </ToolbarGroup>
-          )}
+            <ToolbarGroup>
+              <BlockTypeMenu onBlock={block} />
+            </ToolbarGroup>
+            <ToolbarGroup persistent>
+              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+                <PopoverTrigger asChild>
+                  <span>
+                    <ToolbarButton label="More formatting" onClick={() => setMoreOpen(true)}>
+                      <Plus />
+                    </ToolbarButton>
+                  </span>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-60 border border-line bg-surface p-1 shadow-pop"
+                >
+                  {enabled.callout && (
+                    <MenuRow
+                      label="Callout"
+                      onClick={() =>
+                        insertNode({
+                          type: KEYS.callout,
+                          children: [{ type: KEYS.p, children: [{ text: '' }] }],
+                        })
+                      }
+                    />
+                  )}
+                  {enabled.columns && (
+                    <MenuRow label="Two columns" onClick={() => insertNode(twoColumns())} />
+                  )}
+                  {enabled.math && (
+                    <MenuRow
+                      label="Equation"
+                      onClick={() =>
+                        insertNode({
+                          type: KEYS.equation,
+                          texExpression: '',
+                          children: [{ text: '' }],
+                        })
+                      }
+                    />
+                  )}
+                  {enabled.toc && (
+                    <MenuRow
+                      label="Table of contents"
+                      onClick={() => insertNode({ type: KEYS.toc, children: [{ text: '' }] })}
+                    />
+                  )}
+                  {enabled.quiz && (
+                    <MenuRow
+                      label="Quiz"
+                      onClick={() =>
+                        dialogs.openQuiz(undefined, (code) =>
+                          insertNode(customBlockNode('quiz', code))
+                        )
+                      }
+                    />
+                  )}
+                  {enabled.flashcards && (
+                    <MenuRow
+                      label="Flashcards"
+                      onClick={() =>
+                        dialogs.openFlashcards(undefined, (code) =>
+                          insertNode(customBlockNode('flashcards', code))
+                        )
+                      }
+                    />
+                  )}
+                  {enabled.mermaid && (
+                    <MenuRow
+                      label="Diagram"
+                      onClick={() =>
+                        insertNode(customBlockNode('mermaid', 'flowchart LR\n  A --> B'))
+                      }
+                    />
+                  )}
+                  <MenuRow label="Code block" onClick={() => block(KEYS.codeBlock)} />
+                  <MenuRow label="Blockquote" onClick={() => block(KEYS.blockquote)} />
+                  <MenuRow label="Subscript" onClick={() => mark(KEYS.sub)} />
+                  <MenuRow label="Superscript" onClick={() => mark(KEYS.sup)} />
+                  <MenuRow label="Clear formatting" onClick={() => editor.tf.removeMarks()} />
+                </PopoverContent>
+              </Popover>
+            </ToolbarGroup>
+            {enabled.fontStyles && (
+              <ToolbarGroup>
+                <FontSizeControl />
+                <FontColorControl
+                  label="Text color"
+                  markKey={KEYS.color}
+                  icon={<Baseline />}
+                  fallbackColor="var(--color-fg)"
+                />
+                <FontColorControl
+                  label="Background color"
+                  markKey={KEYS.backgroundColor}
+                  icon={<PaintBucket />}
+                  fallbackColor="transparent"
+                />
+              </ToolbarGroup>
+            )}
+            <ToolbarGroup>
+              <ToolbarButton label="Bold" onClick={() => mark(KEYS.bold)}>
+                <Bold />
+              </ToolbarButton>
+              <ToolbarButton label="Italic" onClick={() => mark(KEYS.italic)}>
+                <Italic />
+              </ToolbarButton>
+              <ToolbarButton label="Underline" onClick={() => mark(KEYS.underline)}>
+                <Underline />
+              </ToolbarButton>
+              <ToolbarButton label="Strikethrough" onClick={() => mark(KEYS.strikethrough)}>
+                <Strikethrough />
+              </ToolbarButton>
+              <ToolbarButton label="Inline code" onClick={() => mark(KEYS.code)}>
+                <Code2 />
+              </ToolbarButton>
+              <ToolbarButton label="Highlight" onClick={() => mark(KEYS.highlight)}>
+                <Highlighter />
+              </ToolbarButton>
+            </ToolbarGroup>
+            <ToolbarGroup>
+              {enabled.fontStyles && <AlignMenu editor={editor} />}
+              <ToolbarButton
+                label="Numbered list"
+                onClick={() => toggleList(editor, { listStyleType: ListStyleType.Decimal })}
+              >
+                <ListOrdered />
+              </ToolbarButton>
+              <ToolbarButton
+                label="Bulleted list"
+                onClick={() => toggleList(editor, { listStyleType: ListStyleType.Disc })}
+              >
+                <List />
+              </ToolbarButton>
+              <ToolbarButton
+                label="Task list"
+                onClick={() => toggleList(editor, { listStyleType: KEYS.listTodo })}
+              >
+                <ListChecks />
+              </ToolbarButton>
+            </ToolbarGroup>
+            <ToolbarGroup>
+              <ToolbarButton
+                label="Link"
+                onClick={() => {
+                  const entry = editor.api.above({
+                    match: { type: editor.getType(KEYS.link) },
+                  });
+                  setLinkUrl(entry ? String(entry[0].url ?? '') : '');
+                  setLinkError('');
+                  setLinkOpen(true);
+                }}
+              >
+                <Link />
+              </ToolbarButton>
+              {enabled.table && <TableMenu />}
+            </ToolbarGroup>
+            {canCreateAssets && enabled.media && (
+              <ToolbarGroup>
+                <ToolbarButton
+                  label="Upload image"
+                  onClick={() => insertMediaPlaceholder(editor, 'img')}
+                >
+                  <Image />
+                </ToolbarButton>
+                <ToolbarButton
+                  label="Upload video"
+                  onClick={() => insertMediaPlaceholder(editor, 'video')}
+                >
+                  <FileVideo />
+                </ToolbarButton>
+                <ToolbarButton
+                  label="Upload audio"
+                  onClick={() => insertMediaPlaceholder(editor, 'audio')}
+                >
+                  <FileAudio />
+                </ToolbarButton>
+                <ToolbarButton
+                  label="Upload file"
+                  onClick={() => insertMediaPlaceholder(editor, 'file')}
+                >
+                  <FileText />
+                </ToolbarButton>
+              </ToolbarGroup>
+            )}
+            <ToolbarGroup>
+              <ToolbarButton label="Outdent" onClick={() => editor.tf.outdent()}>
+                <IndentDecrease />
+              </ToolbarButton>
+              <ToolbarButton label="Indent" onClick={() => editor.tf.indent()}>
+                <IndentIncrease />
+              </ToolbarButton>
+            </ToolbarGroup>
+          </>
+          <ToolbarGroup>
+            <CommentToolbarActions />
+          </ToolbarGroup>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">
           {right}
           <WidgetSettingsDialog />
         </div>
       </div>
-      <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
+      <Dialog
+        open={linkOpen}
+        onOpenChange={(open) => {
+          setLinkOpen(open);
+          if (!open) {
+            setLinkUrl('');
+            setLinkError('');
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogTitle>Insert link</DialogTitle>
-          <label className="flex flex-col gap-2">
-            <span className="t-label text-fg-muted">URL</span>
-            <input
+          <label className="flex flex-col gap-1.5">
+            <InputTitle>Link URL</InputTitle>
+            <Input
               autoFocus
               value={linkUrl}
-              onChange={(event) => setLinkUrl(event.target.value)}
+              aria-invalid={Boolean(linkError)}
+              onChange={(event) => {
+                setLinkUrl(event.target.value);
+                setLinkError('');
+              }}
               placeholder="https://example.com"
-              className="focus:ring-focus rounded-input border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus:ring-2"
               onKeyDown={(event) => {
                 if (event.key === 'Enter') applyLink();
               }}
             />
+            <InputError>{linkError}</InputError>
           </label>
           <DialogFooter>
             <Button variant="ghost-hover" onClick={() => setLinkOpen(false)}>
@@ -516,20 +545,186 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
   );
 }
 
+const DEFAULT_FONT_SIZE = 16;
+const MIN_FONT_SIZE = 8;
+const MAX_FONT_SIZE = 96;
+const FONT_SIZE_PRESETS = [8, 9, 10, 12, 14, 16, 18, 24, 30, 36, 48, 60, 72, 96] as const;
+const BLOCK_FONT_SIZES: Record<string, number> = {
+  [KEYS.h1]: 24,
+  [KEYS.h2]: 20,
+  [KEYS.h3]: 18,
+  [KEYS.h4]: 16,
+  [KEYS.h5]: 14,
+  [KEYS.h6]: 12,
+};
+
+function clampFontSize(size: number) {
+  return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, size));
+}
+
+function FontSizeControl() {
+  const [open, setOpen] = useState(false);
+  const { editor, tf } = useEditorPlugin(FontSizePlugin);
+  const cursorFontSize = useEditorSelector((currentEditor) => {
+    const markedSize = currentEditor.api.marks()?.[KEYS.fontSize];
+
+    if (markedSize != null) {
+      const parsedSize = Number.parseFloat(toUnitLess(String(markedSize)));
+      if (Number.isFinite(parsedSize)) return clampFontSize(parsedSize);
+    }
+
+    const [block] = currentEditor.api.block() ?? [];
+    return (block?.type && BLOCK_FONT_SIZES[String(block.type)]) || DEFAULT_FONT_SIZE;
+  }, []);
+
+  const setFontSize = (size: number, closePopover = false) => {
+    tf.fontSize.addMark(`${clampFontSize(size)}px`);
+    if (closePopover) setOpen(false);
+    editor.tf.focus();
+  };
+
+  return (
+    <div
+      role="group"
+      className="flex h-8 items-center overflow-hidden rounded-row border border-line"
+      aria-label="Font size"
+    >
+      <ToolbarButton
+        label="Decrease font size"
+        className="size-7 rounded-none"
+        disabled={cursorFontSize <= MIN_FONT_SIZE}
+        onClick={() => setFontSize(cursorFontSize - 1)}
+      >
+        <Minus />
+      </ToolbarButton>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            data-plate-prevent-deselect
+            aria-label={`Font size: ${cursorFontSize}`}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            title="Choose font size"
+            onMouseDown={(event) => event.preventDefault()}
+            className={cn(
+              'h-7 w-10 shrink-0 border-x border-line bg-transparent text-center text-sm font-semibold outline-none',
+              'focus-visible:ring-focus hover:bg-surface-hover-bg focus-visible:ring-2'
+            )}
+          >
+            {cursorFontSize}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="center"
+          className="max-h-64 w-14 gap-0 overflow-y-auto border border-line bg-surface p-1 shadow-pop"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            editor.tf.focus();
+          }}
+        >
+          <div role="listbox" aria-label="Font sizes">
+            {FONT_SIZE_PRESETS.map((size) => (
+              <button
+                key={size}
+                type="button"
+                role="option"
+                aria-selected={size === cursorFontSize}
+                data-plate-prevent-deselect
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setFontSize(size, true)}
+                className={cn(
+                  'flex h-8 w-full items-center justify-center rounded-row text-sm outline-none',
+                  'focus-visible:ring-focus hover:bg-surface-hover-bg focus-visible:ring-2',
+                  size === cursorFontSize && 'bg-tint-accent-1 text-tint-accent-1-fg'
+                )}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+      <ToolbarButton
+        label="Increase font size"
+        className="size-7 rounded-none"
+        disabled={cursorFontSize >= MAX_FONT_SIZE}
+        onClick={() => setFontSize(cursorFontSize + 1)}
+      >
+        <Plus />
+      </ToolbarButton>
+    </div>
+  );
+}
+
+function FontColorControl({
+  label,
+  markKey,
+  icon,
+  fallbackColor,
+}: {
+  label: string;
+  markKey: string;
+  icon: React.ReactNode;
+  fallbackColor: string;
+}) {
+  const editor = useEditorRef() as AnyEditor;
+  const [open, setOpen] = useState(false);
+  const currentColor = useEditorSelector(
+    (currentEditor) => currentEditor.api.mark(markKey) as string | undefined,
+    [markKey]
+  );
+
+  const applyColor = (color: string) => {
+    editor.tf.addMarks({ [markKey]: color });
+    setOpen(false);
+  };
+
+  const clearColor = () => {
+    editor.tf.removeMarks(markKey);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <ToolbarButton label={label} active={Boolean(currentColor)} className="relative">
+          {icon}
+          <span
+            aria-hidden
+            className="absolute right-1.5 bottom-0.5 left-1.5 h-1 rounded-pill border border-line-strong"
+            style={{ backgroundColor: currentColor || fallbackColor }}
+          />
+        </ToolbarButton>
+      </PopoverTrigger>
+      <PopoverContent
+        align="center"
+        className="w-64 border border-line bg-surface p-2.5 shadow-pop"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          editor.tf.focus();
+        }}
+      >
+        <ColorPicker value={currentColor} onChange={applyColor} onClear={clearColor} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// TODO: reflect text block style in the trigger value
 function BlockTypeMenu({ onBlock }: { onBlock: (type: string) => void }) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex h-8 items-center gap-1 rounded-row px-2 text-sm text-fg-secondary hover:bg-surface-hover-bg"
-        >
-          <Pilcrow className="size-4" />
-          <ChevronDown className="size-3" />
-        </button>
+        <ToolbarButton label="Block Type" className="size-fit h-full gap-3 py-1 pl-1.5">
+          <span className="translate-y-px">Paragraph</span>
+          <ChevronDown className="size-3! text-fg-secondary" />
+        </ToolbarButton>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-48 border border-line bg-surface p-1 shadow-pop">
+      <PopoverContent align="start" className="w-42 gap-0.5 bg-surface p-1 shadow-pop">
         <MenuRow label="Paragraph" icon={<Pilcrow />} onClick={() => onBlock(KEYS.p)} />
         <MenuRow label="Heading 1" icon={<Heading1 />} onClick={() => onBlock(KEYS.h1)} />
         <MenuRow label="Heading 2" icon={<Heading2 />} onClick={() => onBlock(KEYS.h2)} />
@@ -541,6 +736,157 @@ function BlockTypeMenu({ onBlock }: { onBlock: (type: string) => void }) {
   );
 }
 
+type ImportKind = 'markdown' | 'docx' | 'json';
+
+const IMPORT_OPTIONS: Record<
+  ImportKind,
+  { accept: string; extensions: string[]; maxBytes: number }
+> = {
+  markdown: {
+    accept: '.md,.mdx,text/markdown,text/mdx',
+    extensions: ['.md', '.mdx'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  docx: {
+    accept: '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    extensions: ['.docx'],
+    maxBytes: 25 * 1024 * 1024,
+  },
+  json: {
+    accept: '.json,.plate.json,application/json',
+    extensions: ['.json'],
+    maxBytes: 10 * 1024 * 1024,
+  },
+};
+
+function validateImportFile(file: File, kind: ImportKind) {
+  const option = IMPORT_OPTIONS[kind];
+  const name = file.name.toLowerCase();
+
+  if (!option.extensions.some((extension) => name.endsWith(extension))) {
+    throw new Error(`Choose a ${option.extensions.join(' or ')} file.`);
+  }
+  if (file.size === 0) {
+    throw new Error('The selected file is empty.');
+  }
+  if (file.size > option.maxBytes) {
+    throw new Error(`The selected file is larger than ${option.maxBytes / 1024 / 1024} MB.`);
+  }
+}
+
+function ImportMenu({
+  importFile,
+}: {
+  importFile: (file: File, kind: ImportKind) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const markdownInput = useRef<HTMLInputElement>(null);
+  const docxInput = useRef<HTMLInputElement>(null);
+  const jsonInput = useRef<HTMLInputElement>(null);
+  const inputRefs = {
+    markdown: markdownInput,
+    docx: docxInput,
+    json: jsonInput,
+  } satisfies Record<ImportKind, React.RefObject<HTMLInputElement | null>>;
+
+  const chooseFile = (kind: ImportKind) => {
+    setOpen(false);
+    inputRefs[kind].current?.click();
+  };
+
+  const handleFile = async (event: React.ChangeEvent<HTMLInputElement>, kind: ImportKind) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      validateImportFile(file, kind);
+      await importFile(file, kind);
+    } catch (cause) {
+      userToast({
+        title: 'Import failed',
+        description:
+          cause instanceof Error ? cause.message : 'The selected file could not be read.',
+      });
+    }
+  };
+
+  return (
+    <>
+      {(Object.keys(IMPORT_OPTIONS) as ImportKind[]).map((kind) => (
+        <input
+          key={kind}
+          ref={inputRefs[kind]}
+          type="file"
+          className="hidden"
+          accept={IMPORT_OPTIONS[kind].accept}
+          onChange={(event) => void handleFile(event, kind)}
+        />
+      ))}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <ToolbarButton label="Import document" className="w-9">
+            <ArrowUpFromLine />
+            <ChevronDown className="size-3! text-fg-secondary" />
+          </ToolbarButton>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          className="w-52 gap-0.5 border border-line bg-surface p-1 shadow-pop"
+        >
+          <MenuRow label="Markdown (.md, .mdx)" onClick={() => chooseFile('markdown')} />
+          <MenuRow label="Word (.docx)" onClick={() => chooseFile('docx')} />
+          <MenuRow label="Plate JSON (.json)" onClick={() => chooseFile('json')} />
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+}
+
+function ExportMenu({ editor }: { editor: AnyEditor }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <ToolbarButton label="Export document" className="w-9">
+          <ArrowDownToLine />
+          <ChevronDown className="size-3! text-fg-secondary" />
+        </ToolbarButton>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-52 gap-0.5 border border-line bg-surface p-1 shadow-pop"
+      >
+        <MenuRow
+          label="Export Markdown (.md)"
+          onClick={() =>
+            downloadEditorText(exportMarkdownDocument(editor), 'document.md', 'text/markdown')
+          }
+        />
+        <MenuRow
+          label="Export Word (.docx)"
+          onClick={() =>
+            void exportDocxDocument(editor, MaterialKit as SlatePlugin[]).then((blob) =>
+              downloadEditorFile(blob, 'document.docx')
+            )
+          }
+        />
+        <MenuRow
+          label="Export JSON"
+          onClick={() =>
+            downloadEditorText(
+              JSON.stringify({ schemaVersion: 1, value: editor.children }, null, 2),
+              'document.plate.json',
+              'application/json'
+            )
+          }
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// TODO: change this to toggle mode and remove justify
 function AlignMenu({ editor }: { editor: AnyEditor }) {
   const [open, setOpen] = useState(false);
   const align = (value: string) => editor.tf.setNodes({ align: value });
@@ -574,36 +920,170 @@ function AlignMenu({ editor }: { editor: AnyEditor }) {
   );
 }
 
-function TableMenu({ onInsert, transforms }: { onInsert: () => void; transforms: AnyEditor }) {
+function TableMenu() {
   const [open, setOpen] = useState(false);
+  const { editor, tf } = useEditorPlugin(TablePlugin);
+  const tableSelected = useEditorSelector(
+    (currentEditor) => currentEditor.api.some({ match: { type: KEYS.table } }),
+    []
+  );
+  const { canMerge, canSplit } = useTableMergeState();
+
+  const run = (action: () => void) => {
+    action();
+    editor.tf.focus();
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <span>
-          <ToolbarButton label="Table controls" onClick={() => setOpen(true)}>
-            <Table2 />
-          </ToolbarButton>
-        </span>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-52 border border-line bg-surface p-1 shadow-pop">
-        <MenuRow label="Insert 3 × 3 table" onClick={onInsert} />
-        <MenuRow
-          label="Insert row above"
-          onClick={() => transforms.insert.tableRow({ before: true })}
-        />
-        <MenuRow label="Insert row below" onClick={() => transforms.insert.tableRow()} />
-        <MenuRow
-          label="Insert column left"
-          onClick={() => transforms.insert.tableColumn({ before: true })}
-        />
-        <MenuRow label="Insert column right" onClick={() => transforms.insert.tableColumn()} />
-        <MenuRow label="Merge cells" onClick={() => transforms.table.merge()} />
-        <MenuRow label="Split cell" onClick={() => transforms.table.split()} />
-        <MenuRow label="Delete row" onClick={() => transforms.remove.tableRow()} />
-        <MenuRow label="Delete column" onClick={() => transforms.remove.tableColumn()} />
-        <MenuRow label="Delete table" onClick={() => transforms.remove.table()} />
-      </PopoverContent>
-    </Popover>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <ToolbarButton label="Table controls" active={open}>
+          <Table2 />
+        </ToolbarButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-45">
+        <DropdownMenuGroup>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Grid3X3 />
+              <span>Table</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-auto p-0">
+              <TablePicker
+                onInsert={(rowCount, colCount) => {
+                  run(() => tf.insert.table({ rowCount, colCount }, { select: true }));
+                  setOpen(false);
+                }}
+              />
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={!tableSelected}>
+              <span className="size-4" />
+              <span>Cell</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-48">
+              <DropdownMenuItem disabled={!canMerge} onSelect={() => run(() => tf.table.merge())}>
+                <Combine />
+                Merge cells
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={!canSplit} onSelect={() => run(() => tf.table.split())}>
+                <Ungroup />
+                Split cell
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={!tableSelected}>
+              <span className="size-4" />
+              <span>Row</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-48">
+              <DropdownMenuItem onSelect={() => run(() => tf.insert.tableRow({ before: true }))}>
+                <ArrowUp />
+                Insert row before
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(() => tf.insert.tableRow())}>
+                <ArrowDown />
+                Insert row after
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(() => tf.remove.tableRow())}>
+                <X />
+                Delete row
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger disabled={!tableSelected}>
+              <span className="size-4" />
+              <span>Column</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-52">
+              <DropdownMenuItem onSelect={() => run(() => tf.insert.tableColumn({ before: true }))}>
+                <ArrowLeft />
+                Insert column before
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(() => tf.insert.tableColumn())}>
+                <ArrowRight />
+                Insert column after
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => run(() => tf.remove.tableColumn())}>
+                <X />
+                Delete column
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+
+          <DropdownMenuItem disabled={!tableSelected} onSelect={() => run(() => tf.remove.table())}>
+            <Trash2 />
+            Delete table
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function TablePicker({ onInsert }: { onInsert: (rowCount: number, colCount: number) => void }) {
+  const [size, setSize] = useState({ rowCount: 3, colCount: 3 });
+  const dimension = 8;
+
+  return (
+    <div
+      role="grid"
+      tabIndex={0}
+      aria-label={`Insert ${size.rowCount} by ${size.colCount} table`}
+      className="m-0 flex flex-col gap-1 p-1 outline-none"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onInsert(size.rowCount, size.colCount);
+          return;
+        }
+
+        const next = { ...size };
+        if (event.key === 'ArrowUp') next.rowCount = Math.max(1, size.rowCount - 1);
+        else if (event.key === 'ArrowDown') next.rowCount = Math.min(dimension, size.rowCount + 1);
+        else if (event.key === 'ArrowLeft') next.colCount = Math.max(1, size.colCount - 1);
+        else if (event.key === 'ArrowRight') next.colCount = Math.min(dimension, size.colCount + 1);
+        else return;
+
+        event.preventDefault();
+        setSize(next);
+      }}
+    >
+      <div className="grid size-32 grid-cols-8 gap-0.5">
+        {Array.from({ length: dimension * dimension }, (_, index) => {
+          const row = Math.floor(index / dimension) + 1;
+          const column = (index % dimension) + 1;
+          const active = row <= size.rowCount && column <= size.colCount;
+
+          return (
+            <button
+              key={`${row}:${column}`}
+              type="button"
+              role="gridcell"
+              tabIndex={-1}
+              aria-label={`Insert ${row} by ${column} table`}
+              aria-selected={active}
+              className={cn(
+                'size-3.5 rounded-xs border border-line bg-surface outline-none',
+                active && 'border-action-accent bg-tint-accent-1'
+              )}
+              onPointerEnter={() => setSize({ rowCount: row, colCount: column })}
+              onFocus={() => setSize({ rowCount: row, colCount: column })}
+              onClick={() => onInsert(row, column)}
+            />
+          );
+        })}
+      </div>
+      <div className="text-center text-xs text-fg-secondary">
+        {size.rowCount} × {size.colCount}
+      </div>
+    </div>
   );
 }
 
@@ -611,16 +1091,22 @@ function MenuRow({
   label,
   onClick,
   icon,
-}: {
+  className,
+  ...rest
+}: React.ComponentProps<'button'> & {
   label: string;
-  onClick: () => void;
   icon?: React.ReactNode;
+  className?: string;
 }) {
   return (
     <button
       type="button"
-      className="flex w-full items-center gap-2 rounded-row px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-hover-bg [&_svg]:size-4"
+      className={cn(
+        'flex w-full items-center gap-2 rounded-row px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-hover-bg [&_svg]:size-4',
+        className
+      )}
       onClick={onClick}
+      {...rest}
     >
       {icon}
       {label}

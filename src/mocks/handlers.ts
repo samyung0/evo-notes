@@ -17,6 +17,9 @@ import type {
   Task,
   UserColor,
   Workspace,
+  WorkspaceInvite,
+  WorkspaceInviteCandidate,
+  WorkspaceMember,
 } from '@/api/types';
 import { parseFlashcardsBlock } from '@/features/materials/blocks';
 import {
@@ -49,6 +52,15 @@ const ownerMaterialAccess = {
 };
 const mockDiscussions: MaterialDiscussion[] = [];
 const mockSuggestions: MaterialSuggestion[] = [];
+const mockWorkspaceInvites: Array<WorkspaceInvite & { token?: string }> = [];
+const mockWorkspaceMembers: WorkspaceMember[] = [];
+const mockInviteCandidates: WorkspaceInviteCandidate[] = [
+  {
+    id: 'u_mock_collaborator',
+    name: 'Morgan Lee',
+    email: 'morgan@example.com',
+  },
+];
 
 const mockNodeText = (node: unknown): string => {
   if (!node || typeof node !== 'object') return '';
@@ -205,8 +217,14 @@ export const handlers = [
     await latency();
     const url = new URL(request.url);
     const q = (url.searchParams.get('q') ?? '').toLowerCase().trim();
-    const color = url.searchParams.get('color');
-    const tag = url.searchParams.get('tag');
+    const colors = (url.searchParams.get('color') ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const tags = (url.searchParams.get('tag') ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
     const sort = url.searchParams.get('sort');
     let list = [...db.workspaces];
     if (q)
@@ -214,8 +232,13 @@ export const handlers = [
         (w) =>
           w.name.toLowerCase().includes(q) || w.tags.some((t) => t.value.toLowerCase().includes(q))
       );
-    if (color) list = list.filter((w) => w.color === color);
-    if (tag) list = list.filter((w) => w.tags.some((t) => t.value === tag));
+    if (colors.length || tags.length) {
+      list = list.filter(
+        (w) =>
+          (colors.length > 0 && colors.includes(w.color)) ||
+          (tags.length > 0 && w.tags.some((t) => tags.includes(t.value)))
+      );
+    }
     return HttpResponse.json(sortWorkspaces(list, sort));
   }),
   http.get('/api/workspaces/:id', async ({ params }) => {
@@ -254,6 +277,7 @@ export const handlers = [
       capabilities: { canView: true, canEdit: true, canComment: true, canManageMembers: true },
       color: (body.color as UserColor) ?? 'green',
       privacy: body.privacy ?? 'private',
+      shareRole: 'viewer',
       tags: resolveTags('workspace', body.tags),
       chapterCount: 0,
       fileCount: 0,
@@ -272,18 +296,116 @@ export const handlers = [
     Object.assign(ws, rest);
     return HttpResponse.json(ws);
   }),
-  http.get('/api/workspaces/:id/members', async ({ params }) =>
-    HttpResponse.json([
+  http.get('/api/workspaces/:id/members', async ({ params }) => {
+    const workspaceId = String(params.id);
+    return HttpResponse.json([
       {
-        workspaceId: String(params.id),
+        workspaceId,
         userId: db.user.id,
         name: db.user.name,
         email: db.user.email,
         role: 'owner' as const,
         createdAt: db.workspaces.find((workspace) => workspace.id === params.id)?.createdAt ?? '',
       },
-    ])
+      ...mockWorkspaceMembers.filter((member) => member.workspaceId === workspaceId),
+    ]);
+  }),
+  http.get('/api/workspaces/:id/invite-candidates', async ({ params, request }) => {
+    const workspaceId = String(params.id);
+    const query = new URL(request.url).searchParams.get('q')?.trim().toLowerCase() ?? '';
+    const memberIds = new Set(
+      mockWorkspaceMembers
+        .filter((member) => member.workspaceId === workspaceId)
+        .map((member) => member.userId)
+    );
+    const pendingIds = new Set(
+      mockWorkspaceInvites
+        .filter((invite) => invite.workspaceId === workspaceId && !invite.acceptedAt)
+        .map((invite) => invite.invitedUserId)
+    );
+    return HttpResponse.json(
+      mockInviteCandidates.filter(
+        (candidate) =>
+          !memberIds.has(candidate.id) &&
+          !pendingIds.has(candidate.id) &&
+          (candidate.name.toLowerCase().includes(query) ||
+            candidate.email.toLowerCase().includes(query))
+      )
+    );
+  }),
+  http.get('/api/workspaces/:id/invites', async ({ params }) =>
+    HttpResponse.json(
+      mockWorkspaceInvites
+        .filter((invite) => invite.workspaceId === String(params.id))
+        .map(({ token: _token, ...invite }) => invite)
+    )
   ),
+  http.post('/api/workspaces/:id/invites', async ({ params, request }) => {
+    const body = (await request.json()) as {
+      userId: string;
+      role: Exclude<WorkspaceMember['role'], 'owner'>;
+    };
+    const candidate = mockInviteCandidates.find((item) => item.id === body.userId);
+    if (!candidate) return new HttpResponse(null, { status: 404 });
+    const now = new Date();
+    const invite: WorkspaceInvite & { token: string } = {
+      id: uid('invite'),
+      workspaceId: String(params.id),
+      invitedUserId: candidate.id,
+      email: candidate.email,
+      role: body.role,
+      token: uid('invite-token'),
+      invitedBy: db.user.id,
+      expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: now.toISOString(),
+    };
+    mockWorkspaceInvites.push(invite);
+    return HttpResponse.json(invite, { status: 201 });
+  }),
+  http.delete('/api/workspaces/:id/invites/:inviteId', async ({ params }) => {
+    const invite = mockWorkspaceInvites.find(
+      (item) => item.id === params.inviteId && item.workspaceId === params.id
+    );
+    if (!invite) return new HttpResponse(null, { status: 404 });
+    invite.revokedAt = new Date().toISOString();
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.patch('/api/workspaces/:id/members/:memberId', async ({ params, request }) => {
+    const member = mockWorkspaceMembers.find(
+      (item) => item.workspaceId === params.id && item.userId === params.memberId
+    );
+    if (!member) return new HttpResponse(null, { status: 404 });
+    const body = (await request.json()) as { role: WorkspaceMember['role'] };
+    member.role = body.role;
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.delete('/api/workspaces/:id/members/:memberId', async ({ params }) => {
+    const index = mockWorkspaceMembers.findIndex(
+      (item) => item.workspaceId === params.id && item.userId === params.memberId
+    );
+    if (index < 0) return new HttpResponse(null, { status: 404 });
+    mockWorkspaceMembers.splice(index, 1);
+    return new HttpResponse(null, { status: 204 });
+  }),
+  http.post('/api/workspace-invites/:token/accept', async ({ params }) => {
+    const invite = mockWorkspaceInvites.find(
+      (item) => item.token === params.token && !item.revokedAt && !item.acceptedAt
+    );
+    if (!invite) return new HttpResponse(null, { status: 404 });
+    invite.acceptedAt = new Date().toISOString();
+    const candidate = mockInviteCandidates.find((item) => item.id === invite.invitedUserId);
+    const member: WorkspaceMember = {
+      workspaceId: invite.workspaceId,
+      userId: invite.invitedUserId ?? 'u_mock_collaborator',
+      name: candidate?.name ?? invite.email,
+      email: invite.email,
+      avatarUrl: candidate?.avatarUrl,
+      role: invite.role,
+      createdAt: invite.acceptedAt,
+    };
+    mockWorkspaceMembers.push(member);
+    return HttpResponse.json(member);
+  }),
   http.delete('/api/workspaces/:id', async ({ params }) => {
     const i = db.workspaces.findIndex((w) => w.id === params.id);
     if (i >= 0) db.workspaces.splice(i, 1);
@@ -603,7 +725,24 @@ export const handlers = [
   http.patch('/api/material-suggestions/:id', async ({ params, request }) => {
     const suggestion = mockSuggestions.find((item) => item.id === params.id);
     if (!suggestion) return new HttpResponse(null, { status: 404 });
-    const body = (await request.json()) as { status: MaterialSuggestion['status'] };
+    const body = (await request.json()) as {
+      status: MaterialSuggestion['status'];
+      finalizedContent?: Material['content'];
+      expectedBaseRevision?: number;
+    };
+    if (body.status === 'accepted') {
+      const material = db.materials.find((item) => item.id === suggestion.materialId);
+      if (
+        !material ||
+        !body.finalizedContent ||
+        body.expectedBaseRevision !== suggestion.baseRevision ||
+        body.expectedBaseRevision !== (material.revision ?? 1)
+      ) {
+        return HttpResponse.json({ message: 'material revision is stale' }, { status: 409 });
+      }
+      material.content = body.finalizedContent;
+      material.revision = (material.revision ?? 1) + 1;
+    }
     suggestion.status = body.status;
     suggestion.reviewedBy = db.user.id;
     suggestion.reviewedAt = new Date().toISOString();

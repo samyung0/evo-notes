@@ -15,6 +15,8 @@ export function TimeGrid({
   labels,
   selectedId,
   onCreateSlot,
+  onSelectEvent,
+  autoScrollTracker,
   scrollContainerRef,
   hideHeader = false,
 }: {
@@ -23,6 +25,12 @@ export function TimeGrid({
   labels: Label[];
   selectedId: string | null;
   onCreateSlot?: (start: Date, end: Date) => void;
+  onSelectEvent?: (event: CalendarEvent) => void;
+  autoScrollTracker?: {
+    hasRun: () => boolean;
+    markRun: (scrollTop: number) => void;
+    getPosition?: () => number | null;
+  };
   scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   hideHeader?: boolean;
 }) {
@@ -32,21 +40,32 @@ export function TimeGrid({
   const isWeek = days.length > 1;
 
   const nowRef = useRef<HTMLDivElement>(null);
+  const didScrollToNow = useRef(false);
   const [pendingSlot, setPendingSlot] = useState<{ day: string; hour: number } | null>(null);
   const [hoverSlot, setHoverSlot] = useState<{ day: string; hour: number } | null>(null);
   const isEventFormOpen = useDialogs((s) => s.eventForm !== null);
 
-  // auto-scroll so the now-line sits ~30% from the top of the viewport.
+  // Auto-scroll once per grid mount by default. Schedule supplies a visit-level
+  // tracker because its ?event= updates can remount this component.
   useEffect(() => {
-    if (todayIdx < 0) return;
+    if (didScrollToNow.current) return;
     const c = scrollContainerRef?.current;
+    if (!c) return;
+    if (autoScrollTracker?.hasRun()) {
+      const savedPosition = autoScrollTracker.getPosition?.();
+      if (savedPosition != null) c.scrollTop = savedPosition;
+      didScrollToNow.current = true;
+      return;
+    }
+    if (todayIdx < 0) return;
     const n = nowRef.current;
-    if (!c || !n) return;
+    if (!n) return;
     const cr = c.getBoundingClientRect();
     const nr = n.getBoundingClientRect();
     c.scrollTop += nr.top - cr.top - cr.height * 0.3;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days.map((d) => d.toDateString()).join()]);
+    didScrollToNow.current = true;
+    autoScrollTracker?.markRun(c.scrollTop);
+  }, [autoScrollTracker, todayIdx, scrollContainerRef]);
 
   // drop the pending highlight once the data updates (e.g. event created).
   useEffect(() => setPendingSlot(null), [events]);
@@ -93,7 +112,7 @@ export function TimeGrid({
             const isToday = sameDay(d, today);
             return (
               <div
-                key={d.toISOString()}
+                key={d.toDateString()}
                 className={cn(
                   'flex-1 py-2 text-center',
                   isToday && isWeek && 'rounded-t-xl bg-page/70'
@@ -129,7 +148,7 @@ export function TimeGrid({
             const dayEvents = events.filter((e) => sameDay(new Date(e.start), d));
             return (
               <div
-                key={d.toISOString()}
+                key={d.toDateString()}
                 onClick={(e) => handleSlotClick(d, e)}
                 onMouseMove={
                   onCreateSlot
@@ -178,22 +197,47 @@ export function TimeGrid({
                   const c = colorFor(ev);
                   const top = hourOf(ev.start) * HOUR_H;
                   const height = Math.max(24, (hourOf(ev.end) - hourOf(ev.start)) * HOUR_H);
+                  const content = (
+                    <>
+                      <span className="block truncate text-xs font-bold">{ev.title}</span>
+                      <span className="block truncate text-xs font-semibold opacity-80">
+                        {fmtTime(ev.start)}
+                      </span>
+                    </>
+                  );
+                  const className = cn(
+                    'absolute right-1 left-1 z-2 flex flex-col overflow-hidden rounded-row px-2 py-1.5 text-left shadow-xs',
+                    selectedId === ev.id && 'ring-2 ring-fg'
+                  );
+                  const style = { top, height, background: c.bg, color: c.fg };
+
+                  if (onSelectEvent) {
+                    return (
+                      <button
+                        key={ev.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectEvent(ev);
+                        }}
+                        className={className}
+                        style={style}
+                      >
+                        {content}
+                      </button>
+                    );
+                  }
+
                   return (
                     <Link
                       key={ev.id}
                       to="/schedule"
                       search={{ event: ev.id }}
                       onClick={(e) => e.stopPropagation()}
-                      className={cn(
-                        'absolute right-1 left-1 z-2 flex flex-col overflow-hidden rounded-row px-2 py-1.5 text-left shadow-xs',
-                        selectedId === ev.id && 'ring-2 ring-fg'
-                      )}
-                      style={{ top, height, background: c.bg, color: c.fg }}
+                      className={className}
+                      style={style}
                     >
-                      <span className="block truncate text-xs font-bold">{ev.title}</span>
-                      <span className="block truncate text-xs font-semibold opacity-80">
-                        {fmtTime(ev.start)}
-                      </span>
+                      {content}
                     </Link>
                   );
                 })}

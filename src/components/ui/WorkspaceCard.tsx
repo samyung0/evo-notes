@@ -19,6 +19,7 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const del = useDeleteWorkspace();
   const update = useUpdateWorkspace();
   const [shareOpen, setShareOpen] = useState(false);
+  const canManage = workspace.capabilities.canManageMembers;
   const openWorkspaceEdit = useDialogs((s) => s.openWorkspaceEdit);
   // const openWorkspaceStats = useDialogs((s) => s.openWorkspaceStats);
   const openConfirm = useDialogs((s) => s.openConfirm);
@@ -60,47 +61,49 @@ export function WorkspaceCard({ workspace }: { workspace: Workspace }) {
           </div>
         </Card>
       </Link>
-      <div className="absolute top-3 right-3 z-50">
-        <Menu
-          items={[
-            {
-              label: m.action_edit(),
-              icon: 'settings',
-              onClick: () => openWorkspaceEdit(workspace, workspace.id),
-            },
-            // {
-            //   label: m.action_view_stats(),
-            //   icon: 'quiz',
-            //   onClick: () => openWorkspaceStats(workspace.id),
-            // },
-            {
-              label: 'Share',
-              icon: 'link',
-              onClick: () => setShareOpen(true),
-            },
-            {
-              label: m.action_delete(),
-              icon: 'trash',
-              danger: true,
-              onClick: () =>
-                openConfirm({
-                  title: m.confirm_delete_title({ name: workspace.name }),
-                  body: m.confirm_delete_body(),
-                  onConfirm: () => del.mutate(workspace.id),
-                }),
-            },
-          ]}
-        />
-      </div>
-      <ShareDialog
-        open={shareOpen}
-        onClose={() => setShareOpen(false)}
-        title={`Share ${workspace.name}`}
-        privacy={workspace.privacy}
-        link={`/share/workspaces/${workspace.id}`}
-        saving={update.isPending}
-        onPrivacyChange={(privacy) => update.mutate({ id: workspace.id, privacy })}
-      />
+      {canManage && (
+        <>
+          <div className="absolute top-3 right-3 z-50">
+            <Menu
+              items={[
+                {
+                  label: m.action_edit(),
+                  icon: 'settings',
+                  onClick: () => openWorkspaceEdit(workspace, workspace.id),
+                },
+                {
+                  label: 'Share',
+                  icon: 'link',
+                  onClick: () => setShareOpen(true),
+                },
+                {
+                  label: m.action_delete(),
+                  icon: 'trash',
+                  danger: true,
+                  onClick: () =>
+                    openConfirm({
+                      title: m.confirm_delete_title({ name: workspace.name }),
+                      body: m.confirm_delete_body(),
+                      onConfirm: () => del.mutate(workspace.id),
+                    }),
+                },
+              ]}
+            />
+          </div>
+          <ShareDialog
+            open={shareOpen}
+            onClose={() => setShareOpen(false)}
+            title={`Share ${workspace.name}`}
+            privacy={workspace.privacy}
+            link={`/share/workspaces/${workspace.id}`}
+            saving={update.isPending}
+            workspaceId={workspace.id}
+            shareRole={workspace.shareRole ?? 'viewer'}
+            onPrivacyChange={(privacy) => update.mutate({ id: workspace.id, privacy })}
+            onShareRoleChange={(shareRole) => update.mutate({ id: workspace.id, shareRole })}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/evonotes/server/internal/httpapi/apimodel"
+	"github.com/evonotes/server/internal/materialdoc"
 	"github.com/evonotes/server/internal/store"
 )
 
@@ -118,14 +119,39 @@ func (a *api) updateMaterialSuggestionStatus(
 	if err != nil {
 		return nil, collaborationError(err)
 	}
-	role, err := a.s.MaterialRole(ctx, userID(ctx), suggestion.MaterialID)
+	role, err := a.s.MaterialEffectiveRole(ctx, userID(ctx), suggestion.MaterialID)
 	if err != nil {
 		return nil, collaborationError(err)
 	}
 	if !store.CanSetSuggestionStatus(role, suggestion.UserID == userID(ctx), in.Body.Status) {
 		return nil, collaborationError(store.ErrForbidden)
 	}
-	updated, err := a.s.SetMaterialSuggestionStatus(ctx, in.ID, userID(ctx), in.Body.Status)
+	var updated store.MaterialSuggestion
+	if in.Body.Status == store.SuggestionAccepted {
+		if in.Body.FinalizedContent == nil || in.Body.ExpectedBaseRevision == nil {
+			return nil, huma.Error400BadRequest(
+				"finalizedContent and expectedBaseRevision are required when accepting a suggestion",
+			)
+		}
+		finalized, marshalErr := materialdoc.Marshal(*in.Body.FinalizedContent)
+		if marshalErr != nil {
+			return nil, collaborationError(marshalErr)
+		}
+		updated, err = a.s.AcceptMaterialSuggestion(
+			ctx,
+			in.ID,
+			userID(ctx),
+			finalized,
+			*in.Body.ExpectedBaseRevision,
+		)
+	} else {
+		if in.Body.FinalizedContent != nil || in.Body.ExpectedBaseRevision != nil {
+			return nil, huma.Error400BadRequest(
+				"finalizedContent and expectedBaseRevision are only valid when accepting a suggestion",
+			)
+		}
+		updated, err = a.s.SetMaterialSuggestionStatus(ctx, in.ID, userID(ctx), in.Body.Status)
+	}
 	if err != nil {
 		return nil, collaborationError(err)
 	}
@@ -140,7 +166,7 @@ func (a *api) withdrawMaterialSuggestion(
 	if err != nil {
 		return nil, collaborationError(err)
 	}
-	role, err := a.s.MaterialRole(ctx, userID(ctx), suggestion.MaterialID)
+	role, err := a.s.MaterialEffectiveRole(ctx, userID(ctx), suggestion.MaterialID)
 	if err != nil {
 		return nil, collaborationError(err)
 	}

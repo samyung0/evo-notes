@@ -14,7 +14,9 @@ test.describe('workspace sharing', () => {
     expect(body.capabilities.canEdit).toBe(true);
     expect(body.capabilities.canManageMembers).toBe(true);
 
-    await expect(ownerPage.getByRole('heading', { name: seed.privateWorkspace.name })).toBeVisible();
+    await expect(
+      ownerPage.getByRole('heading', { name: seed.privateWorkspace.name })
+    ).toBeVisible();
     await expect(ownerPage.getByRole('button', { name: 'Share' })).toBeVisible();
     await expect(ownerPage.getByRole('button', { name: /Add file/i })).toBeVisible();
     await expect(ownerPage.getByRole('button', { name: 'Clone workspace' })).toHaveCount(0);
@@ -64,16 +66,19 @@ test.describe('workspace sharing', () => {
   }) => {
     try {
       await ownerPage.goto(`/workspaces/${seed.mutateWorkspace.id}`);
-      await expect(ownerPage.getByRole('heading', { name: seed.mutateWorkspace.name })).toBeVisible();
+      await expect(
+        ownerPage.getByRole('heading', { name: seed.mutateWorkspace.name })
+      ).toBeVisible();
       await ownerPage.getByRole('button', { name: 'Share' }).click();
 
       const patchPromise = waitForApi(
         ownerPage,
         apiEndsWith(`/api/workspaces/${seed.mutateWorkspace.id}`, 'PATCH')
       );
-      await ownerPage.getByRole('combobox').click();
+      await ownerPage.getByRole('combobox').first().click();
       await ownerPage.getByRole('option', { name: /Shared link/i }).click();
       expect((await patchPromise).status()).toBe(200);
+      await expect(ownerPage.getByRole('combobox').nth(1)).toContainText('Can view');
 
       for (const page of [anonymousPage, otherPage]) {
         const resPromise = waitForApi(
@@ -167,6 +172,68 @@ test.describe('workspace sharing', () => {
 
     const chapter = await otherApi.post(`/api/workspaces/${seed.linkWorkspace.id}/chapters`, {
       data: { name: 'Injected' },
+    });
+    expect(chapter.status()).toBe(404);
+  });
+
+  test('shared roles grant material-only writes to signed-in users', async ({ otherApi, seed }) => {
+    const commenterMaterial = await otherApi.get(`/api/materials/${seed.commenterNote.id}`);
+    expect(commenterMaterial.status()).toBe(200);
+    const commenterBody = await commenterMaterial.json();
+    expect(commenterBody.content, JSON.stringify(commenterBody)).toBeDefined();
+    expect(commenterBody.capabilities).toMatchObject({
+      canView: true,
+      canComment: true,
+      canEdit: false,
+    });
+
+    const commenterEdit = await otherApi.patch(`/api/materials/${seed.commenterNote.id}`, {
+      data: {
+        content: commenterBody.content,
+        expectedRevision: commenterBody.revision,
+      },
+    });
+    expect(commenterEdit.status()).toBe(403);
+
+    const suggestion = await otherApi.post(`/api/materials/${seed.commenterNote.id}/suggestions`, {
+      data: {
+        baseRevision: commenterBody.revision,
+        anchor: {},
+        originalFragment: commenterBody.content.value,
+        proposedFragment: commenterBody.content.value,
+      },
+    });
+    expect(suggestion.status()).toBe(201);
+
+    const editorMaterial = await otherApi.get(`/api/materials/${seed.editableNote.id}`);
+    expect(editorMaterial.status()).toBe(200);
+    const editorBody = await editorMaterial.json();
+    expect(editorBody.capabilities).toMatchObject({
+      canView: true,
+      canComment: true,
+      canEdit: true,
+    });
+
+    const contentEdit = await otherApi.patch(`/api/materials/${seed.editableNote.id}`, {
+      data: {
+        content: editorBody.content,
+        expectedRevision: editorBody.revision,
+      },
+    });
+    expect(contentEdit.status()).toBe(200);
+
+    const metadataEdit = await otherApi.patch(`/api/materials/${seed.editableNote.id}`, {
+      data: {
+        title: 'Shared editor must not rename',
+        expectedRevision: (await contentEdit.json()).revision,
+      },
+    });
+    expect(metadataEdit.status()).toBe(403);
+
+    const remove = await otherApi.delete(`/api/materials/${seed.editableNote.id}`);
+    expect(remove.status()).toBe(404);
+    const chapter = await otherApi.post(`/api/workspaces/${seed.editableWorkspace.id}/chapters`, {
+      data: { name: 'Shared editors cannot add chapters' },
     });
     expect(chapter.status()).toBe(404);
   });

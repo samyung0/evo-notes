@@ -36,14 +36,12 @@ import {
   FontColorPlugin,
   FontFamilyPlugin,
   FontSizePlugin,
-  LineHeightPlugin,
   TextAlignPlugin,
 } from '@platejs/basic-styles/react';
 import { CalloutPlugin } from '@platejs/callout/react';
 import { CaptionPlugin } from '@platejs/caption/react';
 import { CodeBlockRules } from '@platejs/code-block';
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from '@platejs/code-block/react';
-import { DatePlugin } from '@platejs/date/react';
 import { DndPlugin } from '@platejs/dnd';
 import { DocxPlugin } from '@platejs/docx';
 import { IndentPlugin } from '@platejs/indent/react';
@@ -52,7 +50,7 @@ import { ColumnItemPlugin, ColumnPlugin } from '@platejs/layout/react';
 import { LinkRules } from '@platejs/link';
 import { LinkPlugin } from '@platejs/link/react';
 import { BulletedListRules, isOrderedList, OrderedListRules, TaskListRules } from '@platejs/list';
-import { ListPlugin } from '@platejs/list/react';
+import { ListPlugin, useTodoListElement, useTodoListElementState } from '@platejs/list/react';
 import { MathRules } from '@platejs/math';
 import { EquationPlugin, InlineEquationPlugin } from '@platejs/math/react';
 import {
@@ -79,19 +77,22 @@ import {
   ExitBreakPlugin,
   KEYS,
   TrailingBlockPlugin,
+  type TElement,
   type SlateEditor,
 } from 'platejs';
 import { BlockPlaceholderPlugin, ParagraphPlugin, type RenderNodeWrapper } from 'platejs/react';
 import { createElement } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { customBlockPlugins } from './blocks/plugins';
 import { BlockContextMenu, BlockDraggable } from './BlockInteractions';
 import { buildCollaborationPlugins, type EditorCollaborationOptions } from './Collaboration';
 import { MediaPlaceholderElement } from './MediaNodes';
 import { MentionInputElement } from './MentionInput';
 import { SlashInputElement } from './SlashInput';
 import { buildAiPlugins } from './ai/PlateAi';
+import { customBlockPlugins } from './blocks/plugins';
+import { canCreateExternalEditorAssets, type NoteEditorMode } from './editorMode';
+import { LinkFloatingToolbar } from './LinkFloatingToolbar';
 import { noteMarkdownPlugin } from './markdown';
 
 // Plugin-derived editor types are intentionally wider than Plate's base tuple.
@@ -102,6 +103,46 @@ type AnyPlugin = any;
 // is roughly a megabyte of grammars that almost no document uses.
 const lowlight = createLowlight(common);
 const listTargets = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock, KEYS.img];
+
+function TodoListItem({
+  element,
+  children,
+}: {
+  element: TElement & { checked?: boolean; indent?: number };
+  children: React.ReactNode;
+}) {
+  const state = useTodoListElementState({ element });
+  const { checkboxProps } = useTodoListElement(state);
+
+  return createElement(
+    'div',
+    {
+      className: 'relative my-1 flex items-start gap-2',
+      style: { marginLeft: element.indent ? `${element.indent * 24}px` : undefined },
+    },
+    createElement('input', {
+      'aria-label': checkboxProps.checked ? 'Mark task incomplete' : 'Mark task complete',
+      checked: checkboxProps.checked,
+      className:
+        'mt-2 size-4 shrink-0 cursor-pointer rounded border-line-strong accent-action-accent',
+      contentEditable: false,
+      disabled: state.readOnly,
+      type: 'checkbox',
+      onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+        checkboxProps.onCheckedChange(event.target.checked),
+      onMouseDown: checkboxProps.onMouseDown,
+    }),
+    createElement(
+      'div',
+      {
+        className: checkboxProps.checked
+          ? 'min-w-0 flex-1 text-fg-muted line-through'
+          : 'min-w-0 flex-1',
+      },
+      children
+    )
+  );
+}
 
 const IndentListKit = [
   IndentPlugin.configure({
@@ -134,7 +175,18 @@ const IndentListKit = [
     },
     render: {
       belowNodes: ((props) => {
-        if (!props.element.listStyleType || !isOrderedList(props.element)) return;
+        if (!props.element.listStyleType) return;
+
+        if (props.element.listStyleType === KEYS.listTodo) {
+          return (nextProps) =>
+            createElement(TodoListItem, {
+              element: nextProps.element,
+              children: nextProps.children,
+            });
+        }
+
+        if (!isOrderedList(props.element)) return;
+
         return (nextProps) => {
           const element = nextProps.element as {
             indent?: number;
@@ -288,34 +340,39 @@ const MediaKit = [
   }),
 ];
 
-const BlockInteractionKit = [
-  BlockSelectionPlugin.configure(({ editor }) => ({
-    options: {
-      enableContextMenu: true,
-      isSelectable: (element) =>
-        ![
-          editor.getType(KEYS.column),
-          editor.getType(KEYS.codeLine),
-          editor.getType(KEYS.td),
-        ].includes(element.type),
-    },
-  })),
-  BlockMenuPlugin.configure({ render: { aboveEditable: BlockContextMenu } }),
-  DndPlugin.configure({
-    options: {
-      enableScroller: true,
-      onDropFiles: ({ dragItem, editor, target }) =>
-        editor.getTransforms(PlaceholderPlugin).insert.media(dragItem.files, {
-          at: target,
-          nextBlock: false,
-        }),
-    },
-    render: {
-      aboveNodes: BlockDraggable,
-      aboveSlate: ({ children }) => createElement(DndProvider, { backend: HTML5Backend }, children),
-    },
-  }),
-];
+function buildBlockInteractionKit(mode: NoteEditorMode, allowExternalAssets: boolean) {
+  return [
+    BlockSelectionPlugin.configure(({ editor }) => ({
+      options: {
+        enableContextMenu: true,
+        isSelectable: (element) =>
+          ![
+            editor.getType(KEYS.column),
+            editor.getType(KEYS.codeLine),
+            editor.getType(KEYS.td),
+          ].includes(element.type),
+      },
+    })),
+    BlockMenuPlugin.configure({ render: { aboveEditable: BlockContextMenu } }),
+    DndPlugin.configure({
+      options: {
+        enableScroller: true,
+        onDropFiles: ({ dragItem, editor, target }) => {
+          if (!canCreateExternalEditorAssets(mode, allowExternalAssets)) return;
+          return editor.getTransforms(PlaceholderPlugin).insert.media(dragItem.files, {
+            at: target,
+            nextBlock: false,
+          });
+        },
+      },
+      render: {
+        aboveNodes: BlockDraggable,
+        aboveSlate: ({ children }) =>
+          createElement(DndProvider, { backend: HTML5Backend }, children),
+      },
+    }),
+  ];
+}
 
 /** Plugins needed by both interactive and static universal document surfaces. */
 export const MaterialKit: AnyPlugin[] = [
@@ -329,6 +386,9 @@ export const MaterialKit: AnyPlugin[] = [
       LinkRules.autolink({ variant: 'space' }),
       LinkRules.autolink({ variant: 'break' }),
     ],
+    render: {
+      afterEditable: () => createElement(LinkFloatingToolbar),
+    },
   }),
   CodeBlockPlugin.configure({
     inputRules: [CodeBlockRules.markdown({ on: 'match' })],
@@ -337,7 +397,7 @@ export const MaterialKit: AnyPlugin[] = [
   }),
   CodeLinePlugin,
   CodeSyntaxPlugin,
-  TablePlugin,
+  TablePlugin.configure({ options: { minColumnWidth: 48 } }),
   TableRowPlugin,
   TableCellPlugin,
   TableCellHeaderPlugin,
@@ -348,12 +408,11 @@ export const MaterialKit: AnyPlugin[] = [
   ColumnItemPlugin,
   InlineEquationPlugin.configure({ inputRules: [MathRules.markdown({ variant: '$' })] }),
   EquationPlugin.configure({ inputRules: [MathRules.markdown({ on: 'break', variant: '$$' })] }),
-  DatePlugin,
   MentionPlugin.configure({ options: { triggerPreviousCharPattern: /^$|^[\s"']$/ } }),
   MentionInputPlugin.withComponent(MentionInputElement),
-  FontColorPlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
-  FontBackgroundColorPlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
-  FontSizePlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
+  FontColorPlugin,
+  FontBackgroundColorPlugin,
+  FontSizePlugin,
   FontFamilyPlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
   TextAlignPlugin.configure({
     inject: {
@@ -366,12 +425,6 @@ export const MaterialKit: AnyPlugin[] = [
       targetPlugins: [...KEYS.heading, KEYS.p, KEYS.img],
     },
   }),
-  LineHeightPlugin.configure({
-    inject: {
-      nodeProps: { defaultNodeValue: 1.5, validNodeValues: [1, 1.2, 1.5, 2, 3] },
-      targetPlugins: [...KEYS.heading, KEYS.p],
-    },
-  }),
   ...customBlockPlugins,
   DocxPlugin,
   JuicePlugin,
@@ -380,18 +433,23 @@ export const MaterialKit: AnyPlugin[] = [
 
 export interface BuildPluginsOptions extends EditorCollaborationOptions {
   workspaceId: string;
+  mode: NoteEditorMode;
+  allowExternalAssets: boolean;
 }
+
+// TODO: allow direct recording with audio/video uploads
+// TODO: fix right click to select block, sometimes the browser default right click takes over (e.g. when I clicked in a text block and the blinking cursor was in the text, the browser right click menu took over instead of the block context menu)
 
 /** Full playground registry. Preferences filter commands only; no document
  * parser or renderer plugin is ever unloaded. */
 export function buildPlugins(options: BuildPluginsOptions): AnyPlugin[] {
   return [
-    ...buildAiPlugins(options.workspaceId),
+    ...(options.allowExternalAssets ? buildAiPlugins(options.workspaceId) : []),
     ...MaterialKit,
     ...buildCollaborationPlugins(options),
     ...SlashKit,
     AutoformatPlugin,
-    ...BlockInteractionKit,
+    ...buildBlockInteractionKit(options.mode, options.allowExternalAssets),
     ExitBreakPlugin.configure({
       shortcuts: {
         insert: { keys: 'mod+enter' },
@@ -402,8 +460,8 @@ export function buildPlugins(options: BuildPluginsOptions): AnyPlugin[] {
     BlockPlaceholderPlugin.configure({
       options: {
         className:
-          'before:absolute before:cursor-text before:text-placeholder before:content-[attr(placeholder)]',
-        placeholders: { [KEYS.p]: 'Type / for commands' },
+          'before:absolute before:cursor-text before:text-placeholder/70 before:font-normal before:content-[attr(placeholder)]',
+        placeholders: { [KEYS.p]: 'Type  /  for commands ...' },
         query: ({ path }) => path.length === 1,
       },
     }),

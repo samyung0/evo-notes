@@ -6,6 +6,7 @@
  */
 import type { AccessCapabilities } from './accessCapabilities.ts';
 import type { Privacy } from './privacy.ts';
+import type { ShareRole } from './shareRole.ts';
 import type { Tag } from './tag.ts';
 import type { UserColor } from './userColor.ts';
 import type { WorkspaceRole } from './workspaceRole.ts';
@@ -24,5 +25,6 @@ export interface PublicWorkspace {
   name: string;
   privacy: Privacy;
   role?: WorkspaceRole;
+  shareRole: ShareRole;
   tags: Tag[];
 }

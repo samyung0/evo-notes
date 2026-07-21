@@ -1,9 +1,13 @@
 import { MarkdownPlugin } from '@platejs/markdown';
-import type { SlatePlugin } from 'platejs';
+import { encodeUrlIfNeeded, validateUrl } from '@platejs/link';
+import { KEYS, type SlatePlugin } from 'platejs';
 import type { PlateEditor } from 'platejs/react';
 import {
+  assertMaterialDocument,
   createMaterialDocument,
   type MaterialDocument,
+  type MaterialElement,
+  type MaterialNode,
   type MaterialValue,
 } from '@/features/materials/document';
 
@@ -22,9 +26,38 @@ function loadDocxIo() {
   return import('@platejs/docx-io');
 }
 
+function sanitizeImportedDocument(
+  editor: PlateEditor,
+  document: MaterialDocument
+): MaterialDocument {
+  const sanitizeNode = (node: MaterialNode): MaterialNode => {
+    if ('text' in node) return { ...node };
+
+    const sanitized = {
+      ...node,
+      children: node.children.map(sanitizeNode),
+    };
+    if (node.type !== editor.getType(KEYS.link)) return sanitized;
+
+    const url = typeof node.url === 'string' ? encodeUrlIfNeeded(node.url.trim()) : '';
+    return {
+      ...sanitized,
+      url: url && validateUrl(editor, url) ? url : '',
+    };
+  };
+
+  return createMaterialDocument(
+    document.value.map((node) => sanitizeNode(node) as MaterialElement)
+  );
+}
+
 export function importMarkdownDocument(editor: PlateEditor, source: string): MaterialDocument {
   const value = (editor as MarkdownEditor).getApi(MarkdownPlugin).markdown.deserialize(source);
-  return createMaterialDocument(value);
+  return sanitizeImportedDocument(editor, createMaterialDocument(value));
+}
+
+export function importJsonDocument(editor: PlateEditor, source: string): MaterialDocument {
+  return sanitizeImportedDocument(editor, assertMaterialDocument(source));
 }
 
 export function exportMarkdownDocument(editor: PlateEditor): string {
@@ -37,7 +70,7 @@ export async function importDocxDocument(
 ): Promise<MaterialDocument> {
   const { importDocx } = await loadDocxIo();
   const result = await importDocx(editor, buffer);
-  return createMaterialDocument(result.nodes as MaterialValue);
+  return sanitizeImportedDocument(editor, createMaterialDocument(result.nodes as MaterialValue));
 }
 
 export async function exportDocxDocument(

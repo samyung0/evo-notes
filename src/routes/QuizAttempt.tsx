@@ -42,7 +42,7 @@ export default function QuizAttempt() {
     const denied = isApiError(error) && (error.status === 404 || error.status === 401);
     return (
       <PrivateOrUnavailable
-        title={denied ? 'This item is private or unavailable.' : 'Unable to load this quiz.'}
+        title={denied ? 'This item is private or unavailable.' : 'Unable to load quiz.'}
         backTo="/quizzes"
         backLabel="Back to quizzes"
       />
@@ -212,12 +212,7 @@ export default function QuizAttempt() {
               Next
             </Button>
           ) : (
-            <Button
-              variant="accent"
-              onClick={finish}
-              iconRight="check"
-              disabled={submit.isPending}
-            >
+            <Button variant="accent" onClick={finish} iconRight="check" disabled={submit.isPending}>
               {submit.isPending ? 'Saving…' : 'Finish'}
             </Button>
           )}

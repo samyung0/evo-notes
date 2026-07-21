@@ -7,6 +7,7 @@ export const E2E_SECRET = configuredSecret;
 export const users = {
   owner: 'u_owner',
   editor: 'u_editor',
+  commenter: 'u_commenter',
   viewer: 'u_viewer',
   other: 'u_other',
 } as const;
@@ -25,6 +26,14 @@ export const seed = {
   publicWorkspace: {
     id: 'ws_e2e_public',
     name: 'E2E Public Workspace',
+  },
+  editableWorkspace: {
+    id: 'ws_e2e_edit',
+    name: 'E2E Editable Link Workspace',
+  },
+  inviteWorkspace: {
+    id: 'ws_e2e_invite',
+    name: 'E2E Invite Only Workspace',
   },
   mutateWorkspace: {
     id: 'ws_e2e_mutate',
@@ -67,6 +76,26 @@ export const seed = {
   mutateDeck: {
     id: 'dk_e2e_mutate',
     name: 'E2E Mutate Deck',
+  },
+  viewerNote: {
+    id: 'note_e2e_link',
+    name: 'E2E Viewer Note',
+    body: 'Static viewer content',
+  },
+  commenterNote: {
+    id: 'note_e2e_public',
+    name: 'E2E Commenter Note',
+    body: 'Suggest a clearer sentence',
+  },
+  editableNote: {
+    id: 'note_e2e_edit',
+    name: 'E2E Editable Note',
+    body: 'Signed-in editors can change this text',
+  },
+  reviewNote: {
+    id: 'note_e2e_review',
+    name: 'E2E Suggestion Review Note',
+    body: 'Original review sentence',
   },
 } as const;
 

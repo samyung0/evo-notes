@@ -5,6 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Privacy } from './privacy.ts';
+import type { ShareRole } from './shareRole.ts';
 import type { TagInput } from './tagInput.ts';
 import type { UserColor } from './userColor.ts';
 
@@ -14,5 +15,6 @@ export interface UpdateWorkspaceReq {
   color?: UserColor;
   name?: string;
   privacy?: Privacy;
+  shareRole?: ShareRole;
   tags?: TagInput[];
 }

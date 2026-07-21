@@ -10,11 +10,13 @@ import { e2eHeaders, seed, users } from './seed';
 type ActorFixtures = {
   ownerPage: Page;
   editorPage: Page;
+  commenterPage: Page;
   viewerPage: Page;
   otherPage: Page;
   anonymousPage: Page;
   ownerApi: APIRequestContext;
   editorApi: APIRequestContext;
+  commenterApi: APIRequestContext;
   viewerApi: APIRequestContext;
   otherApi: APIRequestContext;
   anonymousApi: APIRequestContext;
@@ -54,6 +56,12 @@ export const test = base.extend<ActorFixtures>({
     await context.close();
   },
 
+  commenterPage: async ({ browser }, use) => {
+    const { context, page } = await pageAs(browser, users.commenter);
+    await use(page);
+    await context.close();
+  },
+
   viewerPage: async ({ browser }, use) => {
     const { context, page } = await pageAs(browser, users.viewer);
     await use(page);
@@ -85,6 +93,15 @@ export const test = base.extend<ActorFixtures>({
     const api = await playwright.request.newContext({
       baseURL: process.env.E2E_API_URL!,
       extraHTTPHeaders: e2eHeaders(users.editor),
+    });
+    await use(api);
+    await api.dispose();
+  },
+
+  commenterApi: async ({ playwright }, use) => {
+    const api = await playwright.request.newContext({
+      baseURL: process.env.E2E_API_URL!,
+      extraHTTPHeaders: e2eHeaders(users.commenter),
     });
     await use(api);
     await api.dispose();

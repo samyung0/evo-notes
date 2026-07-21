@@ -18,7 +18,7 @@ export const BLOCKQUOTE_CLASS = 'my-3 border-l-2 border-line-strong pl-4 text-fg
 export const HR_CLASS = 'my-5 border-divider';
 export const CODE_BLOCK_CLASS =
   'my-3 overflow-auto rounded-card border border-line bg-surface-hover-bg p-3 font-mono text-xs text-fg';
-export const LINK_CLASS = 'text-action-accent underline underline-offset-2';
+export const LINK_CLASS = 'text-link underline underline-offset-2';
 
 export const UL_CLASS = 'my-2 ml-5 list-disc space-y-1';
 export const OL_CLASS = 'my-2 ml-5 list-decimal space-y-1';
@@ -26,34 +26,34 @@ export const LI_CLASS = 'text-fg';
 
 export const TABLE_WRAP_CLASS = 'my-3 overflow-auto';
 export const TABLE_CLASS = 'w-full border-collapse text-sm';
-export const TD_CLASS = 'border border-line px-3 py-1.5 align-top';
-export const TH_CLASS = 'border border-line bg-surface-hover-bg px-3 py-1.5 text-left font-semibold';
+export const TD_CLASS = 'h-12 border border-line px-3 py-2 align-top';
+export const TH_CLASS =
+  'h-12 border border-line bg-surface-hover-bg px-3 py-2 text-left font-semibold';
 
 export const CALLOUT_CLASS = 'my-3 rounded-card border border-line bg-surface-hover-bg p-3 text-fg';
 export const COLUMN_GROUP_CLASS = 'my-3 flex flex-col gap-3 sm:flex-row';
 export const COLUMN_CLASS = 'min-w-0 flex-1';
 
-export const TOC_BOX_CLASS = 'my-3 rounded-card border border-line bg-surface-hover-bg p-3';
-export const TOC_TITLE_CLASS = 'mb-2 text-xs font-semibold tracking-wide text-fg-muted uppercase';
+export const TOC_BOX_CLASS = 'my-3';
+export const TOC_TITLE_CLASS = 'mb-2 t-label text-fg-muted';
 export const TOC_ITEM_CLASS =
-  'rounded-row px-2 py-1 text-left text-sm text-fg-secondary hover:bg-surface';
+  'rounded-row py-1 text-left underline hover:bg-surface-hover-bg -translate-x-1.5';
 export const TOC_EMPTY_CLASS = 'text-sm text-fg-muted';
 export function tocItemIndent(headingType: string): CSSProperties {
   return { paddingLeft: `${8 + Math.max(0, Number(headingType.slice(1)) - 1) * 12}px` };
 }
 
 export const MENTION_CLASS = 'rounded bg-tint-accent-1 px-1 text-tint-accent-1-fg';
-export const DATE_CLASS = 'rounded bg-surface-hover-bg px-1 text-fg-secondary';
 
 export const EQUATION_BLOCK_CLASS =
   'my-3 overflow-auto rounded-card border border-line p-3 text-center';
 
 /* leaf marks */
 export const CODE_MARK_CLASS = 'rounded bg-surface-hover-bg px-1 py-0.5 font-mono text-[0.85em]';
-export const HIGHLIGHT_MARK_CLASS = 'bg-tint-accent-2 text-tint-accent-2-fg';
+export const HIGHLIGHT_MARK_CLASS = 'bg-tint-info border-b border-solid-info';
 export const KBD_MARK_CLASS =
   'rounded border border-line bg-surface-hover-bg px-1 font-mono text-[0.8em] text-fg';
-export const BOLD_MARK_CLASS = 'font-semibold';
+export const BOLD_MARK_CLASS = 'font-extrabold';
 export const ITALIC_MARK_CLASS = 'italic';
 
 /* custom study blocks */
@@ -63,8 +63,17 @@ export const QUIZ_PROMPT_CLASS = 'mb-2 font-medium text-fg';
 export const QUIZ_OPTION_CLASS =
   'my-1 rounded-row border border-divider px-2 py-1.5 text-fg-secondary';
 export const QUIZ_EXPLANATION_CLASS = 'mt-2 border-t border-divider pt-2 text-sm text-fg-muted';
+export const STUDY_BLOCK_LIST_CLASS = 'flex flex-col gap-4';
+export const QUIZ_REVIEW_QUESTION_CLASS =
+  'grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-4 rounded-card border border-line bg-surface p-4';
+export const QUIZ_REVIEW_PROMPT_CLASS = 't-subtitle min-w-0 text-fg';
+export const QUIZ_REVIEW_OPTION_CLASS =
+  'flex flex-col gap-1.5 rounded-card border px-4 py-3 text-sm transition-colors';
+export const QUIZ_REVIEW_OPTION_CORRECT_CLASS =
+  'border-solid-success bg-tint-success text-tint-success-fg';
+export const QUIZ_REVIEW_OPTION_NEUTRAL_CLASS = 'border-line bg-surface text-fg';
 export const FLASHCARD_CLASS =
-  'my-2 grid grid-cols-1 gap-2 rounded-card border border-divider bg-surface p-3 sm:grid-cols-2';
+  'grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-3 rounded-card border border-line bg-surface p-3 text-sm';
 export const FLASHCARD_FRONT_CLASS = 'font-medium text-fg';
 export const FLASHCARD_BACK_CLASS = 'text-fg-secondary';
 export const MERMAID_CAPTION_CLASS = 'mt-2 text-center text-sm text-fg-muted';

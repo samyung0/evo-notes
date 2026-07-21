@@ -4,7 +4,6 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 import { cn } from '@/lib/cn';
 import { IconButton } from './IconButton';
 import { Button } from './Button';
-import { Text } from './Text';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from './feedback';
 import { m } from '@/i18n';

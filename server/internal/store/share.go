@@ -13,7 +13,8 @@ import (
 
 Sharing model: `privacy` on workspaces and materials is enforced at read time.
   - owner / member → read (and write per role capabilities)
-  - link/public    → any caller may read (and clone when authenticated)
+  - link/public    → any caller may read; signed-in workspace nonmembers receive
+    share_role for material collaboration, while anonymous callers view only
   - private        → owner/members only (404 for everyone else)
 A material is readable when the material itself OR its parent workspace is
 link/public — publishing a workspace implicitly publishes everything inside. */
@@ -44,7 +45,9 @@ func (s *Store) WorkspaceAccess(ctx context.Context, userID, wsID string) (isOwn
 	return false, ErrNotFound
 }
 
-// WorkspaceRole returns a persisted membership role. The legacy
+// WorkspaceRole returns only a persisted membership role. It intentionally
+// does not apply workspaces.share_role: structural workspace authorization is
+// always membership-based. The legacy
 // workspaces.user_id owner remains authoritative and is returned as owner even
 // if a membership row has not yet been backfilled.
 func (s *Store) WorkspaceRole(ctx context.Context, userID, wsID string) (WorkspaceRole, error) {
@@ -99,9 +102,9 @@ func CapabilitiesForRole(role WorkspaceRole, canView bool) AccessCapabilities {
 	}
 }
 
-// MaterialRole returns the requester's role inherited from the parent
-// workspace. Standalone material owners are represented as owners. An empty
-// role is returned for link/public readers.
+// MaterialRole returns only the requester's persisted role inherited from the
+// parent workspace. Standalone material owners are represented as owners. Use
+// MaterialEffectiveAccess for request-scoped shared material capabilities.
 func (s *Store) MaterialRole(ctx context.Context, userID, matID string) (WorkspaceRole, error) {
 	var owner, wsID *string
 	err := s.pool.QueryRow(ctx, `SELECT user_id, workspace_id FROM materials WHERE id=$1`, matID).
@@ -121,40 +124,86 @@ func (s *Store) MaterialRole(ctx context.Context, userID, matID string) (Workspa
 	return "", nil
 }
 
-// MaterialAccess reports whether userID may read the material. Readable when
-// the user owns the parent workspace, or the material itself is shared, or the
-// parent workspace is shared.
+// MaterialAccessInfo distinguishes persisted membership from an effective
+// link/public material role. Explicit membership always wins, even when the
+// workspace's share role is more permissive.
+type MaterialAccessInfo struct {
+	Role     WorkspaceRole
+	Explicit bool
+}
+
+// MaterialEffectiveAccess derives material access for this request:
+//   - direct owner / explicit member: persisted role
+//   - signed-in nonmember of a link/public workspace: workspace share_role
+//   - anonymous shared reader: viewer
+//   - material-level sharing without a shared workspace: viewer
+func (s *Store) MaterialEffectiveAccess(ctx context.Context, userID, matID string) (MaterialAccessInfo, error) {
+	var materialOwner, wsID, workspaceOwner *string
+	var materialPrivacy Privacy
+	var workspacePrivacy *Privacy
+	var shareRole *ShareRole
+	var memberRole WorkspaceRole
+	err := s.pool.QueryRow(ctx, `
+		SELECT m.user_id, m.privacy, m.workspace_id, w.user_id, w.privacy, w.share_role,
+			COALESCE(wm.role, '')
+		FROM materials m
+		LEFT JOIN workspaces w ON w.id=m.workspace_id
+		LEFT JOIN workspace_members wm
+			ON wm.workspace_id=w.id AND wm.user_id=$2
+		WHERE m.id=$1`, matID, userID).Scan(
+		&materialOwner,
+		&materialPrivacy,
+		&wsID,
+		&workspaceOwner,
+		&workspacePrivacy,
+		&shareRole,
+		&memberRole,
+	)
+	if isNoRows(err) {
+		return MaterialAccessInfo{}, ErrNotFound
+	}
+	if err != nil {
+		return MaterialAccessInfo{}, err
+	}
+	if userID != "" && materialOwner != nil && *materialOwner == userID {
+		return MaterialAccessInfo{Role: RoleOwner, Explicit: true}, nil
+	}
+	if userID != "" && workspaceOwner != nil && *workspaceOwner == userID {
+		return MaterialAccessInfo{Role: RoleOwner, Explicit: true}, nil
+	}
+	if memberRole != "" {
+		return MaterialAccessInfo{Role: memberRole, Explicit: true}, nil
+	}
+
+	workspaceShared := wsID != nil && workspacePrivacy != nil &&
+		(*workspacePrivacy == PrivacyLink || *workspacePrivacy == PrivacyPublic)
+	materialShared := materialPrivacy == PrivacyLink || materialPrivacy == PrivacyPublic
+	if workspaceShared {
+		if userID != "" && shareRole != nil {
+			return MaterialAccessInfo{Role: shareRole.WorkspaceRole()}, nil
+		}
+		return MaterialAccessInfo{Role: RoleViewer}, nil
+	}
+	if materialShared {
+		// Material-only links are intentionally view-only, including when the
+		// material still belongs to a private workspace.
+		return MaterialAccessInfo{Role: RoleViewer}, nil
+	}
+	return MaterialAccessInfo{}, ErrNotFound
+}
+
+func (s *Store) MaterialEffectiveRole(ctx context.Context, userID, matID string) (WorkspaceRole, error) {
+	access, err := s.MaterialEffectiveAccess(ctx, userID, matID)
+	return access.Role, err
+}
+
+// MaterialAccess reports whether userID may read the material.
 func (s *Store) MaterialAccess(ctx context.Context, userID, matID string) (isOwner bool, err error) {
-	var owner *string
-	var matPrivacy Privacy
-	var wsPrivacy *Privacy
-	var wsID *string
-	e := s.pool.QueryRow(ctx, `SELECT m.user_id, m.privacy, w.privacy, m.workspace_id
-		FROM materials m LEFT JOIN workspaces w ON w.id=m.workspace_id WHERE m.id=$1`, matID).
-		Scan(&owner, &matPrivacy, &wsPrivacy, &wsID)
-	if isNoRows(e) {
-		return false, ErrNotFound
+	access, err := s.MaterialEffectiveAccess(ctx, userID, matID)
+	if err != nil {
+		return false, err
 	}
-	if e != nil {
-		return false, e
-	}
-	if owner != nil && *owner == userID {
-		return true, nil
-	}
-	if wsID != nil {
-		role, roleErr := s.WorkspaceRole(ctx, userID, *wsID)
-		if roleErr != nil {
-			return false, roleErr
-		}
-		if role != "" {
-			return role == RoleOwner, nil
-		}
-	}
-	if matPrivacy == PrivacyLink || matPrivacy == PrivacyPublic ||
-		(wsPrivacy != nil && (*wsPrivacy == PrivacyLink || *wsPrivacy == PrivacyPublic)) {
-		return false, nil
-	}
-	return false, ErrNotFound
+	return access.Role == RoleOwner, nil
 }
 
 func (s *Store) AssertMaterialEditor(ctx context.Context, userID, matID string) error {
@@ -176,21 +225,27 @@ func (s *Store) AssertMaterialEditor(ctx context.Context, userID, matID string) 
 }
 
 func (s *Store) AssertMaterialCommenter(ctx context.Context, userID, matID string) error {
-	var owner, wsID *string
-	err := s.pool.QueryRow(ctx, `SELECT user_id, workspace_id FROM materials WHERE id=$1`, matID).Scan(&owner, &wsID)
-	if isNoRows(err) {
-		return ErrNotFound
-	}
+	access, err := s.MaterialEffectiveAccess(ctx, userID, matID)
 	if err != nil {
 		return err
 	}
-	if owner != nil && *owner == userID {
-		return nil
+	if !RoleCanComment(access.Role) {
+		return ErrForbidden
 	}
-	if wsID != nil {
-		return s.AssertWorkspaceCommenter(ctx, userID, *wsID)
+	return nil
+}
+
+// AssertMaterialContentEditor permits effective shared editors to patch Plate
+// content. Callers must still enforce the shared-editor field allow-list.
+func (s *Store) AssertMaterialContentEditor(ctx context.Context, userID, matID string) (MaterialAccessInfo, error) {
+	access, err := s.MaterialEffectiveAccess(ctx, userID, matID)
+	if err != nil {
+		return MaterialAccessInfo{}, err
 	}
-	return ErrForbidden
+	if !RoleCanEdit(access.Role) {
+		return MaterialAccessInfo{}, ErrForbidden
+	}
+	return access, nil
 }
 
 // FileWorkspaceID resolves the owning workspace of a file (for access checks).
@@ -249,7 +304,7 @@ func (s *Store) ListPublicWorkspaces(ctx context.Context) ([]PublicWorkspace, er
 	out := []PublicWorkspace{}
 	for rows.Next() {
 		var w PublicWorkspace
-		if err := rows.Scan(&w.ID, &w.Name, &w.Color, &w.Privacy, &w.Tags, &w.ChapterCount, &w.FileCount, &w.CreatedAt, &w.LastAccessedAt, &w.Author, &w.Clones); err != nil {
+		if err := rows.Scan(&w.ID, &w.Name, &w.Color, &w.Privacy, &w.ShareRole, &w.Tags, &w.ChapterCount, &w.FileCount, &w.CreatedAt, &w.LastAccessedAt, &w.Author, &w.Clones); err != nil {
 			return nil, err
 		}
 		out = append(out, w)

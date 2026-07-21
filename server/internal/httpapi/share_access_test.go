@@ -78,6 +78,8 @@ func TestShareHTTPReads(t *testing.T) {
 		{"anon link deck", "", "/api/decks/dk_e2e_link", 200},
 		{"anon link cards", "", "/api/decks/dk_e2e_link/cards", 200},
 		{"anon link chapters", "", "/api/workspaces/ws_e2e_link/chapters", 200},
+		{"owner invite candidates", "u_owner", "/api/workspaces/ws_e2e_private/invite-candidates?q=u", 200},
+		{"editor invite candidates", "u_editor", "/api/workspaces/ws_e2e_private/invite-candidates?q=u", 404},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

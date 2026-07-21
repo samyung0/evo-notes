@@ -26,26 +26,15 @@ import {
   BaseFontColorPlugin,
   BaseFontFamilyPlugin,
   BaseFontSizePlugin,
-  BaseLineHeightPlugin,
   BaseTextAlignPlugin,
 } from '@platejs/basic-styles';
 import { BaseCalloutPlugin } from '@platejs/callout';
-import {
-  BaseCodeBlockPlugin,
-  BaseCodeLinePlugin,
-  BaseCodeSyntaxPlugin,
-} from '@platejs/code-block';
-import { BaseDatePlugin } from '@platejs/date';
+import { BaseCodeBlockPlugin, BaseCodeLinePlugin, BaseCodeSyntaxPlugin } from '@platejs/code-block';
 import { BaseIndentPlugin } from '@platejs/indent';
 import { BaseColumnItemPlugin, BaseColumnPlugin } from '@platejs/layout';
 import { BaseLinkPlugin } from '@platejs/link';
 import { BaseListPlugin, isOrderedList } from '@platejs/list';
-import {
-  BaseAudioPlugin,
-  BaseFilePlugin,
-  BaseImagePlugin,
-  BaseVideoPlugin,
-} from '@platejs/media';
+import { BaseAudioPlugin, BaseFilePlugin, BaseImagePlugin, BaseVideoPlugin } from '@platejs/media';
 import { BaseMentionPlugin } from '@platejs/mention';
 import {
   BaseTableCellHeaderPlugin,
@@ -98,8 +87,9 @@ const StaticInlineEquationPlugin = createSlatePlugin({
 });
 
 /* List rendering parity with the editable surface (see notes/plugins.ts):
-   bullet items get list-item display via injected props, ordered items get an
-   <ol><li> wrapper below the node. Both are plain render logic, static-safe. */
+   bullet items get list-item display via injected props, task items get a
+   read-only checkbox, and ordered items get an <ol><li> wrapper below the node.
+   All of this is plain render logic and static-safe. */
 const StaticListKit: AnyPlugin[] = [
   BaseIndentPlugin.configure({
     inject: { targetPlugins: listTargets },
@@ -123,7 +113,40 @@ const StaticListKit: AnyPlugin[] = [
     },
     render: {
       belowNodes: ((props: AnyPlugin) => {
-        if (!props.element.listStyleType || !isOrderedList(props.element)) return;
+        if (!props.element.listStyleType) return;
+
+        if (props.element.listStyleType === KEYS.listTodo) {
+          return (nextProps: AnyPlugin) => {
+            const element = nextProps.element as { checked?: boolean; indent?: number };
+            return createElement(
+              'div',
+              {
+                className: 'relative my-1 flex items-start gap-2',
+                style: { marginLeft: element.indent ? `${element.indent * 24}px` : undefined },
+              },
+              createElement('input', {
+                'aria-label': element.checked ? 'Completed task' : 'Incomplete task',
+                checked: Boolean(element.checked),
+                className: 'mt-2 size-4 shrink-0 rounded border-line-strong accent-action-accent',
+                disabled: true,
+                readOnly: true,
+                type: 'checkbox',
+              }),
+              createElement(
+                'div',
+                {
+                  className: element.checked
+                    ? 'min-w-0 flex-1 text-fg-muted line-through'
+                    : 'min-w-0 flex-1',
+                },
+                nextProps.children
+              )
+            );
+          };
+        }
+
+        if (!isOrderedList(props.element)) return;
+
         return (nextProps: AnyPlugin) => {
           const element = nextProps.element as {
             indent?: number;
@@ -187,11 +210,10 @@ export const StaticMaterialKit: AnyPlugin[] = [
   BaseColumnItemPlugin,
   StaticInlineEquationPlugin,
   StaticEquationPlugin,
-  BaseDatePlugin,
   BaseMentionPlugin,
-  BaseFontColorPlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
-  BaseFontBackgroundColorPlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
-  BaseFontSizePlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
+  BaseFontColorPlugin,
+  BaseFontBackgroundColorPlugin,
+  BaseFontSizePlugin,
   BaseFontFamilyPlugin.configure({ inject: { targetPlugins: [KEYS.p] } }),
   BaseTextAlignPlugin.configure({
     inject: {
@@ -202,12 +224,6 @@ export const StaticMaterialKit: AnyPlugin[] = [
         validNodeValues: ['start', 'left', 'center', 'right', 'end', 'justify'],
       },
       targetPlugins: [...KEYS.heading, KEYS.p, KEYS.img],
-    },
-  }),
-  BaseLineHeightPlugin.configure({
-    inject: {
-      nodeProps: { defaultNodeValue: 1.5, validNodeValues: [1, 1.2, 1.5, 2, 3] },
-      targetPlugins: [...KEYS.heading, KEYS.p],
     },
   }),
   ...staticCustomBlockPlugins,

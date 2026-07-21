@@ -2,6 +2,11 @@ import { cn } from '@/lib/cn';
 import { Badge, Icon, Text } from '@/components/ui';
 import { LEVEL_LABEL, LEVEL_TONE } from '@/lib/levels';
 import type { Question } from '@/api/types';
+import {
+  QUIZ_REVIEW_OPTION_CLASS,
+  QUIZ_REVIEW_OPTION_CORRECT_CLASS,
+  QUIZ_REVIEW_OPTION_NEUTRAL_CLASS,
+} from '@/features/notes/nodeStyles';
 import { fuzzyMatch, type Answer } from './grade';
 
 export function QuestionRunner({
@@ -35,10 +40,10 @@ export function QuestionRunner({
             // Review tint: correct options green, wrongly-picked options red.
             const reviewTint = review
               ? isCorrect
-                ? 'border-solid-success bg-tint-success text-tint-success-fg'
+                ? QUIZ_REVIEW_OPTION_CORRECT_CLASS
                 : selected
                   ? 'border-solid-error bg-tint-error text-tint-error-fg'
-                  : 'border-line bg-surface text-fg'
+                  : QUIZ_REVIEW_OPTION_NEUTRAL_CLASS
               : selected
                 ? 'border-accent bg-tint-accent-1 text-fg'
                 : 'border-line bg-surface text-fg hover:bg-surface-hover-bg';
@@ -53,7 +58,8 @@ export function QuestionRunner({
                   else onChange(selected ? cur.filter((x) => x !== i) : [...cur, i]);
                 }}
                 className={cn(
-                  'flex flex-col gap-1.5 rounded-card border px-4 py-3 text-left text-sm transition-colors',
+                  QUIZ_REVIEW_OPTION_CLASS,
+                  'text-left',
                   review && 'cursor-default',
                   reviewTint
                 )}

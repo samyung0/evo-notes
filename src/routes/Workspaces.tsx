@@ -1,18 +1,22 @@
-import { useWorkspaces } from '@/api/hooks';
+import { useTags, useWorkspaces } from '@/api/hooks';
 import { PageHeader, PanelWithInvertedRadius, Toolbar } from '@/components/app/layout';
 import {
+  Badge,
   Button,
   Card,
   Icon,
   IconButton,
   Input,
   Menu,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   SkeletonCardGrid,
-  Text,
+  UserColorChooser,
   WorkspaceCard,
 } from '@/components/ui';
 import { m } from '@/i18n';
-import { USER_COLORS } from '@/lib/userColor';
+import { cn } from '@/lib/cn';
 import { useDialogs } from '@/stores/dialogs';
 import { useMemo, useState } from 'react';
 
@@ -23,20 +27,35 @@ const SORTS = [
   { value: 'files', label: m.workspaces_sort_files },
 ];
 
+function toggleIn(list: string[], value: string) {
+  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
+
 export default function Workspaces() {
   const [sort, setSort] = useState('accessed');
-  const [colorFilter, setColorFilter] = useState<string | undefined>();
+  const [colorFilters, setColorFilters] = useState<string[]>([]);
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const { data, isLoading } = useWorkspaces({
     sort,
-    color: colorFilter,
+    color: colorFilters,
+    tag: tagFilters,
     q: query,
   });
+  const { data: tags = [] } = useTags('workspace');
   const openWorkspaceCreate = useDialogs((s) => s.openWorkspaceCreate);
 
   const sortLabel = useMemo(() => SORTS.find((s) => s.value === sort)?.label() ?? '', [sort]);
+  const hasFilters = colorFilters.length > 0 || tagFilters.length > 0;
+  const filterLabel = useMemo(() => {
+    const parts = [...colorFilters, ...tagFilters];
+    if (!parts.length) return m.workspaces_filter();
+    if (parts.length <= 2) return parts.join(' · ');
+    return `${parts.slice(0, 2).join(' · ')} +${parts.length - 2}`;
+  }, [colorFilters, tagFilters]);
 
   return (
     <PanelWithInvertedRadius>
@@ -58,13 +77,7 @@ export default function Workspaces() {
           <Menu
             align="start"
             trigger={
-              <Button
-                variant="ghost"
-                size="md"
-                iconLeft="filter"
-                iconRight="chevronDown"
-                className="px-1"
-              >
+              <Button variant="ghost" size="md" iconRight="chevronDown" className="px-1">
                 Sort: {sortLabel}
               </Button>
             }
@@ -73,21 +86,78 @@ export default function Workspaces() {
               onClick: () => setSort(s.value),
             }))}
           />
-          <Menu
-            align="start"
-            trigger={
-              <Button variant="ghost" size="md" iconRight="chevronDown" className="px-1">
-                {colorFilter ? `Color: ${colorFilter}` : m.workspaces_filter_color()}
+          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="md"
+                iconLeft="filter"
+                iconRight="chevronDown"
+                className="px-1"
+              >
+                {filterLabel}
               </Button>
-            }
-            items={[
-              { label: 'All colors', onClick: () => setColorFilter(undefined) },
-              ...USER_COLORS.map((c) => ({
-                label: c,
-                onClick: () => setColorFilter(c),
-              })),
-            ]}
-          />
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-72 max-h-80 gap-0 p-0">
+              <Card
+                radius="card"
+                border="solid"
+                className="max-h-80 gap-3 overflow-y-auto p-3"
+              >
+                <section className="flex flex-col gap-2">
+                  <h3 className="t-meta text-fg-muted">{m.workspaces_filter_color()}</h3>
+                  <UserColorChooser
+                    selected={colorFilters}
+                    onChange={(c) => setColorFilters((prev) => toggleIn(prev, c))}
+                  />
+                </section>
+
+                <section className="flex flex-col gap-2">
+                  <h3 className="t-meta text-fg-muted">{m.workspaces_filter_tags()}</h3>
+                  {tags.length === 0 ? (
+                    <p className="text-sm text-fg-muted">{m.workspaces_filter_no_tags()}</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {tags.map((t) => {
+                        const active = tagFilters.includes(t.value);
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setTagFilters((prev) => toggleIn(prev, t.value))}
+                          >
+                            <Badge
+                              size="sm"
+                              tone={active ? 'dark' : 'neutral'}
+                              className={cn(
+                                'transition-colors',
+                                !active && 'hover:bg-surface-hover-bg'
+                              )}
+                            >
+                              {t.value}
+                            </Badge>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  fullWidth
+                  disabled={!hasFilters}
+                  onClick={() => {
+                    setColorFilters([]);
+                    setTagFilters([]);
+                  }}
+                >
+                  {m.workspaces_filter_reset()}
+                </Button>
+              </Card>
+            </PopoverContent>
+          </Popover>
         </Toolbar>
         <div className="flex items-center gap-2">
           {showSearch ? (

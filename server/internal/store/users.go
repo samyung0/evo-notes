@@ -90,7 +90,7 @@ func (s *Store) CreateDefaultWorkspace(ctx context.Context, userID string) error
 	if n > 0 {
 		return nil
 	}
-	_, err = s.CreateWorkspace(ctx, userID, "My workspace", "green", "private", []TagRef{})
+	_, err = s.CreateWorkspace(ctx, userID, "My workspace", "green", "private", ShareViewer, []TagRef{})
 	return err
 }
 

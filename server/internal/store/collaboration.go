@@ -62,9 +62,51 @@ func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, memberID string
 	return nil
 }
 
-func (s *Store) CreateWorkspaceInvite(ctx context.Context, wsID, email string, role WorkspaceRole, invitedBy string) (WorkspaceInvite, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if email == "" || (role != RoleEditor && role != RoleCommenter && role != RoleViewer) {
+func (s *Store) SearchWorkspaceInviteCandidates(ctx context.Context, wsID, q string) ([]WorkspaceInviteCandidate, error) {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return []WorkspaceInviteCandidate{}, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id, u.name, u.email, COALESCE(u.avatar_url, '')
+		FROM users u
+		JOIN workspaces w ON w.id=$1
+		WHERE u.id<>w.user_id
+			AND (lower(u.name) LIKE $2 OR lower(u.email) LIKE $2)
+			AND NOT EXISTS (
+				SELECT 1 FROM workspace_members wm
+				WHERE wm.workspace_id=$1 AND wm.user_id=u.id
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM workspace_invites wi
+				WHERE wi.workspace_id=$1
+					AND (
+						wi.invited_user_id=u.id
+						OR lower(wi.email)=lower(u.email)
+					)
+					AND wi.accepted_at IS NULL
+					AND wi.revoked_at IS NULL
+			)
+		ORDER BY lower(u.name), lower(u.email), u.id
+		LIMIT 20`, wsID, "%"+strings.ToLower(q)+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []WorkspaceInviteCandidate{}
+	for rows.Next() {
+		var candidate WorkspaceInviteCandidate
+		if err := rows.Scan(&candidate.ID, &candidate.Name, &candidate.Email, &candidate.AvatarURL); err != nil {
+			return nil, err
+		}
+		out = append(out, candidate)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) CreateWorkspaceInvite(ctx context.Context, wsID, invitedUserID string, role WorkspaceRole, invitedBy string) (WorkspaceInvite, error) {
+	invitedUserID = strings.TrimSpace(invitedUserID)
+	if invitedUserID == "" || (role != RoleEditor && role != RoleCommenter && role != RoleViewer) {
 		return WorkspaceInvite{}, ErrForbidden
 	}
 	token, err := inviteToken()
@@ -72,20 +114,42 @@ func (s *Store) CreateWorkspaceInvite(ctx context.Context, wsID, email string, r
 		return WorkspaceInvite{}, err
 	}
 	invite := WorkspaceInvite{
-		ID: uid("inv"), WorkspaceID: wsID, Email: email, Role: role,
+		ID: uid("inv"), WorkspaceID: wsID, InvitedUserID: invitedUserID, Role: role,
 		Token: token, InvitedBy: invitedBy,
 		ExpiresAt: time.Now().UTC().Add(7 * 24 * time.Hour), CreatedAt: time.Now().UTC(),
 	}
 	tokenHash := inviteTokenHash(token)
 	err = s.pool.QueryRow(ctx, `INSERT INTO workspace_invites
-		(id, workspace_id, email, role, token_hash, invited_by, expires_at, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-		ON CONFLICT (workspace_id, lower(email))
-			WHERE accepted_at IS NULL AND revoked_at IS NULL
-		DO UPDATE SET role=EXCLUDED.role, token_hash=EXCLUDED.token_hash, invited_by=EXCLUDED.invited_by,
-			expires_at=EXCLUDED.expires_at, created_at=EXCLUDED.created_at
-		RETURNING id`, invite.ID, invite.WorkspaceID, invite.Email, invite.Role, tokenHash[:],
-		invite.InvitedBy, invite.ExpiresAt, invite.CreatedAt).Scan(&invite.ID)
+		(id, workspace_id, invited_user_id, email, role, token_hash, invited_by, expires_at, created_at)
+		SELECT $1,$2,u.id,u.email,$4,$5,$6,$7,$8
+		FROM users u
+		JOIN workspaces w ON w.id=$2
+		WHERE u.id=$3
+			AND u.id<>w.user_id
+			AND NOT EXISTS (
+				SELECT 1 FROM workspace_members wm
+				WHERE wm.workspace_id=$2 AND wm.user_id=u.id
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM workspace_invites wi
+				WHERE wi.workspace_id=$2
+					AND wi.invited_user_id IS NULL
+					AND lower(wi.email)=lower(u.email)
+					AND wi.accepted_at IS NULL
+					AND wi.revoked_at IS NULL
+			)
+		ON CONFLICT (workspace_id, invited_user_id)
+			WHERE accepted_at IS NULL AND revoked_at IS NULL AND invited_user_id IS NOT NULL
+		DO UPDATE SET email=EXCLUDED.email, role=EXCLUDED.role, token_hash=EXCLUDED.token_hash,
+			invited_by=EXCLUDED.invited_by, expires_at=EXCLUDED.expires_at,
+			created_at=EXCLUDED.created_at
+		RETURNING id, invited_user_id, email`,
+		invite.ID, invite.WorkspaceID, invite.InvitedUserID, invite.Role, tokenHash[:],
+		invite.InvitedBy, invite.ExpiresAt, invite.CreatedAt).
+		Scan(&invite.ID, &invite.InvitedUserID, &invite.Email)
+	if isNoRows(err) {
+		return WorkspaceInvite{}, ErrForbidden
+	}
 	return invite, err
 }
 
@@ -102,7 +166,7 @@ func inviteTokenHash(token string) [sha256.Size]byte {
 }
 
 func (s *Store) ListWorkspaceInvites(ctx context.Context, wsID string) ([]WorkspaceInvite, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, workspace_id, email, role, invited_by,
+	rows, err := s.pool.Query(ctx, `SELECT id, workspace_id, COALESCE(invited_user_id,''), email, role, invited_by,
 		expires_at, accepted_at, revoked_at, created_at
 		FROM workspace_invites WHERE workspace_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC`, wsID)
 	if err != nil {
@@ -112,7 +176,7 @@ func (s *Store) ListWorkspaceInvites(ctx context.Context, wsID string) ([]Worksp
 	out := []WorkspaceInvite{}
 	for rows.Next() {
 		var invite WorkspaceInvite
-		if err := rows.Scan(&invite.ID, &invite.WorkspaceID, &invite.Email, &invite.Role,
+		if err := rows.Scan(&invite.ID, &invite.WorkspaceID, &invite.InvitedUserID, &invite.Email, &invite.Role,
 			&invite.InvitedBy, &invite.ExpiresAt, &invite.AcceptedAt,
 			&invite.RevokedAt, &invite.CreatedAt); err != nil {
 			return nil, err
@@ -142,10 +206,10 @@ func (s *Store) AcceptWorkspaceInvite(ctx context.Context, token, userID string)
 	defer tx.Rollback(ctx)
 	var invite WorkspaceInvite
 	tokenHash := inviteTokenHash(token)
-	err = tx.QueryRow(ctx, `SELECT id, workspace_id, email, role, invited_by,
+	err = tx.QueryRow(ctx, `SELECT id, workspace_id, COALESCE(invited_user_id,''), email, role, invited_by,
 		expires_at, accepted_at, revoked_at, created_at
 		FROM workspace_invites WHERE token_hash=$1 FOR UPDATE`, tokenHash[:]).
-		Scan(&invite.ID, &invite.WorkspaceID, &invite.Email, &invite.Role,
+		Scan(&invite.ID, &invite.WorkspaceID, &invite.InvitedUserID, &invite.Email, &invite.Role,
 			&invite.InvitedBy, &invite.ExpiresAt, &invite.AcceptedAt, &invite.RevokedAt, &invite.CreatedAt)
 	if isNoRows(err) {
 		return WorkspaceMember{}, ErrNotFound
@@ -156,11 +220,7 @@ func (s *Store) AcceptWorkspaceInvite(ctx context.Context, token, userID string)
 	if invite.AcceptedAt != nil || invite.RevokedAt != nil || time.Now().UTC().After(invite.ExpiresAt) {
 		return WorkspaceMember{}, ErrNotFound
 	}
-	var email string
-	if err := tx.QueryRow(ctx, `SELECT lower(email) FROM users WHERE id=$1`, userID).Scan(&email); err != nil {
-		return WorkspaceMember{}, err
-	}
-	if email != strings.ToLower(invite.Email) {
+	if invite.InvitedUserID == "" || invite.InvitedUserID != userID {
 		return WorkspaceMember{}, ErrForbidden
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role)
@@ -321,18 +381,114 @@ func SuggestionStatusTransitionAllowed(current, next SuggestionStatus) bool {
 	return next == SuggestionAccepted || next == SuggestionRejected || next == SuggestionWithdrawn
 }
 
+// AcceptMaterialSuggestion atomically applies the client-finalized Plate
+// document and marks the pending suggestion accepted. The client supplies the
+// complete document because suggestion anchors/fragments are Plate-specific;
+// the backend validates the document kind and exact base revision before any
+// state changes are committed.
+func (s *Store) AcceptMaterialSuggestion(
+	ctx context.Context,
+	id, actorID, finalizedContent string,
+	expectedBaseRevision int64,
+) (MaterialSuggestion, error) {
+	if expectedBaseRevision < 1 {
+		return MaterialSuggestion{}, ErrConflict
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MaterialSuggestion{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	suggestion, err := scanMaterialSuggestion(tx.QueryRow(ctx, `SELECT `+
+		materialSuggestionColumns+` FROM material_suggestions WHERE id=$1 FOR UPDATE`, id))
+	if isNoRows(err) {
+		return MaterialSuggestion{}, ErrNotFound
+	}
+	if err != nil {
+		return MaterialSuggestion{}, err
+	}
+	if suggestion.Status != SuggestionPending ||
+		suggestion.BaseRevision != expectedBaseRevision {
+		return MaterialSuggestion{}, ErrConflict
+	}
+
+	var kind string
+	var currentRevision int64
+	if err := tx.QueryRow(ctx, `SELECT kind, revision FROM materials WHERE id=$1 FOR UPDATE`,
+		suggestion.MaterialID).Scan(&kind, &currentRevision); err != nil {
+		if isNoRows(err) {
+			return MaterialSuggestion{}, ErrNotFound
+		}
+		return MaterialSuggestion{}, err
+	}
+	if currentRevision != expectedBaseRevision {
+		return MaterialSuggestion{}, ErrConflict
+	}
+	if err := materialdoc.ValidateKind(finalizedContent, kind); err != nil {
+		return MaterialSuggestion{}, err
+	}
+
+	var cardIDs []string
+	if kind == "flashcards" {
+		cards, err := materialdoc.ExtractFlashcards(finalizedContent)
+		if err != nil {
+			return MaterialSuggestion{}, err
+		}
+		cardIDs = make([]string, len(cards))
+		for i, card := range cards {
+			cardIDs[i] = card.ID
+		}
+	}
+	ct, err := tx.Exec(ctx, `UPDATE materials
+		SET content=$2, revision=revision+1, updated_at=now(), updated_by=$3
+		WHERE id=$1 AND revision=$4`,
+		suggestion.MaterialID, json.RawMessage(finalizedContent), actorID, expectedBaseRevision)
+	if err != nil {
+		return MaterialSuggestion{}, err
+	}
+	if ct.RowsAffected() != 1 {
+		return MaterialSuggestion{}, ErrConflict
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO material_revisions
+		(material_id, revision, title, content, created_by)
+		SELECT id, revision, title, content, $2 FROM materials WHERE id=$1`,
+		suggestion.MaterialID, actorID); err != nil {
+		return MaterialSuggestion{}, err
+	}
+	if kind == "flashcards" {
+		if err := syncCardStatsTx(ctx, tx, suggestion.MaterialID, cardIDs); err != nil {
+			return MaterialSuggestion{}, err
+		}
+	}
+	suggestion, err = scanMaterialSuggestion(tx.QueryRow(ctx, `UPDATE material_suggestions
+		SET status='accepted', reviewed_by=$2, reviewed_at=now(), updated_at=now()
+		WHERE id=$1 AND status='pending'
+		RETURNING `+materialSuggestionColumns, id, actorID))
+	if isNoRows(err) {
+		return MaterialSuggestion{}, ErrConflict
+	}
+	if err != nil {
+		return MaterialSuggestion{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return MaterialSuggestion{}, err
+	}
+	return suggestion, nil
+}
+
 func (s *Store) SetMaterialSuggestionStatus(
 	ctx context.Context,
 	id, actorID string,
 	status SuggestionStatus,
 ) (MaterialSuggestion, error) {
-	if !SuggestionStatusTransitionAllowed(SuggestionPending, status) {
+	if status != SuggestionRejected && status != SuggestionWithdrawn {
 		return MaterialSuggestion{}, ErrForbidden
 	}
 	var reviewer any
 	var reviewedAt any
 	switch status {
-	case SuggestionAccepted, SuggestionRejected:
+	case SuggestionRejected:
 		reviewer = actorID
 		reviewedAt = time.Now().UTC()
 	case SuggestionWithdrawn:

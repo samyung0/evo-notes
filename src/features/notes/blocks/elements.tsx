@@ -1,14 +1,41 @@
-import { PlateElement, type PlateElementProps, useEditorRef, useReadOnly } from 'platejs/react';
+import { useEffect } from 'react';
+import {
+  FloatingPortal,
+  flip,
+  getRangeBoundingClientRect,
+  offset,
+  shift,
+  useVirtualFloating,
+} from '@platejs/floating';
+import { Copy, PencilLine, Trash2 } from 'lucide-react';
+import {
+  PlateElement,
+  type PlateElementProps,
+  useEditorRef,
+  useEditorSelector,
+  useReadOnly,
+} from 'platejs/react';
 import { Button } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import { Mermaid } from '@/features/materials/Mermaid';
+import {
+  QuizOptionView,
+  QuizQuestionHeader,
+  StudyBlockTimeLimit,
+  quizOptionClassName,
+  type QuizOptionRole,
+} from '@/features/materials/StudyBlockViews';
 import {
   flashcardsElementToCards,
   flashcardsNodeFromFence,
+  normalizeMaterialValue,
   quizElementToBlock,
   quizNodeFromFence,
   type FlashcardElement as FlashcardNode,
   type FlashcardsElement as FlashcardsNode,
   type MermaidElement as MermaidNode,
+  type MaterialElement,
+  type MaterialNode,
   type QuizElement as QuizNode,
   type QuizOptionElement as QuizOptionNode,
   type QuizQuestionElement as QuizQuestionNode,
@@ -20,9 +47,9 @@ import {
   FLASHCARD_FRONT_CLASS,
   MERMAID_CAPTION_CLASS,
   QUIZ_EXPLANATION_CLASS,
-  QUIZ_OPTION_CLASS,
-  QUIZ_PROMPT_CLASS,
-  QUIZ_QUESTION_CLASS,
+  QUIZ_REVIEW_PROMPT_CLASS,
+  QUIZ_REVIEW_QUESTION_CLASS,
+  STUDY_BLOCK_LIST_CLASS,
 } from '../nodeStyles';
 import { useOptionalNoteBlockDialogs } from './dialogContext';
 import { flashcardsFenceBody, quizFenceBody } from './shared';
@@ -34,6 +61,251 @@ function replaceElement(editor: AnyEditor, current: object, next: object) {
   const at = editor.api.findPath(current);
   if (!at) return;
   editor.tf.replaceNodes(next, { at });
+}
+
+function StudyBlockRoot({
+  props,
+  onEdit,
+  className,
+  children,
+}: {
+  props: PlateElementProps;
+  onEdit?: () => void;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const editor = useEditorRef();
+  const readOnly = useReadOnly();
+  const active = useEditorSelector((currentEditor) => {
+    const selection = currentEditor.selection;
+    const path = currentEditor.api.findPath(props.element);
+    if (!selection || !path || !isCollapsed(selection)) return false;
+    return isDescendantPath(path, selection.anchor.path);
+  }, [props.element]);
+
+  const runBlockAction = (action: 'duplicate' | 'delete') => {
+    const at = editor.api.findPath(props.element);
+    if (!at) return;
+    const item = findCurrentStudyItem(editor, at);
+    if (!item) return;
+    const [itemNode, itemPath] = item;
+    if (action === 'duplicate') {
+      const duplicate = cloneStudyItem(itemNode);
+      const insertAt = [...itemPath];
+      insertAt[insertAt.length - 1] += 1;
+      editor.tf.insertNodes(duplicate, { at: insertAt, select: true });
+    } else {
+      const parent = editor.api.node(at)?.[0] as MaterialElement | undefined;
+      const isLastItem = parent?.children?.length === 1;
+      editor.tf.removeNodes({ at: isLastItem ? at : itemPath });
+    }
+    editor.tf.focus();
+  };
+
+  useEffect(() => {
+    if (readOnly) return;
+    const id = (props.element as { id?: string }).id;
+    if (!id) return;
+    const activateFromPointer = (event: PointerEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest('[data-study-block-toolbar]')) return;
+      const block = target.closest('[data-slate-type="quiz"], [data-slate-type="flashcards"]');
+      if (block?.getAttribute('data-block-id') !== id) return;
+      const path = editor.api.findPath(props.element);
+      if (!path) return;
+      requestAnimationFrame(() => {
+        const selection = editor.selection;
+        if (selection && isDescendantPath(path, selection.anchor.path)) return;
+        editor.tf.select(editor.api.start(path));
+        editor.tf.focus();
+      });
+    };
+    document.addEventListener('pointerdown', activateFromPointer, true);
+    return () => document.removeEventListener('pointerdown', activateFromPointer, true);
+  }, [editor, props.element, readOnly]);
+
+  return (
+    <PlateElement {...props} className={cn(STUDY_BLOCK_LIST_CLASS, 'relative', className)}>
+      {!readOnly && active && (
+        <StudyBlockToolbar
+          onEdit={onEdit}
+          onDuplicate={() => runBlockAction('duplicate')}
+          onDelete={() => runBlockAction('delete')}
+        />
+      )}
+      {children}
+      {props.children}
+    </PlateElement>
+  );
+}
+
+function StudyBlockToolbar({
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
+  onEdit?: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const editor = useEditorRef();
+  const floating = useVirtualFloating({
+    open: true,
+    strategy: 'fixed',
+    placement: 'bottom',
+    middleware: [
+      offset(10),
+      flip({
+        fallbackPlacements: ['top', 'bottom-start', 'bottom-end', 'top-start', 'top-end'],
+        padding: 12,
+      }),
+      shift({ padding: 12 }),
+    ],
+    getBoundingClientRect: () => getRangeBoundingClientRect(editor, editor.selection),
+  });
+  useEditorSelector(() => {
+    floating.update?.();
+  }, [floating.update]);
+  useEffect(() => {
+    floating.update?.();
+  }, [floating.update]);
+
+  return (
+    <FloatingPortal>
+      <div
+        ref={floating.refs.setFloating}
+        style={floating.style}
+        role="toolbar"
+        aria-label="Study block actions"
+        contentEditable={false}
+        data-plate-prevent-deselect
+        data-study-block-toolbar
+        className="z-50 flex items-center gap-0.5 rounded-card border border-line bg-surface p-1 shadow-pop"
+        onMouseDown={(event) => event.preventDefault()}
+      >
+        {onEdit && (
+          <>
+            <StudyBlockAction label="Edit" onClick={onEdit}>
+              <PencilLine />
+            </StudyBlockAction>
+            <span className="mx-1 h-5 w-px bg-divider" />
+          </>
+        )}
+        <StudyBlockAction label="Duplicate" onClick={onDuplicate}>
+          <Copy />
+        </StudyBlockAction>
+        <StudyBlockAction label="Delete" danger onClick={onDelete}>
+          <Trash2 />
+        </StudyBlockAction>
+      </div>
+    </FloatingPortal>
+  );
+}
+
+function StudyBlockAction({
+  label,
+  children,
+  danger = false,
+  onClick,
+}: {
+  label: string;
+  children: React.ReactNode;
+  danger?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      data-plate-prevent-deselect
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+      className={cn(
+        'flex size-8 items-center justify-center rounded-row text-fg-secondary hover:bg-surface-hover-bg hover:text-fg [&_svg]:size-4',
+        danger && 'hover:text-tint-error-fg'
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function isCollapsed(selection: {
+  anchor: { path: number[]; offset: number };
+  focus: { path: number[]; offset: number };
+}): boolean {
+  return (
+    selection.anchor.offset === selection.focus.offset &&
+    selection.anchor.path.length === selection.focus.path.length &&
+    selection.anchor.path.every((part, index) => part === selection.focus.path[index])
+  );
+}
+
+function isDescendantPath(parent: number[], child: number[]): boolean {
+  return (
+    child.length > parent.length && parent.every((part, index) => child[index] === part)
+  );
+}
+
+function stripElementIds(node: MaterialNode): MaterialNode {
+  if ('text' in node) return { ...node };
+  const { id: _id, ...element } = node;
+  return {
+    ...element,
+    children: node.children.map(stripElementIds),
+  } as MaterialElement;
+}
+
+/** Resolve the quiz_question / flashcard under the caret inside a study block. */
+function findCurrentStudyItem(
+  editor: AnyEditor,
+  studyBlockPath: number[]
+): [MaterialElement, number[]] | undefined {
+  const selection = editor.selection;
+  if (!selection || !isDescendantPath(studyBlockPath, selection.anchor.path)) {
+    return undefined;
+  }
+  const itemPath = selection.anchor.path.slice(0, studyBlockPath.length + 1);
+  const node = editor.api.node(itemPath)?.[0];
+  if (!node || (node.type !== 'quiz_question' && node.type !== 'flashcard')) {
+    return undefined;
+  }
+  return [node as MaterialElement, itemPath];
+}
+
+/** Deep-clone a question/card with fresh ids, remapping correctOptionIds by option index. */
+function cloneStudyItem(element: MaterialElement): MaterialElement {
+  const oldOptionIds =
+    element.type === 'quiz_question'
+      ? (element as QuizQuestionNode).children
+          .filter((child): child is QuizOptionNode => child.type === 'quiz_option')
+          .map((child) => child.id)
+      : undefined;
+  const oldCorrectIds =
+    element.type === 'quiz_question'
+      ? [...((element as QuizQuestionNode).correctOptionIds ?? [])]
+      : undefined;
+
+  const [clone] = normalizeMaterialValue([
+    stripElementIds(structuredClone(element)) as MaterialElement,
+  ]);
+
+  if (clone.type === 'quiz_question' && oldOptionIds && oldCorrectIds?.length) {
+    const newOptions = (clone as QuizQuestionNode).children.filter(
+      (child): child is QuizOptionNode => child.type === 'quiz_option'
+    );
+    const remapped = oldCorrectIds
+      .map((id) => {
+        const index = oldOptionIds.indexOf(id);
+        return index >= 0 ? newOptions[index]?.id : undefined;
+      })
+      .filter((id): id is string => Boolean(id));
+    if (remapped.length) (clone as QuizQuestionNode).correctOptionIds = remapped;
+    else delete (clone as QuizQuestionNode).correctOptionIds;
+  }
+
+  return clone;
 }
 
 function BlockShell({
@@ -81,13 +353,9 @@ export function QuizElement(props: PlateElementProps) {
     });
   }
   return (
-    <BlockShell props={props} onEdit={dialogs ? edit : undefined} label="Quiz">
-      {element.timeLimitMin != null && (
-        <div contentEditable={false} className="mb-2 text-xs text-fg-muted">
-          Time limit: {element.timeLimitMin} min
-        </div>
-      )}
-    </BlockShell>
+    <StudyBlockRoot props={props} onEdit={dialogs ? edit : undefined}>
+      <StudyBlockTimeLimit minutes={element.timeLimitMin} />
+    </StudyBlockRoot>
   );
 }
 
@@ -100,7 +368,9 @@ export function FlashcardsElement(props: PlateElementProps) {
       replaceElement(editor, props.element, flashcardsNodeFromFence(code, element.id));
     });
   }
-  return <BlockShell props={props} onEdit={dialogs ? edit : undefined} label="Flashcards" />;
+  return (
+    <StudyBlockRoot props={props} onEdit={dialogs ? edit : undefined} className="gap-2" />
+  );
 }
 
 export function MermaidElement(props: PlateElementProps) {
@@ -123,12 +393,18 @@ export function MermaidElement(props: PlateElementProps) {
 }
 
 export function QuizQuestionElement(props: PlateElementProps) {
+  const editor = useEditorRef();
   const element = props.element as unknown as QuizQuestionNode;
+  const path = editor.api.findPath(props.element);
+  const pathIndex = path?.[path.length - 1];
+  const questionNumber = typeof pathIndex === 'number' ? pathIndex + 1 : undefined;
   return (
-    <PlateElement {...props} className={QUIZ_QUESTION_CLASS}>
-      <div contentEditable={false} className="mb-2 text-xs font-medium text-fg-muted">
-        {element.questionType.toUpperCase()}
-      </div>
+    <PlateElement {...props} className={QUIZ_REVIEW_QUESTION_CLASS}>
+      <QuizQuestionHeader
+        questionNumber={questionNumber}
+        questionType={element.questionType}
+        level={element.level}
+      />
       {props.children}
     </PlateElement>
   );
@@ -136,22 +412,36 @@ export function QuizQuestionElement(props: PlateElementProps) {
 
 export function QuizPromptElement(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="p" className={QUIZ_PROMPT_CLASS}>
+    <PlateElement {...props} as="p" className={QUIZ_REVIEW_PROMPT_CLASS}>
       {props.children}
     </PlateElement>
   );
 }
 
 export function QuizOptionElement(props: PlateElementProps) {
-  const element = props.element as unknown as QuizOptionNode;
-  const question = editorParentQuestion(useEditorRef(), props.element);
+  const editor = useEditorRef();
+  const element = props.element as unknown as QuizOptionNode & {
+    explanation?: string;
+    role?: QuizOptionRole;
+  };
+  const question = editorParentQuestion(editor, props.element);
   const correct = question?.correctOptionIds?.includes(element.id);
+  const path = editor.api.findPath(props.element);
+  const pathIndex = path?.[path.length - 1];
+  const optionNumber = typeof pathIndex === 'number' ? pathIndex : undefined;
   return (
-    <PlateElement {...props} as="p" className={QUIZ_OPTION_CLASS}>
-      <span contentEditable={false} className="mr-2 text-xs text-fg-muted">
-        {correct ? '✓' : '○'}
-      </span>
-      {props.children}
+    <PlateElement
+      {...props}
+      className={quizOptionClassName(Boolean(correct), element.role)}
+    >
+      <QuizOptionView
+        correct={Boolean(correct)}
+        role={element.role}
+        optionNumber={optionNumber}
+        explanation={element.explanation}
+      >
+        {props.children}
+      </QuizOptionView>
     </PlateElement>
   );
 }
@@ -165,7 +455,7 @@ function editorParentQuestion(editor: AnyEditor, element: object): QuizQuestionN
 
 export function QuizExplanationElement(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="p" className={QUIZ_EXPLANATION_CLASS}>
+    <PlateElement {...props} as="p" className={cn('col-span-2', QUIZ_EXPLANATION_CLASS)}>
       {props.children}
     </PlateElement>
   );

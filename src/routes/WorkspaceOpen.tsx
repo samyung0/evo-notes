@@ -55,13 +55,14 @@ import { PrivateOrUnavailable } from '@/components/app/PrivateOrUnavailable';
 import { canShareWorkspace, isWorkspaceReadOnly } from '@/features/workspace/access';
 import { isApiError } from '@/api/client';
 import { toastCloneError } from '@/lib/authToasts';
+import { LoadingLarge } from '@/components/app/LoadingLarge';
 
 const MATERIAL_ICON: Record<MaterialRefType, IconName> = {
   mindmap: 'workspaces',
   diagram: 'grid',
   quiz: 'quiz',
   deck: 'flashcards',
-  note: 'notes',
+  note: 'write',
 };
 
 const GENERATING_MATERIAL: Record<GenerateMode, { type: MaterialRefType; title: string }> = {
@@ -121,7 +122,7 @@ function MaterialListItem({
         )}
       >
         <Icon name={MATERIAL_ICON[matRef.type]} size={15} />
-        <span className="flex-1 translate-y-px truncate">{matRef.title}</span>
+        <span className="line-clamp-2 flex-1 translate-y-px">{matRef.title}</span>
         {generating && <Spinner className="size-4 shrink-0" />}
       </button>
       {!readOnly && !generating && (
@@ -146,8 +147,12 @@ export default function WorkspaceOpen() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as WorkspaceOpenSearch;
 
-  const { data: ws, isLoading: wsLoading, isError: wsError, error: wsErr } =
-    useWorkspace(workspaceId);
+  const {
+    data: ws,
+    isLoading: wsLoading,
+    isError: wsError,
+    error: wsErr,
+  } = useWorkspace(workspaceId);
   const { data: chapters } = useChapters(workspaceId);
   const { data: files } = useFiles(workspaceId);
   const { data: materials } = useMaterials(workspaceId);
@@ -168,8 +173,18 @@ export default function WorkspaceOpen() {
   const openConfirm = useDialogs((s) => s.openConfirm);
 
   const openItem = openItemFromSearch(search);
+  const [suggestionDirty, setSuggestionDirty] = useState(false);
 
   function setOpenItem(item: OpenItem | null) {
+    const changingItem = item?.kind !== openItem?.kind || item?.id !== openItem?.id;
+    if (
+      changingItem &&
+      suggestionDirty &&
+      !window.confirm('Discard the unsubmitted suggestion draft and open another item?')
+    ) {
+      return;
+    }
+    if (changingItem) setSuggestionDirty(false);
     navigate({
       to: '.',
       search: searchFromOpenItem(item),
@@ -271,14 +286,25 @@ export default function WorkspaceOpen() {
     if (openItem?.kind === 'file' && openItem.id === id) setOpenItem(null);
   }
 
+  if (wsLoading) {
+    return (
+      <LoadingLarge
+        title="Loading workspace…"
+        backTo="/workspaces"
+        backLabel="Back to workspaces"
+      />
+    );
+  }
+
   if (!wsLoading && (wsError || !ws)) {
     const denied = isApiError(wsErr) && (wsErr.status === 404 || wsErr.status === 401);
     return (
       <PrivateOrUnavailable
-        title={
+        title={denied ? 'This item is private or unavailable.' : 'Unable to load workspace.'}
+        description={
           denied
-            ? 'This item is private or unavailable.'
-            : 'Unable to load this workspace.'
+            ? 'You may not have access, or the link may no longer be shared.'
+            : 'Ooops, we are not able to load the workspace. Please try again in a bit.'
         }
         backTo="/workspaces"
         backLabel="Back to workspaces"
@@ -355,6 +381,7 @@ export default function WorkspaceOpen() {
                 >
                   <Icon name="plus" size={16} className="-translate-y-px" /> {m.action_add_file()}
                 </Button>
+                {/* TODO: change share to settings or configure since there will be more workspace settings in future */}
                 {canShare && (
                   <Button
                     variant="surface"
@@ -376,10 +403,10 @@ export default function WorkspaceOpen() {
               {chapters && (
                 <div className="flex flex-col gap-3 pt-1 pb-2">
                   <div className="flex flex-col">
-                    <div className="flex items-center justify-between px-2 pt-1.5 pr-0 pb-1.5">
+                    <div className="relative flex items-center justify-between px-2 pt-3 pr-0 pb-1.5">
                       <div className="t-label text-fg-muted">Content</div>
                       {!readOnly && (
-                        <div>
+                        <div className="absolute top-1/2 right-0 flex -translate-y-1/2 gap-1">
                           <IconButton
                             icon="plus"
                             size={'xs'}
@@ -425,7 +452,7 @@ export default function WorkspaceOpen() {
                           <div className="group relative flex items-center rounded-row py-1.5 pr-8 hover:bg-surface-hover-bg">
                             <button
                               onClick={() => setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))}
-                              className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left"
+                              className="flex min-w-0 flex-1 items-center gap-1 px-1 text-left"
                             >
                               <Icon
                                 name={expanded ? 'chevronDown' : 'chevronRight'}
@@ -442,7 +469,7 @@ export default function WorkspaceOpen() {
                                 items={[
                                   {
                                     label: m.action_rename(),
-                                    icon: 'notes',
+                                    icon: 'write',
                                     onClick: () => {
                                       // TODO: use dialog
                                       const n = prompt('Rename chapter', ch.name);
@@ -566,7 +593,12 @@ export default function WorkspaceOpen() {
         >
           {/* Center: content viewer */}
           <Panel className="w-full" sectionClassName="h-full gap-0">
-            <CenterContent color={ws?.color} item={openItem} readOnly={readOnly} />
+            <CenterContent
+              color={ws?.color}
+              item={openItem}
+              readOnly={readOnly}
+              onSuggestionDirtyChange={setSuggestionDirty}
+            />
           </Panel>
         </ResizablePanel>
         {!readOnly && (
@@ -620,7 +652,10 @@ export default function WorkspaceOpen() {
           privacy={ws.privacy}
           link={`/share/workspaces/${ws.id}`}
           saving={updateWorkspace.isPending}
+          workspaceId={ws.id}
+          shareRole={ws.shareRole ?? 'viewer'}
           onPrivacyChange={(privacy) => updateWorkspace.mutate({ id: ws.id, privacy })}
+          onShareRoleChange={(shareRole) => updateWorkspace.mutate({ id: ws.id, shareRole })}
         />
       )}
     </>

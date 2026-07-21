@@ -34,4 +34,27 @@ describe('finalizeSuggestionValue', () => {
       { type: 'p', children: [{ text: 'Keep ' }, { text: 'old' }] },
     ]);
   });
+
+  it('handles block and void suggestion metadata', () => {
+    const blocks = [
+      {
+        type: 'p',
+        suggestion: { id: 'removed-block', type: 'remove', userId: 'editor' },
+        children: [{ text: 'removed block' }],
+      },
+      {
+        type: 'img',
+        assetId: 'asset-1',
+        suggestion: { id: 'inserted-void', type: 'insert', userId: 'editor' },
+        children: [{ text: '' }],
+      },
+    ] as MaterialValue;
+
+    expect(finalizeSuggestionValue(blocks, 'accept')).toEqual([
+      { type: 'img', assetId: 'asset-1', children: [{ text: '' }] },
+    ]);
+    expect(finalizeSuggestionValue(blocks, 'reject')).toEqual([
+      { type: 'p', children: [{ text: 'removed block' }] },
+    ]);
+  });
 });

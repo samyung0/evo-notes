@@ -55,6 +55,7 @@ import type {
   SaveCanvasReq,
   SearchParams,
   SearchResult,
+  SearchWorkspaceInviteCandidatesParams,
   Tag,
   Task,
   URLResp,
@@ -74,6 +75,7 @@ import type {
   User,
   Workspace,
   WorkspaceInvite,
+  WorkspaceInviteCandidate,
   WorkspaceMember,
   WorkspaceStats,
 } from './model';
@@ -3582,6 +3584,71 @@ export const listWorkspaceFiles = async (
 
   const data: listWorkspaceFilesResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as listWorkspaceFilesResponse;
+};
+
+export type searchWorkspaceInviteCandidatesResponse200 = {
+  data: WorkspaceInviteCandidate[] | null;
+  status: 200;
+};
+
+export type searchWorkspaceInviteCandidatesResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type searchWorkspaceInviteCandidatesResponseSuccess =
+  searchWorkspaceInviteCandidatesResponse200 & {
+    headers: Headers;
+  };
+export type searchWorkspaceInviteCandidatesResponseError =
+  searchWorkspaceInviteCandidatesResponseDefault & {
+    headers: Headers;
+  };
+
+export type searchWorkspaceInviteCandidatesResponse =
+  | searchWorkspaceInviteCandidatesResponseSuccess
+  | searchWorkspaceInviteCandidatesResponseError;
+
+export const getSearchWorkspaceInviteCandidatesUrl = (
+  id: string,
+  params?: SearchWorkspaceInviteCandidatesParams
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/workspaces/${id}/invite-candidates?${stringifiedParams}`
+    : `/api/workspaces/${id}/invite-candidates`;
+};
+
+/**
+ * @summary Search users eligible for a workspace invitation
+ */
+export const searchWorkspaceInviteCandidates = async (
+  id: string,
+  params?: SearchWorkspaceInviteCandidatesParams,
+  options?: RequestInit
+): Promise<searchWorkspaceInviteCandidatesResponse> => {
+  const res = await fetch(getSearchWorkspaceInviteCandidatesUrl(id, params), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: searchWorkspaceInviteCandidatesResponse['data'] = body ? JSON.parse(body) : {};
+  return {
+    data,
+    status: res.status,
+    headers: res.headers,
+  } as searchWorkspaceInviteCandidatesResponse;
 };
 
 export type listWorkspaceInvitesResponse200 = {

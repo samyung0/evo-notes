@@ -34,6 +34,7 @@ const selectTriggerVariants = cva(
       variant: {
         border: 'rounded-input border border-line',
         underline: 'border-b border-line',
+        noOutline: 'border-none',
       },
     },
     defaultVariants: {
@@ -61,7 +62,10 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <Icon name="chevronDown" className="size-4 text-fg-muted" />
+        <Icon
+          name="chevronDown"
+          className="size-4 text-fg-muted transition-transform duration-200 data-[state=open]:rotate-180"
+        />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );

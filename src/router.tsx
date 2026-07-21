@@ -36,6 +36,7 @@ import {
   tasksQuery,
   workspaceQuery,
   workspacesQuery,
+  materialsQuery,
 } from '@/api/hooks';
 import { parseWorkspaceOpenSearch } from '@/features/materials/openItem';
 
@@ -92,6 +93,7 @@ const publicRoutes = [
       qc.prefetchQuery(workspaceQuery(id));
       qc.prefetchQuery(chaptersQuery(id));
       qc.prefetchQuery(filesQuery(id));
+      qc.prefetchQuery(materialsQuery(id));
     },
   }),
   createRoute({
@@ -154,9 +156,11 @@ const appRoutes = [
       qc.prefetchQuery(workspaceQuery(id));
       qc.prefetchQuery(chaptersQuery(id));
       qc.prefetchQuery(filesQuery(id));
+      qc.prefetchQuery(materialsQuery(id));
       qc.prefetchQuery(conversationsQuery(id));
     },
   }),
+  page('/workspace-invites/$token', () => import('@/routes/WorkspaceInviteAccept')),
   page(
     '/quizzes',
     () => import('@/routes/Quizzes'),

@@ -4,11 +4,9 @@ import type { WidgetGroupId } from './noteEditorPrefs';
 import type { NoteBlockDialogsApi } from './blocks/dialogContext';
 import { customBlockNode } from './blocks/shared';
 import { insertMediaPlaceholder } from './MediaNodes';
+import { insertEditorNode, type NoteEditorInstance } from './insertEditorNode';
 
-// Plate's transform extensions are plugin-derived and intentionally wider than
-// the base editor type.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type NoteEditorInstance = any;
+export { insertEditorNode, type NoteEditorInstance } from './insertEditorNode';
 
 export interface EditorCommand {
   id: string;
@@ -21,11 +19,6 @@ export interface EditorCommand {
 
 export function emptyParagraph() {
   return { type: 'p', children: [{ text: '' }] };
-}
-
-export function insertEditorNode(editor: NoteEditorInstance, node: unknown) {
-  editor.tf.focus();
-  editor.tf.insertNodes(node, { select: true });
 }
 
 function blockCommand(id: string, label: string, type: string, keywords: string[] = []) {
@@ -159,18 +152,6 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
       insertEditorNode(editor, {
         type: 'equation',
         texExpression: '',
-        children: [{ text: '' }],
-      }),
-  },
-  {
-    id: 'date',
-    label: 'Date',
-    description: 'Insert today as an inline date',
-    widget: 'date',
-    run: (editor) =>
-      insertEditorNode(editor, {
-        type: 'date',
-        date: new Date().toISOString().slice(0, 10),
         children: [{ text: '' }],
       }),
   },

@@ -5,6 +5,8 @@ import { PlateElement, type PlateElementProps, useEditorRef } from 'platejs/reac
 import { useOptionalNoteBlockDialogs } from './blocks/dialogContext';
 import { commandMatches, EDITOR_COMMANDS } from './editorCommands';
 import { useNoteEditorPrefs } from './noteEditorPrefs';
+import { isEditorCommandAllowed } from './editorMode';
+import { useEditorRuntime } from './EditorRuntime';
 
 export function SlashInputElement(props: PlateElementProps<TComboboxInputElement>) {
   const editor = useEditorRef();
@@ -12,6 +14,7 @@ export function SlashInputElement(props: PlateElementProps<TComboboxInputElement
   // trees that do not see NoteBlockDialogsProvider React context.
   const dialogs = useOptionalNoteBlockDialogs();
   const enabled = useNoteEditorPrefs((state) => state.enabled);
+  const { mode } = useEditorRuntime();
   const inputRef = useRef<HTMLInputElement>(null);
   const cursorState = useHTMLInputCursorState(inputRef);
   const insertPointRef = useRef<PointRef | null>(null);
@@ -50,9 +53,12 @@ export function SlashInputElement(props: PlateElementProps<TComboboxInputElement
   const commands = useMemo(
     () =>
       EDITOR_COMMANDS.filter(
-        (command) => (!command.widget || enabled[command.widget]) && commandMatches(command, query)
+        (command) =>
+          (!command.widget || enabled[command.widget]) &&
+          isEditorCommandAllowed(mode, command) &&
+          commandMatches(command, query)
       ),
-    [enabled, query]
+    [enabled, mode, query]
   );
 
   useEffect(() => {

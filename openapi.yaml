@@ -1,4 +1,4 @@
-components:
+﻿components:
   schemas:
     AccessCapabilities:
       additionalProperties: false
@@ -595,13 +595,13 @@ components:
           format: uri
           readOnly: true
           type: string
-        email:
-          format: email
-          type: string
         role:
           $ref: "#/components/schemas/WorkspaceRole"
+        userId:
+          minLength: 1
+          type: string
       required:
-        - email
+        - userId
         - role
       type: object
     CreateWorkspaceReq:
@@ -624,6 +624,9 @@ components:
         privacy:
           $ref: "#/components/schemas/Privacy"
           description: Visibility
+        shareRole:
+          $ref: "#/components/schemas/ShareRole"
+          description: Effective material role for signed-in nonmembers; defaults to viewer
         tags:
           description: Tags; reuse existing by id or create new by value
           items:
@@ -658,6 +661,8 @@ components:
           type: string
         invitedBy:
           type: string
+        invitedUserId:
+          type: string
         revokedAt:
           format: date-time
           type: string
@@ -671,6 +676,7 @@ components:
         - token
         - id
         - workspaceId
+        - invitedUserId
         - email
         - role
         - invitedBy
@@ -1003,21 +1009,7 @@ components:
         color:
           $ref: "#/components/schemas/UserColor"
         content:
-          additionalProperties: false
-          properties:
-            schemaVersion:
-              format: int64
-              type: integer
-            value:
-              items:
-                additionalProperties: {}
-                type: object
-              nullable: true
-              type: array
-          required:
-            - schemaVersion
-            - value
-          type: object
+          $ref: "#/components/schemas/Envelope"
         createdAt:
           format: date-time
           type: string
@@ -1057,6 +1049,7 @@ components:
         - workspaceName
         - kind
         - title
+        - content
         - chapterId
         - scopeChapters
         - scopeFileIds
@@ -1066,7 +1059,6 @@ components:
         - revision
         - isOwner
         - capabilities
-        - content
       type: object
     MaterialRef:
       additionalProperties: false
@@ -1370,6 +1362,8 @@ components:
           $ref: "#/components/schemas/Privacy"
         role:
           $ref: "#/components/schemas/WorkspaceRole"
+        shareRole:
+          $ref: "#/components/schemas/ShareRole"
         tags:
           items:
             $ref: "#/components/schemas/Tag"
@@ -1381,6 +1375,7 @@ components:
         - name
         - color
         - privacy
+        - shareRole
         - tags
         - chapterCount
         - fileCount
@@ -1505,6 +1500,12 @@ components:
         - title
         - href
       type: object
+    ShareRole:
+      enum:
+        - editor
+        - commenter
+        - viewer
+      type: string
     SrsState:
       additionalProperties: false
       properties:
@@ -1790,6 +1791,14 @@ components:
           format: uri
           readOnly: true
           type: string
+        expectedBaseRevision:
+          description: Required when accepting and must equal the pending suggestion base
+          format: int64
+          minimum: 1
+          type: integer
+        finalizedContent:
+          $ref: "#/components/schemas/Envelope"
+          description: Required when accepting; complete finalized Plate document
         status:
           $ref: "#/components/schemas/SuggestionStatus"
           enum:
@@ -1870,6 +1879,8 @@ components:
           type: string
         privacy:
           $ref: "#/components/schemas/Privacy"
+        shareRole:
+          $ref: "#/components/schemas/ShareRole"
         tags:
           items:
             $ref: "#/components/schemas/TagInput"
@@ -1954,6 +1965,8 @@ components:
           $ref: "#/components/schemas/Privacy"
         role:
           $ref: "#/components/schemas/WorkspaceRole"
+        shareRole:
+          $ref: "#/components/schemas/ShareRole"
         tags:
           items:
             $ref: "#/components/schemas/Tag"
@@ -1963,6 +1976,7 @@ components:
         - name
         - color
         - privacy
+        - shareRole
         - tags
         - chapterCount
         - fileCount
@@ -1989,6 +2003,8 @@ components:
           type: string
         invitedBy:
           type: string
+        invitedUserId:
+          type: string
         revokedAt:
           format: date-time
           type: string
@@ -1999,11 +2015,28 @@ components:
       required:
         - id
         - workspaceId
+        - invitedUserId
         - email
         - role
         - invitedBy
         - expiresAt
         - createdAt
+      type: object
+    WorkspaceInviteCandidate:
+      additionalProperties: false
+      properties:
+        avatarUrl:
+          type: string
+        email:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - name
+        - email
       type: object
     WorkspaceMember:
       additionalProperties: false
@@ -3820,12 +3853,14 @@ paths:
           name: sort
           schema:
             type: string
-        - explode: false
+        - description: Comma-separated colors; OR-matched with tags
+          explode: false
           in: query
           name: color
           schema:
             type: string
-        - explode: false
+        - description: Comma-separated tags; OR-matched with colors
+          explode: false
           in: query
           name: tag
           schema:
@@ -4148,6 +4183,40 @@ paths:
       summary: List workspace files
       tags:
         - Content
+  /api/workspaces/{id}/invite-candidates:
+    get:
+      operationId: searchWorkspaceInviteCandidates
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - explode: false
+          in: query
+          name: q
+          schema:
+            minLength: 1
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/WorkspaceInviteCandidate"
+                nullable: true
+                type: array
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Search users eligible for a workspace invitation
+      tags:
+        - Workspace collaboration
   /api/workspaces/{id}/invites:
     get:
       operationId: listWorkspaceInvites

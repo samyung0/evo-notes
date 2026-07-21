@@ -28,6 +28,7 @@ type Workspace struct {
 	Name           string    `json:"name"`
 	Color          UserColor `json:"color"`
 	Privacy        Privacy   `json:"privacy"`
+	ShareRole      ShareRole `json:"shareRole"`
 	Tags           []Tag     `json:"tags"`
 	ChapterCount   int       `json:"chapterCount"`
 	FileCount      int       `json:"fileCount"`
@@ -227,16 +228,26 @@ type WorkspaceMember struct {
 }
 
 type WorkspaceInvite struct {
-	ID          string        `json:"id"`
-	WorkspaceID string        `json:"workspaceId"`
-	Email       string        `json:"email"`
-	Role        WorkspaceRole `json:"role"`
-	Token       string        `json:"token,omitempty"`
-	InvitedBy   string        `json:"invitedBy"`
-	ExpiresAt   time.Time     `json:"expiresAt"`
-	AcceptedAt  *time.Time    `json:"acceptedAt,omitempty"`
-	RevokedAt   *time.Time    `json:"revokedAt,omitempty"`
-	CreatedAt   time.Time     `json:"createdAt"`
+	ID            string        `json:"id"`
+	WorkspaceID   string        `json:"workspaceId"`
+	InvitedUserID string        `json:"invitedUserId"`
+	Email         string        `json:"email"`
+	Role          WorkspaceRole `json:"role"`
+	Token         string        `json:"token,omitempty"`
+	InvitedBy     string        `json:"invitedBy"`
+	ExpiresAt     time.Time     `json:"expiresAt"`
+	AcceptedAt    *time.Time    `json:"acceptedAt,omitempty"`
+	RevokedAt     *time.Time    `json:"revokedAt,omitempty"`
+	CreatedAt     time.Time     `json:"createdAt"`
+}
+
+// WorkspaceInviteCandidate is the deliberately minimal account projection
+// returned to workspace owners while selecting an invitation recipient.
+type WorkspaceInviteCandidate struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
 }
 
 type SuggestionStatus string

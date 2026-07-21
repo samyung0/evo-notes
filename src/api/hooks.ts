@@ -50,6 +50,7 @@ import type {
   Privacy,
   SuggestionStatus,
   WorkspaceInvite,
+  WorkspaceInviteCandidate,
   WorkspaceMember,
   WorkspaceRole,
 } from './types';
@@ -150,15 +151,19 @@ export const useTags = (kind = 'workspace') => useQuery(tagsQuery(kind));
 export interface WorkspaceQuery {
   q?: string;
   sort?: string;
-  color?: string;
-  tag?: string;
+  /** One or more colors; OR-matched with tags on the server. */
+  color?: string | string[];
+  /** One or more tag values; OR-matched with colors on the server. */
+  tag?: string | string[];
 }
 export const workspacesQuery = (params: WorkspaceQuery = {}) => {
   const search = new URLSearchParams();
   if (params.q) search.set('q', params.q);
   if (params.sort) search.set('sort', params.sort);
-  if (params.color) search.set('color', params.color);
-  if (params.tag) search.set('tag', params.tag);
+  const colors = Array.isArray(params.color) ? params.color : params.color ? [params.color] : [];
+  const tags = Array.isArray(params.tag) ? params.tag : params.tag ? [params.tag] : [];
+  if (colors.length) search.set('color', colors.join(','));
+  if (tags.length) search.set('tag', tags.join(','));
   const qs = search.toString();
   return queryOptions({
     queryKey: qk.workspaces(params),
@@ -203,8 +208,13 @@ export function useCreateWorkspace() {
 export function useUpdateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: UpdateWorkspaceReq & { id: string }) =>
-      api.patch<Workspace>(`/workspaces/${id}`, body),
+    mutationFn: ({
+      id,
+      ...body
+    }: UpdateWorkspaceReq & {
+      id: string;
+      shareRole?: Exclude<WorkspaceRole, 'owner'>;
+    }) => api.patch<Workspace>(`/workspaces/${id}`, body),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       qc.invalidateQueries({ queryKey: qk.workspace(v.id) });
@@ -580,11 +590,43 @@ export const workspaceInvitesQuery = (workspaceId: string) =>
 export const useWorkspaceInvites = (workspaceId: string) =>
   useQuery(workspaceInvitesQuery(workspaceId));
 
+export const useWorkspaceInviteCandidates = (workspaceId: string, query: string) =>
+  useQuery({
+    queryKey: qk.workspaceInviteCandidates(workspaceId, query.trim()),
+    queryFn: () =>
+      api.get<WorkspaceInviteCandidate[]>(
+        `/workspaces/${workspaceId}/invite-candidates?q=${encodeURIComponent(query.trim())}`
+      ),
+    enabled: !!workspaceId && query.trim().length >= 2,
+  });
+
 export function useCreateWorkspaceInvite(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { email: string; role: Exclude<WorkspaceRole, 'owner'> }) =>
+    mutationFn: (body: { userId: string; role: Exclude<WorkspaceRole, 'owner'> }) =>
       api.post<WorkspaceInvite>(`/workspaces/${workspaceId}/invites`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.workspaceInvites(workspaceId) }),
+  });
+}
+
+export function useAcceptWorkspaceInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) =>
+      api.post<WorkspaceMember>(`/workspace-invites/${encodeURIComponent(token)}/accept`),
+    onSuccess: (member) => {
+      qc.invalidateQueries({ queryKey: ['workspaces'] });
+      qc.invalidateQueries({ queryKey: qk.workspace(member.workspaceId) });
+      qc.invalidateQueries({ queryKey: qk.workspaceMembers(member.workspaceId) });
+    },
+  });
+}
+
+export function useRevokeWorkspaceInvite(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) =>
+      api.del<void>(`/workspaces/${workspaceId}/invites/${inviteId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.workspaceInvites(workspaceId) }),
   });
 }
@@ -594,6 +636,14 @@ export function useUpdateWorkspaceMember(workspaceId: string) {
   return useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: Exclude<WorkspaceRole, 'owner'> }) =>
       api.patch<void>(`/workspaces/${workspaceId}/members/${userId}`, { role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.workspaceMembers(workspaceId) }),
+  });
+}
+
+export function useRemoveWorkspaceMember(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => api.del<void>(`/workspaces/${workspaceId}/members/${userId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.workspaceMembers(workspaceId) }),
   });
 }
@@ -680,9 +730,29 @@ export function useCreateMaterialSuggestion(materialId: string) {
 export function useUpdateMaterialSuggestionStatus(materialId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ suggestionId, status }: { suggestionId: string; status: SuggestionStatus }) =>
-      api.patch<MaterialSuggestion>(`/material-suggestions/${suggestionId}`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.materialSuggestions(materialId) }),
+    mutationFn: ({
+      suggestionId,
+      status,
+      finalizedContent,
+      expectedBaseRevision,
+    }: {
+      suggestionId: string;
+      status: SuggestionStatus;
+      finalizedContent?: MaterialDocument;
+      expectedBaseRevision?: number;
+    }) =>
+      api.patch<MaterialSuggestion>(`/material-suggestions/${suggestionId}`, {
+        status,
+        finalizedContent,
+        expectedBaseRevision,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: qk.materialSuggestions(materialId) }),
+        qc.invalidateQueries({ queryKey: qk.material(materialId) }),
+        qc.invalidateQueries({ queryKey: qk.materialRevisions(materialId) }),
+      ]);
+    },
   });
 }
 

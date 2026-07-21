@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getCommentKey } from '@platejs/comment';
-import { SuggestionPlugin } from '@platejs/suggestion/react';
 import { KEYS, TextApi } from 'platejs';
 import { Plate, PlateContent, usePlateEditor } from 'platejs/react';
 import { EmptyState, Spinner } from '@/components/ui';
@@ -26,19 +25,22 @@ import {
   type MaterialValue,
 } from '@/features/materials/document';
 import { EditorRuntimeProvider, type EditorRuntimeValue } from './EditorRuntime';
-import { CollaborationProvider } from './Collaboration';
+import { CollaborationProvider, suggestionPlugin } from './Collaboration';
 import { FloatingToolbar } from './FloatingToolbar';
+import type { NoteEditorMode } from './editorMode';
 
 export function NoteEditor({
   materialId,
-  readOnly = false,
+  mode,
+  allowExternalAssets = false,
+  onSuggestionDirtyChange,
 }: {
   materialId: string;
-  readOnly?: boolean;
+  mode: NoteEditorMode;
+  allowExternalAssets?: boolean;
+  onSuggestionDirtyChange?: (dirty: boolean) => void;
 }) {
   const { data: material, isLoading } = useMaterial(materialId);
-
-  console.log(material);
 
   if (isLoading) {
     return (
@@ -51,31 +53,53 @@ export function NoteEditor({
     return <EmptyState title="Note not found" body="This note may have been deleted." />;
   }
 
+  const modeAllowed =
+    (mode === 'edit' && material.capabilities.canEdit) ||
+    (mode === 'suggestion' && (material.capabilities.canEdit || material.capabilities.canComment));
+  if (!modeAllowed) {
+    return (
+      <EmptyState
+        title="Mode unavailable"
+        body="Your current material permissions do not allow this mode."
+      />
+    );
+  }
+
   return (
-    <CollaborativeNoteEditor key={material.id} material={material} publicReadOnly={readOnly} />
+    <CollaborativeNoteEditor
+      key={`${material.id}:${mode}`}
+      material={material}
+      mode={mode}
+      allowExternalAssets={allowExternalAssets}
+      onSuggestionDirtyChange={onSuggestionDirtyChange}
+    />
   );
 }
 
 function CollaborativeNoteEditor({
   material,
-  publicReadOnly,
+  mode,
+  allowExternalAssets,
+  onSuggestionDirtyChange,
 }: {
   material: Material;
-  publicReadOnly: boolean;
+  mode: NoteEditorMode;
+  allowExternalAssets: boolean;
+  onSuggestionDirtyChange?: (dirty: boolean) => void;
 }) {
   const me = useMe();
   const role: WorkspaceRole | null = material.role ?? (material.isOwner ? 'owner' : null);
-  const members = useWorkspaceMembers(material.workspaceId, role !== null);
+  const shouldLoadMembers = material.capabilities.canManageMembers;
+  const members = useWorkspaceMembers(material.workspaceId, shouldLoadMembers);
   const discussions = useMaterialDiscussions(material.id);
   const canEdit = material.capabilities.canEdit;
-  const canComment = material.capabilities.canComment;
-  const effectiveReadOnly = (!canEdit && !canComment) || (publicReadOnly && role === null);
+  const canComment = material.capabilities.canComment || canEdit;
   const users = useMemo(
     () => Object.fromEntries((members.data ?? []).map((member) => [member.userId, member])),
     [members.data]
   );
 
-  if (me.isPending || members.isPending || discussions.isPending) {
+  if (me.isPending || (shouldLoadMembers && members.isPending) || discussions.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
@@ -90,19 +114,20 @@ function CollaborativeNoteEditor({
     role,
     canEdit,
     canComment,
+    mode,
+    allowExternalAssets,
   };
 
   return (
     <EditorRuntimeProvider value={runtime}>
       <NoteEditorCore
         material={material}
-        readOnly={effectiveReadOnly}
+        mode={mode}
+        allowExternalAssets={allowExternalAssets}
         users={users}
         discussions={discussions.data ?? []}
         currentUserId={me.data?.id ?? null}
-        canEdit={canEdit}
-        canComment={canComment}
-        role={role}
+        onSuggestionDirtyChange={onSuggestionDirtyChange}
       />
     </EditorRuntimeProvider>
   );
@@ -110,22 +135,20 @@ function CollaborativeNoteEditor({
 
 function NoteEditorCore({
   material,
-  readOnly,
+  mode,
+  allowExternalAssets,
   users,
   discussions,
   currentUserId,
-  canEdit,
-  canComment,
-  role,
+  onSuggestionDirtyChange,
 }: {
   material: Material;
-  readOnly: boolean;
+  mode: NoteEditorMode;
+  allowExternalAssets: boolean;
   users: Record<string, NonNullable<ReturnType<typeof useWorkspaceMembers>['data']>[number]>;
   discussions: NonNullable<ReturnType<typeof useMaterialDiscussions>['data']>;
   currentUserId: string | null;
-  canEdit: boolean;
-  canComment: boolean;
-  role: WorkspaceRole | null;
+  onSuggestionDirtyChange?: (dirty: boolean) => void;
 }) {
   const update = useUpdateMaterial(material.workspaceId);
   const mutateRef = useRef(update.mutate);
@@ -135,11 +158,23 @@ function NoteEditorCore({
   const applyingDiscussionMarks = useRef(false);
   const revisionRef = useRef(material.revision ?? 1);
   const [suggestionDirty, setSuggestionDirty] = useState(false);
-  const initialDocument = useMemo(
-    () =>
+  const [baseSnapshot, setBaseSnapshot] = useState(() => ({
+    document:
       parseMaterialDocument(material.content) ??
       createMaterialDocument([{ type: 'p', children: [{ text: '' }] }]),
-    [material.content]
+    revision: material.revision ?? 1,
+  }));
+  const currentDocument = useMemo(
+    () => parseMaterialDocument(material.content) ?? baseSnapshot.document,
+    [baseSnapshot.document, material.content]
+  );
+  const initialDocument = baseSnapshot.document;
+  const setSuggestionDraftDirty = useCallback(
+    (dirty: boolean) => {
+      setSuggestionDirty(dirty);
+      onSuggestionDirtyChange?.(dirty);
+    },
+    [onSuggestionDirtyChange]
   );
 
   const plugins = useMemo(
@@ -149,8 +184,10 @@ function NoteEditorCore({
         currentUserId,
         users,
         discussions,
+        mode,
+        allowExternalAssets,
       }),
-    [currentUserId, discussions, material.workspaceId, users]
+    [allowExternalAssets, currentUserId, discussions, material.workspaceId, mode, users]
   );
 
   const editor = usePlateEditor({
@@ -158,13 +195,51 @@ function NoteEditorCore({
     components: noteComponents,
     value: () => structuredClone(initialDocument.value),
   });
+  const replaceEditorDocument = useCallback(
+    (value: MaterialValue) => {
+      applyingDiscussionMarks.current = true;
+      editor.tf.setValue(structuredClone(value));
+      queueMicrotask(() => {
+        applyingDiscussionMarks.current = false;
+      });
+    },
+    [editor]
+  );
 
   useEffect(() => {
-    const isSuggesting = role === 'commenter';
-    if (editor.getOption(SuggestionPlugin, 'isSuggesting') !== isSuggesting) {
-      editor.setOption(SuggestionPlugin, 'isSuggesting', isSuggesting);
+    const isSuggesting = mode === 'suggestion';
+    const getOption = editor.getOption as (plugin: unknown, key: string) => unknown;
+    const setOption = editor.setOption as (plugin: unknown, key: string, value: unknown) => void;
+    if (getOption(suggestionPlugin, 'isSuggesting') !== isSuggesting) {
+      setOption(suggestionPlugin, 'isSuggesting', isSuggesting);
     }
-  }, [editor, role]);
+  }, [editor, mode]);
+
+  useEffect(() => {
+    if (mode !== 'suggestion' || suggestionDirty) return;
+    const nextRevision = material.revision ?? 1;
+    if (nextRevision === baseSnapshot.revision) return;
+    const nextDocument =
+      parseMaterialDocument(material.content) ??
+      createMaterialDocument([{ type: 'p', children: [{ text: '' }] }]);
+    revisionRef.current = nextRevision;
+    setBaseSnapshot({ document: nextDocument, revision: nextRevision });
+    replaceEditorDocument(nextDocument.value);
+  }, [
+    baseSnapshot.revision,
+    material.content,
+    material.revision,
+    mode,
+    replaceEditorDocument,
+    suggestionDirty,
+  ]);
+
+  useEffect(() => {
+    if (!suggestionDirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [suggestionDirty]);
 
   useEffect(() => {
     applyingDiscussionMarks.current = true;
@@ -213,6 +288,12 @@ function NoteEditorCore({
         onSuccess: (saved) => {
           saveInFlight.current = false;
           revisionRef.current = saved.revision ?? revisionRef.current + 1;
+          const savedDocument =
+            parseMaterialDocument(saved.content) ??
+            createMaterialDocument(editor.children as MaterialValue);
+          if (mounted.current) {
+            setBaseSnapshot({ document: savedDocument, revision: revisionRef.current });
+          }
           if (pending.current) {
             if (mounted.current) setSaveState('pending');
             queueMicrotask(flush);
@@ -227,7 +308,7 @@ function NoteEditorCore({
         },
       }
     );
-  }, [material.id]);
+  }, [editor, material.id]);
 
   const schedule = useCallback(
     (content: MaterialDocument) => {
@@ -248,9 +329,9 @@ function NoteEditorCore({
   );
 
   function onEditorChange() {
-    if (readOnly || applyingDiscussionMarks.current) return;
-    if (!canEdit && canComment) {
-      setSuggestionDirty(true);
+    if (applyingDiscussionMarks.current) return;
+    if (mode === 'suggestion') {
+      setSuggestionDraftDirty(true);
       return;
     }
     try {
@@ -265,10 +346,18 @@ function NoteEditorCore({
       <div className="flex h-full flex-col">
         <Plate editor={editor} onChange={onEditorChange}>
           <CollaborationProvider
-            baseDocument={initialDocument}
-            baseRevision={revisionRef.current}
+            baseDocument={baseSnapshot.document}
+            baseRevision={baseSnapshot.revision}
+            currentDocument={currentDocument}
+            currentRevision={Math.max(material.revision ?? 1, revisionRef.current)}
+            discussions={discussions}
             suggestionDirty={suggestionDirty}
-            onSuggestionReset={() => setSuggestionDirty(false)}
+            onSuggestionReset={() => setSuggestionDraftDirty(false)}
+            replaceEditorDocument={replaceEditorDocument}
+            onBaseDocumentChange={(document, revision) => {
+              revisionRef.current = revision;
+              setBaseSnapshot({ document, revision });
+            }}
           >
             <NoteToolbar
               right={
@@ -280,30 +369,26 @@ function NoteEditorCore({
                     )}
                     role="status"
                   >
-                    {!canEdit &&
-                      canComment &&
-                      (suggestionDirty ? 'Suggestion draft' : 'Suggesting')}
-                    {canEdit && saveState === 'saved' && 'Saved'}
-                    {canEdit && saveState === 'pending' && 'Unsaved'}
-                    {canEdit && saveState === 'saving' && 'Saving…'}
-                    {canEdit && saveState === 'error' && 'Save conflict or failure'}
+                    {mode === 'suggestion' && (suggestionDirty ? 'Suggestion draft' : 'Suggesting')}
+                    {mode === 'edit' && saveState === 'saved' && 'Saved'}
+                    {mode === 'edit' && saveState === 'pending' && 'Unsaved'}
+                    {mode === 'edit' && saveState === 'saving' && 'Saving…'}
+                    {mode === 'edit' && saveState === 'error' && 'Save conflict or failure'}
                   </span>
-                  {!readOnly && <VoiceButton />}
+                  {mode === 'edit' && allowExternalAssets && <VoiceButton />}
                 </>
               }
             />
             <div className="min-h-0 flex-1 overflow-auto">
               <PlateContent
                 className={cn(
-                  'note-editor mx-auto min-h-75 max-w-3xl px-10 py-6 text-[0.95rem] outline-none max-sm:px-5',
-                  readOnly && 'select-text'
+                  'note-editor mx-auto min-h-75 max-w-3xl px-10 py-6 text-[0.95rem] outline-none max-sm:px-5'
                 )}
                 placeholder="Start writing…"
-                readOnly={readOnly}
               />
             </div>
             <FloatingToolbar />
-            <AiMenu />
+            {allowExternalAssets && <AiMenu />}
           </CollaborationProvider>
         </Plate>
       </div>

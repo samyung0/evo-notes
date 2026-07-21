@@ -36,7 +36,7 @@ const KIND_ICON: Record<SearchKind, Parameters<typeof Icon>[0]['name']> = {
   file: 'files',
   event: 'schedule',
   flashcards: 'flashcards',
-  thinking: 'notes',
+  thinking: 'write',
 };
 
 export function SearchDialog({

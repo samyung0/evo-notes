@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { WorkspaceRole } from '@/api/types';
+import type { NoteEditorMode } from './editorMode';
 
 export interface EditorRuntimeValue {
   materialId: string;
@@ -8,6 +9,9 @@ export interface EditorRuntimeValue {
   role: WorkspaceRole | null;
   canEdit: boolean;
   canComment: boolean;
+  mode: NoteEditorMode;
+  /** Structural workspace permission used to gate uploads and other side effects. */
+  allowExternalAssets: boolean;
 }
 
 const EditorRuntimeContext = createContext<EditorRuntimeValue | null>(null);

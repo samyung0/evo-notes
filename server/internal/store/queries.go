@@ -15,10 +15,11 @@ import (
 /* ------------------------------------------------------------------ patches */
 
 type WorkspacePatch struct {
-	Name    *string    `json:"name"`
-	Color   *UserColor `json:"color"`
-	Privacy *Privacy   `json:"privacy"`
-	Tags    *[]TagRef  `json:"tags"`
+	Name      *string    `json:"name"`
+	Color     *UserColor `json:"color"`
+	Privacy   *Privacy   `json:"privacy"`
+	ShareRole *ShareRole `json:"shareRole"`
+	Tags      *[]TagRef  `json:"tags"`
 }
 type ChapterPatch struct {
 	Name  *string `json:"name"`
@@ -162,7 +163,7 @@ func (s *Store) MarkNotificationsRead(ctx context.Context, userID string) error 
 
 /* --------------------------------------------------------------- workspaces */
 
-const wsCols = `w.id, w.name, w.color, w.privacy,
+const wsCols = `w.id, w.name, w.color, w.privacy, w.share_role,
 	COALESCE((SELECT jsonb_agg(jsonb_build_object('id', t.id, 'value', t.name) ORDER BY t.name)
 		FROM entity_tags et JOIN tags t ON t.id=et.tag_id
 		WHERE et.kind='workspace' AND et.entity_id=w.id), '[]'::jsonb),
@@ -172,8 +173,24 @@ const wsCols = `w.id, w.name, w.color, w.privacy,
 
 func scanWorkspace(row pgx.Row) (Workspace, error) {
 	var w Workspace
-	err := row.Scan(&w.ID, &w.Name, &w.Color, &w.Privacy, &w.Tags, &w.ChapterCount, &w.FileCount, &w.CreatedAt, &w.LastAccessedAt)
+	err := row.Scan(&w.ID, &w.Name, &w.Color, &w.Privacy, &w.ShareRole, &w.Tags, &w.ChapterCount, &w.FileCount, &w.CreatedAt, &w.LastAccessedAt)
 	return w, err
+}
+
+// splitCSVQuery splits a comma-separated query value into trimmed non-empty parts.
+func splitCSVQuery(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (s *Store) ListWorkspaces(ctx context.Context, userID, q, sortKey, color, tag string) ([]Workspace, error) {
@@ -184,13 +201,19 @@ func (s *Store) ListWorkspaces(ctx context.Context, userID, q, sortKey, color, t
 		n := len(args)
 		sb += fmt.Sprintf(" AND (lower(w.name) LIKE $%d OR EXISTS (SELECT 1 FROM entity_tags et JOIN tags t ON t.id=et.tag_id WHERE et.kind='workspace' AND et.entity_id=w.id AND lower(t.name) LIKE $%d))", n, n)
 	}
-	if color != "" {
-		args = append(args, color)
-		sb += fmt.Sprintf(" AND w.color=$%d", len(args))
-	}
-	if tag != "" {
-		args = append(args, tag)
-		sb += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM entity_tags et JOIN tags t ON t.id=et.tag_id WHERE et.kind='workspace' AND et.entity_id=w.id AND t.name=$%d)", len(args))
+	colors := splitCSVQuery(color)
+	tags := splitCSVQuery(tag)
+	if len(colors) > 0 || len(tags) > 0 {
+		var parts []string
+		if len(colors) > 0 {
+			args = append(args, colors)
+			parts = append(parts, fmt.Sprintf("w.color = ANY($%d)", len(args)))
+		}
+		if len(tags) > 0 {
+			args = append(args, tags)
+			parts = append(parts, fmt.Sprintf("EXISTS (SELECT 1 FROM entity_tags et JOIN tags t ON t.id=et.tag_id WHERE et.kind='workspace' AND et.entity_id=w.id AND t.name = ANY($%d))", len(args)))
+		}
+		sb += " AND (" + strings.Join(parts, " OR ") + ")"
 	}
 	switch sortKey {
 	case "created":
@@ -248,16 +271,19 @@ func (s *Store) WorkspaceStats(ctx context.Context, userID, id string) (Workspac
 	return st, err
 }
 
-func (s *Store) CreateWorkspace(ctx context.Context, userID, name string, color UserColor, privacy Privacy, tags []TagRef) (Workspace, error) {
+func (s *Store) CreateWorkspace(ctx context.Context, userID, name string, color UserColor, privacy Privacy, shareRole ShareRole, tags []TagRef) (Workspace, error) {
 	id := uid("ws")
+	if shareRole == "" {
+		shareRole = ShareViewer
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Workspace{}, err
 	}
 	defer tx.Rollback(ctx)
 
-	if _, err := tx.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy) VALUES ($1,$2,$3,$4,$5)`,
-		id, userID, name, color, privacy); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO workspaces (id, user_id, name, color, privacy, share_role) VALUES ($1,$2,$3,$4,$5,$6)`,
+		id, userID, name, color, privacy, shareRole); err != nil {
 		return Workspace{}, err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'owner')`,
@@ -375,8 +401,8 @@ func (s *Store) UpdateWorkspace(ctx context.Context, userID, id string, p Worksp
 
 	ct, err := tx.Exec(ctx, `UPDATE workspaces SET
 		name=COALESCE($2,name), color=COALESCE($3,color),
-		privacy=COALESCE($4,privacy) WHERE id=$1`,
-		id, p.Name, p.Color, p.Privacy)
+		privacy=COALESCE($4,privacy), share_role=COALESCE($5,share_role) WHERE id=$1`,
+		id, p.Name, p.Color, p.Privacy, p.ShareRole)
 	if err != nil {
 		return Workspace{}, err
 	}

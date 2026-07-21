@@ -20,7 +20,6 @@ describe('note editor command preferences', () => {
         'math',
         'media',
         'toc',
-        'date',
         'fontStyles',
         'quiz',
         'flashcards',

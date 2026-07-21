@@ -4,6 +4,7 @@ export { Button } from './Button';
 export { ButtonGroup, buttonGroupVariants } from './ButtonGroup';
 export { Card } from './Card';
 export { Checkbox } from './Checkbox';
+export { ColorPicker, DOCUMENT_COLORS, type ColorOption } from './ColorPicker';
 export {
   ConfirmDialog,
   Dialog,
@@ -24,6 +25,18 @@ export {
   DrawerPortal,
   DrawerTrigger,
 } from './Drawer';
+export {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from './DropdownMenu';
 export { EmptyState, Skeleton, SkeletonCardGrid, SkeletonList, Spinner } from './feedback';
 export { HoverActions } from './HoverActions';
 export { Icon, type IconName } from './Icon';

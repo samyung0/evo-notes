@@ -15,6 +15,7 @@ export interface CreatedWorkspaceInvite {
   expiresAt: string;
   id: string;
   invitedBy: string;
+  invitedUserId: string;
   revokedAt?: string;
   role: WorkspaceRole;
   token: string;

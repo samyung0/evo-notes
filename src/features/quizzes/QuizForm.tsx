@@ -24,33 +24,69 @@ const Q_TYPE_LABEL: Record<QuestionType, string> = {
 
 const newId = () => `q_${Math.random().toString(36).slice(2, 9)}`;
 
-/** Build a blank question of the given type, preserving shared fields. */
-function blankQuestion(
-  type: QuestionType,
-  base: { id: string; level: CognitiveLevel; prompt: string; explanation?: string }
+/** Build a blank question of the given type, preserving any shared fields. */
+export function createBlankQuestion(
+  type: QuestionType = 'mcq',
+  base?: { id?: string; level?: CognitiveLevel; prompt?: string; explanation?: string }
 ): Question {
+  const shared = {
+    id: base?.id ?? newId(),
+    level: base?.level ?? ('recall' as const),
+    prompt: base?.prompt ?? '',
+    ...(base?.explanation ? { explanation: base.explanation } : {}),
+  };
   switch (type) {
     case 'mcq':
-      return { ...base, type: 'mcq', options: [{ value: '' }, { value: '' }], correct: [] };
+      return { ...shared, type: 'mcq', options: [{ value: '' }, { value: '' }], correct: [] };
     case 'multi':
-      return { ...base, type: 'multi', options: [{ value: '' }, { value: '' }], correct: [] };
+      return { ...shared, type: 'multi', options: [{ value: '' }, { value: '' }], correct: [] };
     case 'boolean':
-      return { ...base, type: 'boolean', correct: true };
+      return { ...shared, type: 'boolean', correct: true };
     case 'fill':
-      return { ...base, type: 'fill', accepted: [{ value: '' }] };
+      return { ...shared, type: 'fill', accepted: [{ value: '' }] };
     case 'short':
-      return { ...base, type: 'short', accepted: [{ value: '' }] };
+      return { ...shared, type: 'short', accepted: [{ value: '' }] };
     case 'ordering':
-      return { ...base, type: 'ordering', items: [{ value: '' }, { value: '' }] };
+      return { ...shared, type: 'ordering', items: [{ value: '' }, { value: '' }] };
     case 'matching':
       return {
-        ...base,
+        ...shared,
         type: 'matching',
         pairs: [
           { left: '', right: '' },
           { left: '', right: '' },
         ],
       };
+  }
+}
+
+export function isCompleteQuestion(question: Question): boolean {
+  if (!question.prompt.trim()) return false;
+  switch (question.type) {
+    case 'mcq':
+    case 'multi':
+      return (
+        question.options.length >= 2 &&
+        question.options.every((option) => option.value.trim()) &&
+        question.correct.length >= 1 &&
+        (question.type === 'multi' || question.correct.length === 1) &&
+        question.correct.every((index) => index >= 0 && index < question.options.length)
+      );
+    case 'boolean':
+      return true;
+    case 'fill':
+    case 'short':
+      return (
+        question.accepted.length > 0 &&
+        question.accepted.every((answer) => answer.value.trim())
+      );
+    case 'ordering':
+      return question.items.length >= 2 && question.items.every((item) => item.value.trim());
+    case 'matching':
+      return (
+        question.pairs.length >= 2 &&
+        question.pairs.every((pair) => pair.left.trim() && pair.right.trim())
+      );
   }
 }
 
@@ -68,11 +104,13 @@ export function QuizForm({
   questions,
   onNameChange,
   onQuestionsChange,
+  showName = true,
 }: {
   name: string;
   questions: Question[];
   onNameChange: (name: string) => void;
   onQuestionsChange: (questions: Question[]) => void;
+  showName?: boolean;
 }) {
   function update(i: number, next: Question) {
     onQuestionsChange(questions.map((q, idx) => (idx === i ? next : q)));
@@ -82,7 +120,7 @@ export function QuizForm({
     if (q.type === type) return;
     update(
       i,
-      blankQuestion(type, {
+      createBlankQuestion(type, {
         id: q.id,
         level: q.level,
         prompt: q.prompt,
@@ -93,7 +131,7 @@ export function QuizForm({
   function addQuestion() {
     onQuestionsChange([
       ...questions,
-      blankQuestion('mcq', { id: newId(), level: 'recall', prompt: '' }),
+      createBlankQuestion(),
     ]);
   }
   function removeQuestion(i: number) {
@@ -102,12 +140,14 @@ export function QuizForm({
 
   return (
     <div className="flex flex-col gap-5">
-      <label className="flex flex-col gap-1.5">
-        <Text variant="label" tone="muted">
-          Quiz name
-        </Text>
-        <Input value={name} onChange={(e) => onNameChange(e.target.value)} />
-      </label>
+      {showName && (
+        <label className="flex flex-col gap-1.5">
+          <Text variant="label" tone="muted">
+            Quiz name
+          </Text>
+          <Input value={name} onChange={(e) => onNameChange(e.target.value)} />
+        </label>
+      )}
 
       {questions.map((q, i) => (
         <div key={q.id} className="rounded-card border border-line bg-surface-hover-bg p-4">

@@ -19,28 +19,28 @@ low priority:
 17. folder organization
 18. react reactivity check (many many fixes needed, give it to fable)
 19. semantics and accessibility check
-20. readme files
-21. investigate how to tie the state between search params and dialog open/close state, right now I see that we listen to change in dialog state in useeffect and then manually remove search params, and listening to change in search params to manually open the dialog. and we also need to factor in navigating cross pages and dont strip the search params on initial mount (because dialog will be initially closed)
-22. elastic search?
-23. what is the backend actually doing
-24. how to not lose ones mind when reading this repo
+20. when deleting files, make a is_deleted flag instead of fully deleting it. then make like a rubbish bin and perma delete the files after 30 days
+21. readme files
+22. investigate how to tie the state between search params and dialog open/close state, right now I see that we listen to change in dialog state in useeffect and then manually remove search params, and listening to change in search params to manually open the dialog. and we also need to factor in navigating cross pages and dont strip the search params on initial mount (because dialog will be initially closed)
+23. elastic search?
+24. what is the backend actually doing
+25. how to not lose ones mind when reading this repo
 
 high PRIORITIES:
 
-1. in workspaces (change color filter to a general filter with a color section and a tag section (limit max height of the popover))
-2. add in input components: date picker etc
+1. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
+2. add layout adjust in editor to make the document smaller or larger in width
 3. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
 4. set loading state for submit buttons (esp dialogs)
 5. remove all the <Text> components
 6. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
-7. inject script in head to set light/dark to prevent flashing
-8. add icons for common file format
-9. user can select any markdown contents (notes/quiz/mermaid) and then apply non-layout shifting operations (e.g. highlight/bold/underline), only layout shifting operation allowed is suggestion edit?, also they can like comment ask ai to summarize
-10. export to diff files
-11. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
-12. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
-13. tie workspace opened file to the queryParams
-14. check that shared workspaces (both link + public) file cannot be modified except from its owner (user needs to clone to edit)
+7. add icons for common file format
+8. user can select any markdown contents (notes/quiz/mermaid) and then apply non-layout shifting operations (e.g. highlight/bold/underline), only layout shifting operation allowed is suggestion edit?, also they can like comment ask ai to summarize
+9. export to diff files
+10. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
+11. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
+12. tie workspace opened file to the queryParams
+13. check that shared workspaces (both link + public) file cannot be modified except from its owner (user needs to clone to edit)
 
 rag system caution
 chapter scoped query/filtering is only soft steered using prompt, underlying reason why hard filtering during query is quite impossible is because after ingestion, an entity can be pointed to by multiple documents

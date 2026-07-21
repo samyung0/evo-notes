@@ -57,8 +57,8 @@ func (Privacy) Schema(r huma.Registry) *huma.Schema {
 	return enumRef(r, "Privacy", "private", "public", "link")
 }
 
-// WorkspaceRole controls collaborative access. Public/link visibility is
-// separate and always read-only for users without a membership.
+// WorkspaceRole controls collaborative access. Persisted workspace membership
+// and effective link/public material access both use these capability levels.
 type WorkspaceRole string
 
 const (
@@ -70,6 +70,32 @@ const (
 
 func (WorkspaceRole) Schema(r huma.Registry) *huma.Schema {
 	return enumRef(r, "WorkspaceRole", "owner", "editor", "commenter", "viewer")
+}
+
+// ShareRole is the effective material role granted to signed-in nonmembers
+// when a workspace is visible by link or publicly. It intentionally excludes
+// owner: workspace structure remains governed by persisted membership.
+type ShareRole string
+
+const (
+	ShareEditor    ShareRole = "editor"
+	ShareCommenter ShareRole = "commenter"
+	ShareViewer    ShareRole = "viewer"
+)
+
+func (ShareRole) Schema(r huma.Registry) *huma.Schema {
+	return enumRef(r, "ShareRole", "editor", "commenter", "viewer")
+}
+
+func (r ShareRole) WorkspaceRole() WorkspaceRole {
+	switch r {
+	case ShareEditor:
+		return RoleEditor
+	case ShareCommenter:
+		return RoleCommenter
+	default:
+		return RoleViewer
+	}
 }
 
 // PlanTier is the account subscription tier.

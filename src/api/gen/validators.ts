@@ -588,6 +588,7 @@ export const ExploreWorkspacesResponseItem = zod.object({
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
+  shareRole: zod.enum(['editor', 'commenter', 'viewer']),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -769,6 +770,18 @@ export const UpdateMaterialSuggestionStatusParams = zod.object({
 });
 
 export const UpdateMaterialSuggestionStatusBody = zod.object({
+  expectedBaseRevision: zod
+    .number()
+    .min(1)
+    .optional()
+    .describe('Required when accepting and must equal the pending suggestion base'),
+  finalizedContent: zod
+    .object({
+      schemaVersion: zod.number(),
+      value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
+    })
+    .optional()
+    .describe('Required when accepting; complete finalized Plate document'),
   status: zod.enum(['accepted', 'rejected', 'withdrawn']),
 });
 
@@ -1474,6 +1487,7 @@ export const ListWorkspacesResponseItem = zod.object({
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
+  shareRole: zod.enum(['editor', 'commenter', 'viewer']),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -1497,6 +1511,10 @@ export const CreateWorkspaceBody = zod.object({
     .describe('User color; defaults to graphite'),
   name: zod.string().min(1).max(createWorkspaceBodyNameMax).describe('Workspace name'),
   privacy: zod.enum(['private', 'public', 'link']).describe('Visibility'),
+  shareRole: zod
+    .enum(['editor', 'commenter', 'viewer'])
+    .optional()
+    .describe('Effective material role for signed-in nonmembers; defaults to viewer'),
   tags: zod
     .array(
       zod.object({
@@ -1528,6 +1546,7 @@ export const CreateWorkspaceResponse = zod.object({
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
+  shareRole: zod.enum(['editor', 'commenter', 'viewer']),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -1572,6 +1591,7 @@ export const GetWorkspaceResponse = zod.object({
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
+  shareRole: zod.enum(['editor', 'commenter', 'viewer']),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -1595,6 +1615,7 @@ export const UpdateWorkspaceBody = zod.object({
     .optional(),
   name: zod.string().optional(),
   privacy: zod.enum(['private', 'public', 'link']).optional(),
+  shareRole: zod.enum(['editor', 'commenter', 'viewer']).optional(),
   tags: zod
     .array(
       zod.object({
@@ -1625,6 +1646,7 @@ export const UpdateWorkspaceResponse = zod.object({
   name: zod.string(),
   privacy: zod.enum(['private', 'public', 'link']),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
+  shareRole: zod.enum(['editor', 'commenter', 'viewer']),
   tags: zod.array(
     zod.object({
       id: zod.string(),
@@ -1713,6 +1735,7 @@ export const CloneWorkspaceResponse = zod.object({
     name: zod.string(),
     privacy: zod.enum(['private', 'public', 'link']),
     role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
+    shareRole: zod.enum(['editor', 'commenter', 'viewer']),
     tags: zod.array(
       zod.object({
         id: zod.string(),
@@ -1800,6 +1823,27 @@ export const ListWorkspaceFilesResponseItem = zod.object({
 export const ListWorkspaceFilesResponse = zod.array(ListWorkspaceFilesResponseItem);
 
 /**
+ * @summary Search users eligible for a workspace invitation
+ */
+export const SearchWorkspaceInviteCandidatesParams = zod.object({
+  id: zod.string(),
+});
+
+export const SearchWorkspaceInviteCandidatesQueryParams = zod.object({
+  q: zod.string().min(1).optional(),
+});
+
+export const SearchWorkspaceInviteCandidatesResponseItem = zod.object({
+  avatarUrl: zod.string().optional(),
+  email: zod.string(),
+  id: zod.string(),
+  name: zod.string(),
+});
+export const SearchWorkspaceInviteCandidatesResponse = zod.array(
+  SearchWorkspaceInviteCandidatesResponseItem
+);
+
+/**
  * @summary List workspace invites
  */
 export const ListWorkspaceInvitesParams = zod.object({
@@ -1813,6 +1857,7 @@ export const ListWorkspaceInvitesResponseItem = zod.object({
   expiresAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   invitedBy: zod.string(),
+  invitedUserId: zod.string(),
   revokedAt: zod.iso.datetime({ offset: true }).optional(),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
   workspaceId: zod.string(),
@@ -1827,8 +1872,8 @@ export const CreateWorkspaceInviteParams = zod.object({
 });
 
 export const CreateWorkspaceInviteBody = zod.object({
-  email: zod.email(),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
+  userId: zod.string().min(1),
 });
 
 export const CreateWorkspaceInviteResponse = zod.object({
@@ -1839,6 +1884,7 @@ export const CreateWorkspaceInviteResponse = zod.object({
   expiresAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   invitedBy: zod.string(),
+  invitedUserId: zod.string(),
   revokedAt: zod.iso.datetime({ offset: true }).optional(),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
   token: zod.string(),

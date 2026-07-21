@@ -44,7 +44,7 @@ export default function Thinking() {
                       color: i % 2 ? 'var(--note-purple-fg)' : 'var(--note-green-fg)',
                     }}
                   >
-                    <Icon name="notes" size={28} />
+                    <Icon name="write" size={28} />
                   </div>
                   <div className="p-4">
                     <Text variant="subtitle" className="truncate">

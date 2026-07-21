@@ -13,6 +13,7 @@ export interface WorkspaceInvite {
   expiresAt: string;
   id: string;
   invitedBy: string;
+  invitedUserId: string;
   revokedAt?: string;
   role: WorkspaceRole;
   workspaceId: string;

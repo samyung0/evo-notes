@@ -4,10 +4,18 @@
  * Evo Notes API
  * OpenAPI spec version: 0.1.0
  */
+import type { Envelope } from './envelope.ts';
 import type { SuggestionStatus } from './suggestionStatus.ts';
 
 export interface UpdateMaterialSuggestionStatusReq {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
+  /**
+   * Required when accepting and must equal the pending suggestion base
+   * @minimum 1
+   */
+  expectedBaseRevision?: number;
+  /** Required when accepting; complete finalized Plate document */
+  finalizedContent?: Envelope;
   status: SuggestionStatus;
 }

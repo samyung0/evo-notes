@@ -90,7 +90,7 @@ export function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(cn(buttonVariants({ variant, size })), fullWidth && 'w-full', className)}
+      className={cn(buttonVariants({ variant, size }), fullWidth && 'w-full', className)}
       {...rest}
     >
       {iconLeft && <InlineIcon name={iconLeft} size={size} />}

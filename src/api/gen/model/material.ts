@@ -5,7 +5,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AccessCapabilities } from './accessCapabilities.ts';
-import type { MaterialContent } from './materialContent.ts';
+import type { Envelope } from './envelope.ts';
 import type { Privacy } from './privacy.ts';
 import type { UserColor } from './userColor.ts';
 import type { WorkspaceRole } from './workspaceRole.ts';
@@ -17,7 +17,7 @@ export interface Material {
   /** @nullable */
   chapterId: string | null;
   color?: UserColor;
-  content: MaterialContent;
+  content: Envelope;
   createdAt: string;
   id: string;
   isOwner: boolean;

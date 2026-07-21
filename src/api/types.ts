@@ -63,7 +63,11 @@ export type {
 export type SystemColor = 'success' | 'info' | 'warning' | 'error' | 'accent-1' | 'accent-2';
 
 /* ---------------- pass-through contracts (identical to the wire) ---------------- */
-export type Workspace = Omit<GenWorkspace, 'isOwner'> & { isOwner?: boolean };
+export type Workspace = Omit<GenWorkspace, 'isOwner'> & {
+  isOwner?: boolean;
+  /** General material permission for signed-in link/public visitors. */
+  shareRole?: 'viewer' | 'commenter' | 'editor';
+};
 export type Chapter = GenChapter;
 export type Attempt = GenAttempt;
 export type CalendarEvent = GenEvent;
@@ -274,9 +278,17 @@ export interface WorkspaceMember {
   createdAt: string;
 }
 
+export interface WorkspaceInviteCandidate {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
 export interface WorkspaceInvite {
   id: string;
   workspaceId: string;
+  invitedUserId?: string;
   email: string;
   role: Exclude<WorkspaceRole, 'owner'>;
   token?: string;

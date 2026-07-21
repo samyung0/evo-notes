@@ -14,7 +14,6 @@ export type WidgetGroupId =
   | 'math'
   | 'media'
   | 'toc'
-  | 'date'
   | 'fontStyles'
   | 'quiz'
   | 'flashcards'
@@ -36,7 +35,6 @@ export const WIDGET_GROUPS: WidgetGroupMeta[] = [
   { id: 'math', label: 'Math', description: 'Inline and block equations (KaTeX)' },
   { id: 'media', label: 'Media', description: 'Image embeds' },
   { id: 'toc', label: 'Table of contents', description: 'Document outline block' },
-  { id: 'date', label: 'Dates', description: 'Inline date chips' },
   { id: 'fontStyles', label: 'Font styling', description: 'Color, size, alignment' },
   { id: 'quiz', label: 'Quiz blocks', description: 'Embedded quizzes' },
   { id: 'flashcards', label: 'Flashcard blocks', description: 'Embedded flashcards' },

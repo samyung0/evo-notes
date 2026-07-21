@@ -154,6 +154,8 @@ export const qk = {
   materialSuggestions: (id: string) => ['material', id, 'suggestions'] as const,
   workspaceMembers: (id: string) => ['workspace', id, 'members'] as const,
   workspaceInvites: (id: string) => ['workspace', id, 'invites'] as const,
+  workspaceInviteCandidates: (id: string, query: string) =>
+    ['workspace', id, 'invite-candidates', query] as const,
   attempts: ['attempts'] as const,
   attempt: (id: string) => ['attempt', id] as const,
   mistakes: ['mistakes'] as const,

@@ -22,21 +22,42 @@ export const BlockDraggable: RenderNodeWrapper = (props) => {
   return (nextProps) => <DraggableBlock {...nextProps} />;
 };
 
-function DraggableBlock({ children, element }: PlateElementProps) {
+function DraggableBlock({ children, editor, element }: PlateElementProps) {
   const { isDragging, nodeRef, handleRef } = useDraggable({ element });
   const { dropLine } = useDropLine();
+  const [handleTop, setHandleTop] = useState(3);
+
   return (
-    <div ref={nodeRef} className={cn('group relative', isDragging && 'opacity-45')}>
-      <button
-        ref={handleRef}
-        type="button"
+    <div
+      ref={nodeRef}
+      className={cn('group relative flow-root', isDragging && 'opacity-45')}
+      onMouseEnter={() => {
+        if (isDragging) return;
+
+        const block = editor.api.toDOMNode(element);
+        if (!block) return;
+
+        const marginTop = Number.parseFloat(window.getComputedStyle(block).marginTop) || 0;
+        setHandleTop(marginTop + 3);
+      }}
+    >
+      {/* Hittable flush gutter: hover it or the block to reveal the handle. */}
+      <div
         contentEditable={false}
-        data-plate-prevent-deselect
-        aria-label="Drag block"
-        className="absolute top-1/2 -left-7 z-10 hidden size-6 -translate-y-1/2 cursor-grab items-center justify-center rounded-row text-fg-muted group-hover:flex hover:bg-surface-hover-bg active:cursor-grabbing"
+        className="absolute top-0 left-0 z-10 flex h-full -translate-x-full items-start pr-1 opacity-0 group-hover:opacity-100 hover:opacity-100"
       >
-        <GripVertical className="size-4" />
-      </button>
+        <button
+          ref={handleRef}
+          type="button"
+          contentEditable={false}
+          data-plate-prevent-deselect
+          aria-label="Drag block"
+          className="flex size-6 cursor-grab items-center justify-center rounded-row text-fg-muted hover:bg-surface-hover-bg active:cursor-grabbing"
+          style={{ marginTop: handleTop }}
+        >
+          <GripVertical className="size-4" />
+        </button>
+      </div>
       <div>
         <MemoizedChildren>{children}</MemoizedChildren>
       </div>

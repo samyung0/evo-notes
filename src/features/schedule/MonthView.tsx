@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router';
 import { cn } from '@/lib/cn';
 import { userColorPair } from '@/lib/userColor';
 import type { CalendarEvent, Label } from '@/api/types';
@@ -9,11 +8,13 @@ export function MonthView({
   events,
   labels,
   onCreate,
+  onSelectEvent,
 }: {
   month: Date;
   events: CalendarEvent[];
   labels: Label[];
   onCreate?: (day: Date) => void;
+  onSelectEvent: (event: CalendarEvent) => void;
 }) {
   const grid = monthGrid(month);
   const today = new Date();
@@ -61,16 +62,18 @@ export function MonthView({
                 {dayEvents.slice(0, 3).map((ev) => {
                   const c = colorFor(ev);
                   return (
-                    <Link
+                    <button
                       key={ev.id}
-                      to="/schedule"
-                      search={{ event: ev.id }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="block truncate rounded px-1.5 py-0.5 text-left text-[0.66rem] font-medium"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectEvent(ev);
+                      }}
+                      className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[0.66rem] font-medium"
                       style={{ background: c.bg, color: c.fg }}
                     >
                       {ev.title}
-                    </Link>
+                    </button>
                   );
                 })}
                 {dayEvents.length > 3 && (

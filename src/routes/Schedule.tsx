@@ -4,12 +4,14 @@ import { PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
 import { Card, HoverActions, Icon, IconButton, SegmentedControl, Skeleton } from '@/components/ui';
 import { userColorPair } from '@/lib/userColor';
 import { useDeleteLabel, useEvents, useLabels } from '@/api/hooks';
+import type { CalendarEvent } from '@/api/types';
 import { useDialogs } from '@/stores/dialogs';
 import { m } from '@/i18n';
 import { MiniCalendar } from '@/features/schedule/MiniCalendar';
 import { TimeGrid } from '@/features/schedule/TimeGrid';
 import { MonthView } from '@/features/schedule/MonthView';
 import { MONTHS, weekDays } from '@/features/schedule/dateUtils';
+import { scheduleAutoScroll } from '@/features/schedule/scrollState';
 
 type View = 'month' | 'week' | 'day';
 
@@ -55,10 +57,22 @@ export default function Schedule() {
     if (!eventParam || !events) return;
     const ev = events.find((e) => e.id === eventParam);
     if (!ev) return;
-    setSelected(new Date(ev.start));
+    const day = new Date(ev.start);
+    // only move the grid when the event day isn't already visible — avoids
+    // re-rendering TimeGrid's day columns on every in-page event click.
+    setSelected((prev) => {
+      if (view === 'week') {
+        const visible = weekDays(prev);
+        return visible.some((d) => d.toDateString() === day.toDateString()) ? prev : day;
+      }
+      if (view === 'day') {
+        return prev.toDateString() === day.toDateString() ? prev : day;
+      }
+      return day;
+    });
     openedFromParam.current = true;
     openEventDetail(ev);
-  }, [eventParam, events, openEventDetail]);
+  }, [eventParam, events, openEventDetail, view]);
 
   // once a param-opened dialog is dismissed, drop the ?event= param from the URL.
   // guard on a truthy→null transition so we don't strip on the initial mount,
@@ -69,6 +83,7 @@ export default function Schedule() {
     prevDetail.current = eventDetail;
     if (openedFromParam.current && wasOpen && !eventDetail) {
       openedFromParam.current = false;
+      scheduleAutoScroll.rememberPosition(scrollRef.current?.scrollTop);
       navigate({ to: '/schedule', search: {}, replace: true });
     }
   }, [eventDetail, navigate]);
@@ -77,6 +92,12 @@ export default function Schedule() {
 
   const createAt = (start: Date, end: Date) =>
     openEventForm({ start: start.toISOString(), end: end.toISOString() });
+  const selectEvent = (event: CalendarEvent) => {
+    scheduleAutoScroll.rememberPosition(scrollRef.current?.scrollTop);
+    openedFromParam.current = true;
+    openEventDetail(event);
+    navigate({ to: '/schedule', search: { event: event.id } });
+  };
   const createOnDay = (day: Date) => {
     const start = new Date(day);
     start.setHours(9, 0, 0, 0);
@@ -170,7 +191,7 @@ export default function Schedule() {
                       items={[
                         {
                           label: m.action_edit(),
-                          icon: 'notes',
+                          icon: 'write',
                           onClick: () => openLabelEdit(l),
                         },
                         {
@@ -241,6 +262,7 @@ export default function Schedule() {
                 events={visibleEvents}
                 labels={labels ?? []}
                 onCreate={createOnDay}
+                onSelectEvent={selectEvent}
               />
             </div>
           ) : (
@@ -250,6 +272,8 @@ export default function Schedule() {
               labels={labels ?? []}
               selectedId={eventDetail?.id ?? null}
               onCreateSlot={createAt}
+              onSelectEvent={selectEvent}
+              autoScrollTracker={scheduleAutoScroll}
               scrollContainerRef={scrollRef}
             />
           )}

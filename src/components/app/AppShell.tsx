@@ -1,12 +1,18 @@
+import { useEffect } from 'react';
 import { Outlet, useRouterState } from '@tanstack/react-router';
 import { Sidebar } from './Sidebar';
 import { GlobalDialogs } from './GlobalDialogs';
 import { cn } from '@/lib/cn';
+import { scheduleAutoScroll } from '@/features/schedule/scrollState';
 
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   // Opened-workspace view collapses the nav to the icon rail to relieve crowding.
   const hidden = /^\/workspaces\/[^/]+$/.test(pathname);
+
+  useEffect(() => {
+    if (pathname !== '/schedule') scheduleAutoScroll.reset();
+  }, [pathname]);
 
   return (
     <div className="flex h-dvh overflow-hidden bg-page text-fg">

@@ -73,7 +73,7 @@ export function FileListItem({
           onClick={() => !processing && onOpen(file.id)}
           disabled={processing}
           className={cn(
-            'flex w-full items-center gap-2 rounded-row px-1.5 py-1.5 text-left',
+            'flex w-full items-center gap-1.5 rounded-row px-1.5 py-1.5 pl-2 text-left',
             active && 'font-bold',
             processing && 'cursor-default'
           )}
@@ -95,7 +95,7 @@ export function FileListItem({
             items={[
               {
                 label: m.action_rename(),
-                icon: 'notes',
+                icon: 'write',
                 onClick: () => {
                   setName(file.name);
                   setRenameOpen(true);

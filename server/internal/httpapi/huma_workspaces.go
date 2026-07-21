@@ -13,8 +13,8 @@ import (
 type listWorkspacesInput struct {
 	Q     string `query:"q"`
 	Sort  string `query:"sort"`
-	Color string `query:"color"`
-	Tag   string `query:"tag"`
+	Color string `query:"color" doc:"Comma-separated colors; OR-matched with tags"`
+	Tag   string `query:"tag" doc:"Comma-separated tags; OR-matched with colors"`
 }
 type workspacesOutput struct {
 	Body []apimodel.Workspace
@@ -93,7 +93,15 @@ func (a *api) createWorkspace(ctx context.Context, in *createWorkspaceInput) (*w
 	if color == "" {
 		color = "graphite"
 	}
-	res, err := a.s.CreateWorkspace(ctx, userID(ctx), in.Body.Name, color, in.Body.Privacy, apimodel.ToTagRefs(in.Body.Tags))
+	res, err := a.s.CreateWorkspace(
+		ctx,
+		userID(ctx),
+		in.Body.Name,
+		color,
+		in.Body.Privacy,
+		in.Body.ShareRole,
+		apimodel.ToTagRefs(in.Body.Tags),
+	)
 	if err != nil {
 		return nil, hErr(err)
 	}
@@ -101,7 +109,9 @@ func (a *api) createWorkspace(ctx context.Context, in *createWorkspaceInput) (*w
 }
 
 func (a *api) updateWorkspace(ctx context.Context, in *updateWorkspaceInput) (*workspaceOutput, error) {
-	p := store.WorkspacePatch{Name: in.Body.Name, Color: in.Body.Color, Privacy: in.Body.Privacy}
+	p := store.WorkspacePatch{
+		Name: in.Body.Name, Color: in.Body.Color, Privacy: in.Body.Privacy, ShareRole: in.Body.ShareRole,
+	}
 	if in.Body.Tags != nil {
 		t := apimodel.ToTagRefs(*in.Body.Tags)
 		p.Tags = &t

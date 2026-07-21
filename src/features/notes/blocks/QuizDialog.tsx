@@ -1,52 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Button, IconButton, Input, SimpleDialog, Text } from '@/components/ui';
+import { Button, Input, SimpleDialog, Text } from '@/components/ui';
 import { parseQuizFenceBody } from '@/features/materials/blocks';
-import type { ChoiceQuestion, Question } from '@/api/types';
+import type { Question } from '@/api/types';
+import {
+  createBlankQuestion,
+  isCompleteQuestion,
+  QuizForm,
+} from '@/features/quizzes/QuizForm';
 import { quizFenceBody } from './shared';
-import { uid } from '@/lib/id';
 
-interface DraftQuestion {
-  id: string;
-  prompt: string;
-  options: string[];
-  correct: number;
-}
-
-function toDraft(q: Question): DraftQuestion {
-  if (q.type === 'mcq' || q.type === 'multi') {
-    const c = q as ChoiceQuestion;
-    return {
-      id: c.id,
-      prompt: c.prompt,
-      options: c.options.map((o) => o.value),
-      correct: c.correct[0] ?? 0,
-    };
-  }
-  // Non-choice questions are shown as a single-prompt placeholder row.
-  return { id: q.id, prompt: q.prompt, options: ['', ''], correct: 0 };
-}
-
-function newDraft(): DraftQuestion {
-  return { id: uid('q'), prompt: '', options: ['', '', '', ''], correct: 0 };
-}
-
-function toQuestion(d: DraftQuestion): ChoiceQuestion {
-  const options = d.options
-    .map((v) => v.trim())
-    .filter(Boolean)
-    .map((value) => ({ value }));
-  return {
-    id: d.id,
-    type: 'mcq',
-    level: 'recall',
-    prompt: d.prompt.trim(),
-    options,
-    correct: [Math.min(d.correct, Math.max(0, options.length - 1))],
-  };
-}
-
-/** Small popup to author a ```quiz block inline in a note. Supports quick
- * multiple-choice questions; emits the fence body (YAML) via onSave. */
+/** Popup to author a typed ```quiz block inline in a note. */
 export function QuizDialog({
   open,
   initialCode,
@@ -58,7 +21,7 @@ export function QuizDialog({
   onSave: (code: string) => void;
   onClose: () => void;
 }) {
-  const [questions, setQuestions] = useState<DraftQuestion[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [timeLimit, setTimeLimit] = useState<string>('');
 
   useEffect(() => {
@@ -66,29 +29,17 @@ export function QuizDialog({
     const parsed = initialCode
       ? parseQuizFenceBody(initialCode)
       : { questions: [], timeLimitMin: undefined };
-    setQuestions(parsed.questions.length ? parsed.questions.map(toDraft) : [newDraft()]);
+    setQuestions(parsed.questions.length ? structuredClone(parsed.questions) : [createBlankQuestion()]);
     setTimeLimit(parsed.timeLimitMin != null ? String(parsed.timeLimitMin) : '');
   }, [open, initialCode]);
 
-  function updateQ(i: number, patch: Partial<DraftQuestion>) {
-    setQuestions((qs) => qs.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
-  }
-  function updateOption(qi: number, oi: number, value: string) {
-    setQuestions((qs) =>
-      qs.map((q, idx) =>
-        idx === qi ? { ...q, options: q.options.map((o, j) => (j === oi ? value : o)) } : q
-      )
-    );
-  }
-
-  const clean = questions.filter((q) => q.prompt.trim() && q.options.some((o) => o.trim()));
-  const canSave = clean.length > 0;
+  const canSave = questions.length > 0 && questions.every(isCompleteQuestion);
 
   function save() {
     const tl = parseInt(timeLimit, 10);
     onSave(
       quizFenceBody({
-        questions: clean.map(toQuestion),
+        questions,
         timeLimitMin: Number.isFinite(tl) && tl > 0 ? tl : undefined,
       })
     );
@@ -106,7 +57,7 @@ export function QuizDialog({
             Cancel
           </Button>
           <Button onClick={save} disabled={!canSave}>
-            Insert
+            {initialCode ? 'Save' : 'Insert'}
           </Button>
         </>
       }
@@ -123,56 +74,16 @@ export function QuizDialog({
             onChange={(e) => setTimeLimit(e.target.value)}
           />
         </label>
-        {questions.map((q, qi) => (
-          <div key={q.id} className="flex flex-col gap-2 rounded-card border border-line p-3">
-            <div className="flex items-center gap-2">
-              <Text variant="label" tone="muted" className="flex-1">
-                Question {qi + 1}
-              </Text>
-              <IconButton
-                icon="trash"
-                variant="ghost"
-                size="sm"
-                label="Remove question"
-                onClick={() => setQuestions((qs) => qs.filter((_, idx) => idx !== qi))}
-              />
-            </div>
-            <Input
-              placeholder="Prompt"
-              value={q.prompt}
-              onChange={(e) => updateQ(qi, { prompt: e.target.value })}
-            />
-            <div className="flex flex-col gap-1.5">
-              {q.options.map((o, oi) => (
-                <label key={oi} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`correct-${q.id}`}
-                    checked={q.correct === oi}
-                    onChange={() => updateQ(qi, { correct: oi })}
-                    aria-label={`Mark option ${oi + 1} correct`}
-                  />
-                  <Input
-                    placeholder={`Option ${oi + 1}`}
-                    value={o}
-                    onChange={(e) => updateOption(qi, oi, e.target.value)}
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setQuestions((qs) => [...qs, newDraft()])}
-          className="self-start"
-        >
-          Add question
-        </Button>
+        <QuizForm
+          name=""
+          questions={questions}
+          onNameChange={() => {}}
+          onQuestionsChange={setQuestions}
+          showName={false}
+        />
         {!canSave && (
           <Text variant="meta" tone="muted">
-            Add at least one question with a prompt and options.
+            Complete every question and mark its correct answer before saving.
           </Text>
         )}
       </div>

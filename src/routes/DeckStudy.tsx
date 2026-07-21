@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { PanelWithInvertedRadius } from '@/components/app/layout';
-import {
-  Badge,
-  Button,
-  Icon,
-  IconButton,
-  ProgressBar,
-  Skeleton,
-  Text,
-} from '@/components/ui';
+import { Badge, Button, Icon, IconButton, ProgressBar, Skeleton, Text } from '@/components/ui';
 import {
   useCards,
   useCloneDeck,
@@ -89,7 +81,7 @@ export default function DeckStudy() {
       const denied = isApiError(err) && (err.status === 404 || err.status === 401);
       return (
         <PrivateOrUnavailable
-          title={denied ? 'This item is private or unavailable.' : 'Unable to load this deck.'}
+          title={denied ? 'This item is private or unavailable.' : 'Unable to load deck.'}
           backTo="/flashcards"
           backLabel="Back to flashcards"
         />
@@ -256,7 +248,7 @@ export default function DeckStudy() {
               onClick={() => setEditing(card)}
               className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg"
             >
-              <Icon name="notes" size={13} /> {m.action_edit()}
+              <Icon name="write" size={13} /> {m.action_edit()}
             </button>
             <button
               onClick={removeCurrent}

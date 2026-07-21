@@ -22,7 +22,7 @@ export function EventDetailDialog({
               <span className="min-w-0 truncate">{event.title}</span>
             </DialogTitle>
             <IconButton
-              icon="notes"
+              icon="write"
               variant="ghost-hover"
               size="md"
               className="absolute top-4 right-14"
