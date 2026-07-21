@@ -25,28 +25,23 @@ low priority:
 23. elastic search?
 24. what is the backend actually doing
 25. how to not lose ones mind when reading this repo
+26. send workspace invitations by email in addition to in-app notifications
 
 high PRIORITIES:
 
-1. what makes a user a member of a workspace? mention plugin doesnt display anything, it seems to flash for a second and then disappears
-2. color picker in plate editor immediately switches the color when I try to use custom color, I didnt finish draggin (choosing the color and the changes had already applied)
-3. simplify the suggestion mode, remove the inline
-4. common shortcuts like ctrl+a doesnt work in plate js editor (do they have a plugin for the shortcuts?)
-5. toc item click doesnt scroll to heading for some reasons
-6. move the save/suggestion status into header (should we use zustand for global state??)
-7. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
-8. add layout adjust in editor to make the document smaller or larger in width
-9. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
-10. set loading state for submit buttons (esp dialogs)
-11. remove all the <Text> components
-12. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
-13. add icons for common file format
-14. user can select any markdown contents (notes/quiz/mermaid) and then apply non-layout shifting operations (e.g. highlight/bold/underline), only layout shifting operation allowed is suggestion edit?, also they can like comment ask ai to summarize
-15. export to diff files
-16. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
-17. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
-18. tie workspace opened file to the queryParams
-19. check that shared workspaces (both link + public) file cannot be modified except from its owner (user needs to clone to edit)
+1. fix the suggestion mode
+2. toc item click doesnt scroll to heading for some reasons
+3. move the save/suggestion status into header (should we use zustand for global state??)
+4. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
+5. add layout adjust in editor to make the document smaller or larger in width
+6. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
+7. set loading state for submit buttons (esp dialogs)
+8. remove all the <Text> components
+9. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
+10. add icons for common file format
+11. export to diff files
+12. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
+13. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
 
 rag system caution
 chapter scoped query/filtering is only soft steered using prompt, underlying reason why hard filtering during query is quite impossible is because after ingestion, an entity can be pointed to by multiple documents

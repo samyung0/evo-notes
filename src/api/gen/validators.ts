@@ -1133,8 +1133,9 @@ export const GetMistakesResponse = zod.object({
 export const ListNotificationsResponseItem = zod.object({
   at: zod.iso.datetime({ offset: true }),
   body: zod.string(),
+  href: zod.string().optional(),
   id: zod.string(),
-  kind: zod.enum(['event', 'quiz', 'system']),
+  kind: zod.enum(['event', 'quiz', 'system', 'workspace_invite']),
   read: zod.boolean(),
   title: zod.string(),
 });
@@ -1816,83 +1817,18 @@ export const ListWorkspaceFilesResponseItem = zod.object({
 export const ListWorkspaceFilesResponse = zod.array(ListWorkspaceFilesResponseItem);
 
 /**
- * @summary Search users eligible for a workspace invitation
- */
-export const SearchWorkspaceInviteCandidatesParams = zod.object({
-  id: zod.string(),
-});
-
-export const SearchWorkspaceInviteCandidatesQueryParams = zod.object({
-  q: zod.string().min(1).optional(),
-});
-
-export const SearchWorkspaceInviteCandidatesResponseItem = zod.object({
-  avatarUrl: zod.string().optional(),
-  email: zod.string(),
-  id: zod.string(),
-  name: zod.string(),
-});
-export const SearchWorkspaceInviteCandidatesResponse = zod.array(
-  SearchWorkspaceInviteCandidatesResponseItem
-);
-
-/**
- * @summary List workspace invites
- */
-export const ListWorkspaceInvitesParams = zod.object({
-  id: zod.string(),
-});
-
-export const ListWorkspaceInvitesResponseItem = zod.object({
-  acceptedAt: zod.iso.datetime({ offset: true }).optional(),
-  createdAt: zod.iso.datetime({ offset: true }),
-  email: zod.string(),
-  expiresAt: zod.iso.datetime({ offset: true }),
-  id: zod.string(),
-  invitedBy: zod.string(),
-  invitedUserId: zod.string(),
-  revokedAt: zod.iso.datetime({ offset: true }).optional(),
-  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
-  workspaceId: zod.string(),
-});
-export const ListWorkspaceInvitesResponse = zod.array(ListWorkspaceInvitesResponseItem);
-
-/**
- * @summary Invite a workspace member
+ * @summary Privately invite a workspace member
  */
 export const CreateWorkspaceInviteParams = zod.object({
   id: zod.string(),
 });
 
 export const CreateWorkspaceInviteBody = zod.object({
+  identifier: zod.string().min(1).describe('Exact user ID or email address'),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
-  userId: zod.string().min(1),
 });
 
-export const CreateWorkspaceInviteResponse = zod.object({
-  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
-  acceptedAt: zod.iso.datetime({ offset: true }).optional(),
-  createdAt: zod.iso.datetime({ offset: true }),
-  email: zod.string(),
-  expiresAt: zod.iso.datetime({ offset: true }),
-  id: zod.string(),
-  invitedBy: zod.string(),
-  invitedUserId: zod.string(),
-  revokedAt: zod.iso.datetime({ offset: true }).optional(),
-  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']),
-  token: zod.string(),
-  workspaceId: zod.string(),
-});
-
-/**
- * @summary Revoke a workspace invite
- */
-export const RevokeWorkspaceInviteParams = zod.object({
-  id: zod.string(),
-  inviteId: zod.string(),
-});
-
-export const RevokeWorkspaceInviteResponse = zod.void();
+export const CreateWorkspaceInviteResponse = zod.void();
 
 /**
  * @summary List study materials

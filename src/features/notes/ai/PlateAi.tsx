@@ -241,7 +241,7 @@ function GhostText() {
   return (
     <span className="pointer-events-auto text-fg-muted/70 max-sm:hidden" contentEditable={false}>
       {suggestionText}
-      <span className="ml-2 inline-flex gap-1 align-middle text-[10px]">
+      {/* <span className="ml-2 inline-flex gap-1 align-middle text-[10px]">
         <button
           type="button"
           className="rounded-row border border-line bg-surface px-1.5 py-0.5 text-fg"
@@ -258,7 +258,7 @@ function GhostText() {
         >
           Reject
         </button>
-      </span>
+      </span> */}
     </span>
   );
 }

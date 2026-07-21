@@ -17,8 +17,6 @@ import type {
   Task,
   UserColor,
   Workspace,
-  WorkspaceInvite,
-  WorkspaceInviteCandidate,
   WorkspaceMember,
 } from '@/api/types';
 import { parseFlashcardsBlock } from '@/features/materials/blocks';
@@ -50,11 +48,28 @@ const ownerMaterialAccess = {
     canManageMembers: true,
   },
 };
+interface MockWorkspaceInvite {
+  id: string;
+  workspaceId: string;
+  invitedUserId: string;
+  email: string;
+  role: Exclude<WorkspaceMember['role'], 'owner'>;
+  token: string;
+  expiresAt: string;
+  acceptedAt?: string;
+}
+interface MockInviteCandidate {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
 const mockDiscussions: MaterialDiscussion[] = [];
 const mockSuggestions: MaterialSuggestion[] = [];
-const mockWorkspaceInvites: Array<WorkspaceInvite & { token?: string }> = [];
+const mockWorkspaceInvites: MockWorkspaceInvite[] = [];
 const mockWorkspaceMembers: WorkspaceMember[] = [];
-const mockInviteCandidates: WorkspaceInviteCandidate[] = [
+const mockInviteCandidates: MockInviteCandidate[] = [
   {
     id: 'u_mock_collaborator',
     name: 'Morgan Lee',
@@ -318,65 +333,68 @@ export const handlers = [
       ...mockWorkspaceMembers.filter((member) => member.workspaceId === workspaceId),
     ]);
   }),
-  http.get('/api/workspaces/:id/invite-candidates', async ({ params, request }) => {
-    const workspaceId = String(params.id);
-    const query = new URL(request.url).searchParams.get('q')?.trim().toLowerCase() ?? '';
-    const memberIds = new Set(
-      mockWorkspaceMembers
-        .filter((member) => member.workspaceId === workspaceId)
-        .map((member) => member.userId)
-    );
-    const pendingIds = new Set(
-      mockWorkspaceInvites
-        .filter((invite) => invite.workspaceId === workspaceId && !invite.acceptedAt)
-        .map((invite) => invite.invitedUserId)
-    );
-    return HttpResponse.json(
-      mockInviteCandidates.filter(
-        (candidate) =>
-          !memberIds.has(candidate.id) &&
-          !pendingIds.has(candidate.id) &&
-          (candidate.name.toLowerCase().includes(query) ||
-            candidate.email.toLowerCase().includes(query))
-      )
-    );
-  }),
-  http.get('/api/workspaces/:id/invites', async ({ params }) =>
-    HttpResponse.json(
-      mockWorkspaceInvites
-        .filter((invite) => invite.workspaceId === String(params.id))
-        .map(({ token: _token, ...invite }) => invite)
-    )
-  ),
   http.post('/api/workspaces/:id/invites', async ({ params, request }) => {
     const body = (await request.json()) as {
-      userId: string;
+      identifier: string;
       role: Exclude<WorkspaceMember['role'], 'owner'>;
     };
-    const candidate = mockInviteCandidates.find((item) => item.id === body.userId);
-    if (!candidate) return new HttpResponse(null, { status: 404 });
-    const now = new Date();
-    const invite: WorkspaceInvite & { token: string } = {
-      id: uid('invite'),
-      workspaceId: String(params.id),
-      invitedUserId: candidate.id,
-      email: candidate.email,
-      role: body.role,
-      token: uid('invite-token'),
-      invitedBy: db.user.id,
-      expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      createdAt: now.toISOString(),
-    };
-    mockWorkspaceInvites.push(invite);
-    return HttpResponse.json(invite, { status: 201 });
-  }),
-  http.delete('/api/workspaces/:id/invites/:inviteId', async ({ params }) => {
-    const invite = mockWorkspaceInvites.find(
-      (item) => item.id === params.inviteId && item.workspaceId === params.id
+    const identifier = body.identifier.trim().toLowerCase();
+    const matches = mockInviteCandidates.filter(
+      (item) => item.id === body.identifier.trim() || item.email.toLowerCase() === identifier
     );
-    if (!invite) return new HttpResponse(null, { status: 404 });
-    invite.revokedAt = new Date().toISOString();
-    return new HttpResponse(null, { status: 204 });
+    const candidate = matches.length === 1 ? matches[0] : undefined;
+    const workspaceId = String(params.id);
+    const alreadyMember = candidate
+      ? mockWorkspaceMembers.some(
+          (member) => member.workspaceId === workspaceId && member.userId === candidate.id
+        )
+      : false;
+    if (!candidate || alreadyMember) return new HttpResponse(null, { status: 202 });
+
+    const now = new Date();
+    let invite = mockWorkspaceInvites.find(
+      (item) =>
+        item.workspaceId === workspaceId && item.invitedUserId === candidate.id && !item.acceptedAt
+    );
+    if (!invite) {
+      invite = {
+        id: uid('invite'),
+        workspaceId,
+        invitedUserId: candidate.id,
+        email: candidate.email,
+        role: body.role,
+        token: uid('invite-token'),
+        expiresAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      mockWorkspaceInvites.push(invite);
+    } else {
+      invite.role = body.role;
+      invite.token = uid('invite-token');
+      invite.expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    }
+    const href = `/workspace-invites/${invite.token}`;
+    const existingNotification = db.notifications.find((notification) =>
+      notification.href?.startsWith('/workspace-invites/')
+    );
+    if (existingNotification) {
+      Object.assign(existingNotification, {
+        body: 'You’ve been invited to join this workspace.',
+        at: now.toISOString(),
+        read: false,
+        href,
+      });
+    } else {
+      db.notifications.unshift({
+        id: uid('notification'),
+        kind: 'workspace_invite',
+        title: 'Workspace invitation',
+        body: 'You’ve been invited to join this workspace.',
+        at: now.toISOString(),
+        read: false,
+        href,
+      });
+    }
+    return new HttpResponse(null, { status: 202 });
   }),
   http.patch('/api/workspaces/:id/members/:memberId', async ({ params, request }) => {
     const member = mockWorkspaceMembers.find(
@@ -397,14 +415,14 @@ export const handlers = [
   }),
   http.post('/api/workspace-invites/:token/accept', async ({ params }) => {
     const invite = mockWorkspaceInvites.find(
-      (item) => item.token === params.token && !item.revokedAt && !item.acceptedAt
+      (item) => item.token === params.token && !item.acceptedAt
     );
     if (!invite) return new HttpResponse(null, { status: 404 });
     invite.acceptedAt = new Date().toISOString();
     const candidate = mockInviteCandidates.find((item) => item.id === invite.invitedUserId);
     const member: WorkspaceMember = {
       workspaceId: invite.workspaceId,
-      userId: invite.invitedUserId ?? 'u_mock_collaborator',
+      userId: invite.invitedUserId,
       name: candidate?.name ?? invite.email,
       email: invite.email,
       avatarUrl: candidate?.avatarUrl,
@@ -412,6 +430,10 @@ export const handlers = [
       createdAt: invite.acceptedAt,
     };
     mockWorkspaceMembers.push(member);
+    const notificationIndex = db.notifications.findIndex(
+      (notification) => notification.href === `/workspace-invites/${invite.token}`
+    );
+    if (notificationIndex >= 0) db.notifications.splice(notificationIndex, 1);
     return HttpResponse.json(member);
   }),
   http.delete('/api/workspaces/:id', async ({ params }) => {

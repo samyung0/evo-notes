@@ -27,18 +27,20 @@ import {
 import { EditorRuntimeProvider, type EditorRuntimeValue } from './EditorRuntime';
 import { CollaborationProvider, suggestionPlugin } from './Collaboration';
 import { FloatingToolbar } from './FloatingToolbar';
-import type { NoteEditorMode } from './editorMode';
+import type { NoteEditorMode, NoteEditorSaveState, NoteEditorStatus } from './editorMode';
 
 export function NoteEditor({
   materialId,
   mode,
   allowExternalAssets = false,
   onSuggestionDirtyChange,
+  onEditorStatusChange,
 }: {
   materialId: string;
   mode: NoteEditorMode;
   allowExternalAssets?: boolean;
   onSuggestionDirtyChange?: (dirty: boolean) => void;
+  onEditorStatusChange?: (status: NoteEditorStatus | null) => void;
 }) {
   const { data: material, isLoading } = useMaterial(materialId);
 
@@ -72,6 +74,7 @@ export function NoteEditor({
       mode={mode}
       allowExternalAssets={allowExternalAssets}
       onSuggestionDirtyChange={onSuggestionDirtyChange}
+      onEditorStatusChange={onEditorStatusChange}
     />
   );
 }
@@ -81,16 +84,19 @@ function CollaborativeNoteEditor({
   mode,
   allowExternalAssets,
   onSuggestionDirtyChange,
+  onEditorStatusChange,
 }: {
   material: Material;
   mode: NoteEditorMode;
   allowExternalAssets: boolean;
   onSuggestionDirtyChange?: (dirty: boolean) => void;
+  onEditorStatusChange?: (status: NoteEditorStatus | null) => void;
 }) {
   const me = useMe();
   const role: WorkspaceRole | null = material.role ?? (material.isOwner ? 'owner' : null);
-  const shouldLoadMembers = material.capabilities.canManageMembers;
-  const members = useWorkspaceMembers(material.workspaceId, shouldLoadMembers);
+  // Mentions/comments need the member directory for any collaborator, not only
+  // owners who can manage invites (`canManageMembers`).
+  const members = useWorkspaceMembers(material.workspaceId);
   const discussions = useMaterialDiscussions(material.id);
   const canEdit = material.capabilities.canEdit;
   const canComment = material.capabilities.canComment || canEdit;
@@ -99,7 +105,7 @@ function CollaborativeNoteEditor({
     [members.data]
   );
 
-  if (me.isPending || (shouldLoadMembers && members.isPending) || discussions.isPending) {
+  if (me.isPending || members.isPending || discussions.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
         <Spinner />
@@ -128,6 +134,7 @@ function CollaborativeNoteEditor({
         discussions={discussions.data ?? []}
         currentUserId={me.data?.id ?? null}
         onSuggestionDirtyChange={onSuggestionDirtyChange}
+        onEditorStatusChange={onEditorStatusChange}
       />
     </EditorRuntimeProvider>
   );
@@ -141,6 +148,7 @@ function NoteEditorCore({
   discussions,
   currentUserId,
   onSuggestionDirtyChange,
+  onEditorStatusChange,
 }: {
   material: Material;
   mode: NoteEditorMode;
@@ -149,13 +157,15 @@ function NoteEditorCore({
   discussions: NonNullable<ReturnType<typeof useMaterialDiscussions>['data']>;
   currentUserId: string | null;
   onSuggestionDirtyChange?: (dirty: boolean) => void;
+  onEditorStatusChange?: (status: NoteEditorStatus | null) => void;
 }) {
   const update = useUpdateMaterial(material.workspaceId);
   const mutateRef = useRef(update.mutate);
   mutateRef.current = update.mutate;
-  const [saveState, setSaveState] = useState<'saved' | 'pending' | 'saving' | 'error'>('saved');
+  const [saveState, setSaveState] = useState<NoteEditorSaveState>('saved');
   const mounted = useRef(true);
   const applyingDiscussionMarks = useRef(false);
+  const saveShortcutRef = useRef<() => void>(() => {});
   const revisionRef = useRef(material.revision ?? 1);
   const [suggestionDirty, setSuggestionDirty] = useState(false);
   const [baseSnapshot, setBaseSnapshot] = useState(() => ({
@@ -176,6 +186,26 @@ function NoteEditorCore({
     },
     [onSuggestionDirtyChange]
   );
+  const onSaveShortcut = useCallback(() => {
+    // Suggestions are submitted through the collaboration workflow rather
+    // than persisted as direct material edits.
+    if (mode === 'edit') saveShortcutRef.current();
+  }, [mode]);
+
+  useEffect(() => {
+    const status: NoteEditorStatus =
+      mode === 'suggestion'
+        ? { mode: 'suggestion', dirty: suggestionDirty }
+        : { mode: 'edit', saveState };
+    onEditorStatusChange?.(status);
+  }, [mode, onEditorStatusChange, saveState, suggestionDirty]);
+
+  useEffect(
+    () => () => {
+      onEditorStatusChange?.(null);
+    },
+    [onEditorStatusChange]
+  );
 
   const plugins = useMemo(
     () =>
@@ -186,8 +216,17 @@ function NoteEditorCore({
         discussions,
         mode,
         allowExternalAssets,
+        onSave: onSaveShortcut,
       }),
-    [allowExternalAssets, currentUserId, discussions, material.workspaceId, mode, users]
+    [
+      allowExternalAssets,
+      currentUserId,
+      discussions,
+      material.workspaceId,
+      mode,
+      onSaveShortcut,
+      users,
+    ]
   );
 
   const editor = usePlateEditor({
@@ -296,7 +335,9 @@ function NoteEditorCore({
           }
           if (pending.current) {
             if (mounted.current) setSaveState('pending');
-            queueMicrotask(flush);
+            // Editor changes already reset this timer in `schedule`. Preserve
+            // that debounce instead of saving immediately when this request ends.
+            if (!saveTimer.current) queueMicrotask(flush);
           } else if (mounted.current) {
             setSaveState('saved');
           }
@@ -309,24 +350,25 @@ function NoteEditorCore({
       }
     );
   }, [editor, material.id]);
+  saveShortcutRef.current = flush;
 
   const schedule = useCallback(
     (content: MaterialDocument) => {
       pending.current = content;
       setSaveState('pending');
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(flush, 800);
+      saveTimer.current = setTimeout(flush, 5000);
     },
     [flush]
   );
 
-  useEffect(
-    () => () => {
-      flush();
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
       mounted.current = false;
-    },
-    [flush]
-  );
+      flush();
+    };
+  }, [flush]);
 
   function onEditorChange() {
     if (applyingDiscussionMarks.current) return;
@@ -360,31 +402,14 @@ function NoteEditorCore({
             }}
           >
             <NoteToolbar
-              right={
-                <>
-                  <span
-                    className={cn(
-                      'px-1 text-xs text-fg-muted',
-                      saveState === 'error' && 'text-solid-error'
-                    )}
-                    role="status"
-                  >
-                    {mode === 'suggestion' && (suggestionDirty ? 'Suggestion draft' : 'Suggesting')}
-                    {mode === 'edit' && saveState === 'saved' && 'Saved'}
-                    {mode === 'edit' && saveState === 'pending' && 'Unsaved'}
-                    {mode === 'edit' && saveState === 'saving' && 'Saving…'}
-                    {mode === 'edit' && saveState === 'error' && 'Save conflict or failure'}
-                  </span>
-                  {mode === 'edit' && allowExternalAssets && <VoiceButton />}
-                </>
-              }
+              right={mode === 'edit' && allowExternalAssets ? <VoiceButton /> : undefined}
             />
             <div className="min-h-0 flex-1 overflow-auto">
               <PlateContent
                 className={cn(
-                  'note-editor mx-auto min-h-75 max-w-3xl px-10 pt-4 pb-16 text-[0.95rem] outline-none max-sm:px-5'
+                  'note-editor mx-auto min-h-75 max-w-3xl px-10 pt-4 pb-16 text-base outline-none **:data-slate-placeholder:translate-y-1 **:data-slate-placeholder:text-placeholder **:data-slate-placeholder:opacity-100! max-sm:px-5'
                 )}
-                placeholder="Start writing…"
+                placeholder="Type  /  for commands ..."
               />
             </div>
             <FloatingToolbar />

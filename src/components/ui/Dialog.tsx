@@ -133,6 +133,9 @@ function SimpleDialog({
   width,
   className,
   showCloseButton = true,
+  onPointerDownOutside,
+  onInteractOutside,
+  onEscapeKeyDown,
 }: {
   open: boolean;
   onClose: () => void;
@@ -142,6 +145,9 @@ function SimpleDialog({
   width?: number;
   className?: string;
   showCloseButton?: boolean;
+  onPointerDownOutside?: React.ComponentProps<typeof DialogPrimitive.Content>['onPointerDownOutside'];
+  onInteractOutside?: React.ComponentProps<typeof DialogPrimitive.Content>['onInteractOutside'];
+  onEscapeKeyDown?: React.ComponentProps<typeof DialogPrimitive.Content>['onEscapeKeyDown'];
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -149,6 +155,9 @@ function SimpleDialog({
         showCloseButton={showCloseButton}
         className={className}
         style={width ? { maxWidth: width } : undefined}
+        onPointerDownOutside={onPointerDownOutside}
+        onInteractOutside={onInteractOutside}
+        onEscapeKeyDown={onEscapeKeyDown}
       >
         {title != null && <DialogTitle className="pr-10 pb-4">{title}</DialogTitle>}
         {children}
@@ -176,7 +185,7 @@ function ConfirmDialog({
   onConfirm,
   title,
   body,
-  confirmLabel = 'Delete',
+  confirmLabel,
   isSubmitting,
   disabled,
   danger = true,
@@ -199,7 +208,7 @@ function ConfirmDialog({
               onClose();
             }}
           >
-            {!isSubmitting && <span>{m.action_confirm()}</span>}
+            {!isSubmitting && <span>{confirmLabel ?? m.action_confirm()}</span>}
             {isSubmitting && (
               <span>
                 <Spinner />

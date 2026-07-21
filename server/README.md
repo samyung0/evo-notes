@@ -24,15 +24,15 @@ go run ./cmd/api
 Backblaze B2 is required. Set every `B2_*` variable in `.env`; startup verifies
 bucket access and exits if those credentials are invalid.
 
-The server applies the embedded migrations in `migrations/*.sql` (schema +
-seed) on startup; both are idempotent.
+The server applies the embedded `migrations/0001_init.sql` development baseline
+(schema + seed) on startup; it is idempotent.
 
 ## Layout
 
 - `cmd/api` — entrypoint (config, migrate, serve, graceful shutdown).
 - `internal/store` — pgx pool, models (mirror `src/api/types.ts`), queries.
 - `internal/httpapi` — chi router + handlers (mirror `src/mocks/handlers.ts`).
-- `migrations` — `0001_init.sql` (schema, pgvector, jobs queue) + `0002_seed.sql`.
+- `migrations` — `0001_init.sql` (complete schema, extensions, and development seed).
 
 ## Connect the frontend
 

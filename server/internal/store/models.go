@@ -241,15 +241,6 @@ type WorkspaceInvite struct {
 	CreatedAt     time.Time     `json:"createdAt"`
 }
 
-// WorkspaceInviteCandidate is the deliberately minimal account projection
-// returned to workspace owners while selecting an invitation recipient.
-type WorkspaceInviteCandidate struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	AvatarURL string `json:"avatarUrl,omitempty"`
-}
-
 type SuggestionStatus string
 
 const (
@@ -343,6 +334,7 @@ type Notification struct {
 	Body  string           `json:"body"`
 	At    time.Time        `json:"at"`
 	Read  bool             `json:"read"`
+	Href  string           `json:"href,omitempty"`
 }
 
 type Canvas struct {

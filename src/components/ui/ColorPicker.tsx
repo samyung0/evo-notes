@@ -1,4 +1,5 @@
 import { Check, RotateCcw } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
 
 export interface ColorOption {
@@ -64,6 +65,37 @@ export function ColorPicker({
 }) {
   const normalizedValue = value?.toLowerCase();
   const customValue = value && HEX_COLOR_RE.test(value) ? value : '#000000';
+  const customLabel =
+    normalizedValue && HEX_COLOR_RE.test(normalizedValue) ? normalizedValue : '';
+  const customInputRef = useRef<HTMLInputElement>(null);
+  const [customDraft, setCustomDraft] = useState(customLabel);
+
+  useEffect(() => {
+    const input = customInputRef.current;
+    if (!input) return;
+
+    const updateDraft = () => setCustomDraft(input.value);
+    const commitColor = () => onChange(input.value);
+
+    // React normalizes a color input's `onChange` to the native `input`
+    // event, which fires continuously while the user drags. Listen for the
+    // native `change` event so the document is updated only on commit.
+    input.addEventListener('input', updateDraft);
+    input.addEventListener('change', commitColor);
+
+    return () => {
+      input.removeEventListener('input', updateDraft);
+      input.removeEventListener('change', commitColor);
+    };
+  }, [onChange]);
+
+  useEffect(() => {
+    setCustomDraft(customLabel);
+
+    if (customInputRef.current) {
+      customInputRef.current.value = customValue;
+    }
+  }, [customLabel, customValue]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -118,13 +150,13 @@ export function ColorPicker({
       <label className="mt-2 flex items-center justify-between gap-3 border-t border-divider pt-2 text-xs font-semibold text-fg-secondary">
         Custom color
         <span className="flex items-center gap-2 font-mono font-normal text-fg">
-          {normalizedValue && HEX_COLOR_RE.test(normalizedValue) ? normalizedValue : ''}
+          {customDraft}
           <input
+            ref={customInputRef}
             type="color"
             data-plate-prevent-deselect
             aria-label="Choose a custom color"
-            value={customValue}
-            onChange={(event) => onChange(event.target.value)}
+            defaultValue={customValue}
             className="h-7 w-9 cursor-pointer rounded-row border border-line bg-transparent p-0.5"
           />
         </span>

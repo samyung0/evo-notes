@@ -33,6 +33,11 @@ import {
 } from './modePolicy';
 import type { OpenItem } from './openItem';
 import { type MaterialKind, UserColor } from '@/api/types';
+import {
+  noteEditorStatusLabel,
+  type NoteEditorStatus,
+} from '@/features/notes/editorMode';
+import { cn } from '@/lib/cn';
 
 /* Interactive Plate is the heaviest chunk in this route. View and study modes
  * deliberately never load it. */
@@ -58,6 +63,7 @@ export function CenterContent({
   const [imageZoom, setImageZoom] = useState(IMAGE_MIN_ZOOM);
   const [materialMode, setMaterialMode] = useState<MaterialMode | null>(null);
   const [suggestionDirty, setSuggestionDirty] = useState(false);
+  const [editorStatus, setEditorStatus] = useState<NoteEditorStatus | null>(null);
   const updateSuggestionDirty = useCallback(
     (dirty: boolean) => {
       setSuggestionDirty(dirty);
@@ -70,6 +76,7 @@ export function CenterContent({
     setImageZoom(IMAGE_MIN_ZOOM);
     setMaterialMode(null);
     updateSuggestionDirty(false);
+    setEditorStatus(null);
   }, [item?.kind, item?.id, updateSuggestionDirty]);
 
   const changeMaterialMode = (nextMode: MaterialMode) => {
@@ -80,6 +87,7 @@ export function CenterContent({
       return;
     }
     updateSuggestionDirty(false);
+    setEditorStatus(null);
     setMaterialMode(nextMode);
   };
 
@@ -94,6 +102,7 @@ export function CenterContent({
         onImageZoomChange={setImageZoom}
         materialMode={materialMode}
         onMaterialModeChange={changeMaterialMode}
+        editorStatus={editorStatus}
       />
       <div className="relative min-h-0 flex-1 overflow-auto">
         {item.kind === 'material' && (
@@ -103,6 +112,7 @@ export function CenterContent({
             mode={materialMode}
             allowExternalAssets={!readOnly}
             onSuggestionDirtyChange={updateSuggestionDirty}
+            onEditorStatusChange={setEditorStatus}
           />
         )}
         {item.kind === 'file' && (
@@ -137,11 +147,13 @@ function MaterialBody({
   mode,
   allowExternalAssets,
   onSuggestionDirtyChange,
+  onEditorStatusChange,
 }: {
   materialId: string;
   mode: MaterialMode | null;
   allowExternalAssets: boolean;
   onSuggestionDirtyChange: (dirty: boolean) => void;
+  onEditorStatusChange: (status: NoteEditorStatus | null) => void;
 }) {
   const { data: material, isLoading, isError } = useMaterial(materialId);
   if (isLoading) {
@@ -175,6 +187,7 @@ function MaterialBody({
             mode={activeMode}
             allowExternalAssets={allowExternalAssets}
             onSuggestionDirtyChange={onSuggestionDirtyChange}
+            onEditorStatusChange={onEditorStatusChange}
           />
         </Suspense>
       )}
@@ -273,12 +286,14 @@ function Header({
   onImageZoomChange,
   materialMode,
   onMaterialModeChange,
+  editorStatus,
 }: {
   item: OpenItem;
   imageZoom: number;
   onImageZoomChange: (next: number) => void;
   materialMode: MaterialMode | null;
   onMaterialModeChange: (mode: MaterialMode) => void;
+  editorStatus: NoteEditorStatus | null;
 }) {
   // TODO: magic wand for summary/AI related stuff, then some tool box? same action menu
   const { icon, title, showImageZoom, modeOptions, defaultMode } = useHeader(item);
@@ -286,11 +301,25 @@ function Header({
     materialMode && modeOptions?.some((option) => option.value === materialMode)
       ? materialMode
       : defaultMode;
+  const statusLabel = noteEditorStatusLabel(editorStatus);
   return (
     <div className="flex h-14 items-center gap-3 border-b border-divider px-5 py-4">
       <Icon name={icon} className="size-5.5" />
       <h2 className="t-subtitle min-w-0 flex-1 translate-y-px truncate">{title ?? '--'}</h2>
       <div className="ml-auto flex items-center gap-2">
+        {statusLabel && (
+          <span
+            className={cn(
+              'px-1 text-xs text-fg-muted',
+              editorStatus?.mode === 'edit' &&
+                editorStatus.saveState === 'error' &&
+                'text-solid-error'
+            )}
+            role="status"
+          >
+            {statusLabel}
+          </span>
+        )}
         {modeOptions && modeOptions.length > 1 && activeMode && (
           <Select
             value={activeMode}

@@ -65,6 +65,54 @@ describe('static study-block renderers', () => {
     expect(html).toContain('Styled text');
   });
 
+  it('renders semantic callout variants and code language labels in previews', () => {
+    const html = renderMaterial([
+      {
+        type: 'callout',
+        variant: 'warning',
+        children: [{ type: 'p', children: [{ text: 'Check this first' }] }],
+      },
+      {
+        type: 'code_block',
+        lang: 'typescript',
+        children: [{ type: 'code_line', children: [{ text: 'const ready = true;' }] }],
+      },
+    ]);
+
+    expect(html).toContain('data-slate-variant="warning"');
+    expect(html).toContain('border-solid-warning');
+    expect(html).toContain('Check this first');
+    expect(html).toContain('TypeScript');
+    expect(html).toContain('const');
+    expect(html).toContain(' ready = ');
+    expect(html).toContain('true');
+  });
+
+  it('preserves persisted column ratios in previews', () => {
+    const html = renderMaterial([
+      {
+        type: 'column_group',
+        children: [
+          {
+            type: 'column',
+            width: '66.667%',
+            children: [{ type: 'p', children: [{ text: 'Wide' }] }],
+          },
+          {
+            type: 'column',
+            width: '33.333%',
+            children: [{ type: 'p', children: [{ text: 'Narrow' }] }],
+          },
+        ],
+      },
+    ]);
+
+    expect(html).toContain('--column-width:66.667%');
+    expect(html).toContain('--column-width:33.333%');
+    expect(html).toContain('Wide');
+    expect(html).toContain('Narrow');
+  });
+
   it('renders every quiz question shape as a read-only answer review', () => {
     const questions: Question[] = [
       {

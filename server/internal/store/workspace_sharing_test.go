@@ -108,55 +108,169 @@ func TestEffectiveMaterialAccessAndMemberPrecedence(t *testing.T) {
 	}
 }
 
-func TestIdentityBoundInviteSearchAndAcceptance(t *testing.T) {
+func workspaceInviteToken(t *testing.T, s *Store, ctx context.Context, wsID, identifier, userID string, role WorkspaceRole) (string, string) {
+	t.Helper()
+	if err := s.CreateWorkspaceInvite(ctx, wsID, identifier, role, "u_owner"); err != nil {
+		t.Fatal(err)
+	}
+	var inviteID, href string
+	if err := s.pool.QueryRow(ctx, `SELECT wi.id, n.href
+		FROM workspace_invites wi
+		JOIN notifications n ON n.workspace_invite_id=wi.id
+		WHERE wi.workspace_id=$1 AND wi.invited_user_id=$2
+			AND wi.accepted_at IS NULL`, wsID, userID).Scan(&inviteID, &href); err != nil {
+		t.Fatal(err)
+	}
+	token := strings.TrimPrefix(href, "/workspace-invites/")
+	if token == href || token == "" {
+		t.Fatalf("notification has invalid invitation href %q", href)
+	}
+	return inviteID, token
+}
+
+func TestWorkspaceInviteAcceptanceGrantsRoleCapabilities(t *testing.T) {
 	s := openAccessTestStore(t)
-	ctx, ws := createSharingTestWorkspace(t, s, ShareViewer)
-
-	var otherEmail string
-	if err := s.pool.QueryRow(ctx, `SELECT email FROM users WHERE id='u_other'`).Scan(&otherEmail); err != nil {
-		t.Fatal(err)
+	cases := []struct {
+		name       string
+		userID     string
+		role       WorkspaceRole
+		canEdit    bool
+		canComment bool
+	}{
+		{name: "editor", userID: "u_editor", role: RoleEditor, canEdit: true, canComment: true},
+		{name: "commenter", userID: "u_commenter", role: RoleCommenter, canComment: true},
+		{name: "viewer", userID: "u_viewer", role: RoleViewer},
 	}
-	candidates, err := s.SearchWorkspaceInviteCandidates(ctx, ws.ID, otherEmail)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			ws, err := s.CreateWorkspace(ctx, "u_owner", "Invite role "+uid("name"), ColorGraphite, []TagRef{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = s.DeleteWorkspace(ctx, "u_owner", ws.ID) })
+
+			inviteID, token := workspaceInviteToken(t, s, ctx, ws.ID, tc.userID, tc.userID, tc.role)
+			member, err := s.AcceptWorkspaceInvite(ctx, token, tc.userID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if member.WorkspaceID != ws.ID || member.UserID != tc.userID || member.Role != tc.role {
+				t.Fatalf("accepted member = %#v", member)
+			}
+
+			role, err := s.WorkspaceRole(ctx, tc.userID, ws.ID)
+			if err != nil || role != tc.role {
+				t.Fatalf("persisted role = %q, %v; want %q", role, err, tc.role)
+			}
+			if _, err := s.WorkspaceAccess(ctx, tc.userID, ws.ID); err != nil {
+				t.Fatalf("accepted member cannot view workspace: %v", err)
+			}
+			if err := s.AssertWorkspaceEditor(ctx, tc.userID, ws.ID); (err == nil) != tc.canEdit {
+				t.Fatalf("edit access error = %v, want canEdit=%v", err, tc.canEdit)
+			}
+			if err := s.AssertWorkspaceCommenter(ctx, tc.userID, ws.ID); (err == nil) != tc.canComment {
+				t.Fatalf("comment access error = %v, want canComment=%v", err, tc.canComment)
+			}
+
+			members, err := s.ListWorkspaceMembers(ctx, ws.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, listed := range members {
+				found = found || (listed.UserID == tc.userID && listed.Role == tc.role)
+			}
+			if !found {
+				t.Fatalf("%s was not listed as an accepted %s member", tc.userID, tc.role)
+			}
+
+			var notificationCount int
+			if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM notifications
+				WHERE workspace_invite_id=$1`, inviteID).Scan(&notificationCount); err != nil {
+				t.Fatal(err)
+			}
+			if notificationCount != 0 {
+				t.Fatal("accepted invitation notification was not removed")
+			}
+		})
+	}
+}
+
+func TestWorkspaceInvitePrivacyAndAutomaticExpiry(t *testing.T) {
+	s := openAccessTestStore(t)
+	ctx := context.Background()
+	ws, err := s.CreateWorkspace(ctx, "u_owner", "Invite expiry "+uid("name"), ColorGraphite, []TagRef{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	found := false
-	for _, candidate := range candidates {
-		found = found || candidate.ID == "u_other"
-		if candidate.ID == "u_owner" {
-			t.Fatal("owner was returned as an invite candidate")
-		}
-	}
-	if !found {
-		t.Fatalf("u_other was not returned for %q: %#v", otherEmail, candidates)
-	}
+	t.Cleanup(func() { _ = s.DeleteWorkspace(ctx, "u_owner", ws.ID) })
 
-	invite, err := s.CreateWorkspaceInvite(ctx, ws.ID, "u_other", RoleCommenter, "u_owner")
-	if err != nil {
+	if err := s.CreateWorkspaceInvite(ctx, ws.ID, "missing@example.com", RoleViewer, "u_owner"); err != nil {
 		t.Fatal(err)
 	}
-	if invite.InvitedUserID != "u_other" || !strings.EqualFold(invite.Email, otherEmail) || invite.Token == "" {
-		t.Fatalf("identity-bound invite is incomplete: %#v", invite)
-	}
-	candidates, err = s.SearchWorkspaceInviteCandidates(ctx, ws.ID, otherEmail)
-	if err != nil {
+	var missingCount int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM workspace_invites
+		WHERE workspace_id=$1`, ws.ID).Scan(&missingCount); err != nil {
 		t.Fatal(err)
 	}
-	for _, candidate := range candidates {
-		if candidate.ID == "u_other" {
-			t.Fatal("pending invite recipient remained a candidate")
-		}
+	if missingCount != 0 {
+		t.Fatalf("unknown identifier created %d invitation rows", missingCount)
 	}
 
-	if _, err := s.AcceptWorkspaceInvite(ctx, invite.Token, "u_viewer"); !errors.Is(err, ErrForbidden) {
+	inviteID, token := workspaceInviteToken(t, s, ctx, ws.ID, "u_other", "u_other", RoleViewer)
+	var lifetimeSeconds int64
+	if err := s.pool.QueryRow(ctx, `SELECT extract(epoch FROM expires_at-created_at)::bigint
+		FROM workspace_invites WHERE id=$1`, inviteID).Scan(&lifetimeSeconds); err != nil {
+		t.Fatal(err)
+	}
+	if lifetimeSeconds != 7*24*60*60 {
+		t.Fatalf("invite lifetime = %d seconds, want 7 days", lifetimeSeconds)
+	}
+
+	if _, err := s.AcceptWorkspaceInvite(ctx, token, "u_viewer"); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("mismatched user accepted bound invite: %v", err)
 	}
-	member, err := s.AcceptWorkspaceInvite(ctx, invite.Token, "u_other")
+	if _, err := s.pool.Exec(ctx, `UPDATE workspace_invites
+		SET expires_at=now()-interval '1 second' WHERE id=$1`, inviteID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AcceptWorkspaceInvite(ctx, token, "u_other"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expired invitation was accepted: %v", err)
+	}
+	notifications, err := s.Notifications(ctx, "u_other")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if member.UserID != "u_other" || member.Role != RoleCommenter {
-		t.Fatalf("accepted member = %#v", member)
+	for _, notification := range notifications {
+		if notification.Href == "/workspace-invites/"+token {
+			t.Fatal("expired invitation remained visible in notifications")
+		}
+	}
+
+	expired, err := s.ExpireWorkspaceInvites(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expired != 1 {
+		t.Fatalf("expired cleanup removed %d invites, want 1", expired)
+	}
+	var inviteCount, notificationCount int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM workspace_invites WHERE id=$1`, inviteID).
+		Scan(&inviteCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM notifications
+		WHERE workspace_invite_id=$1`, inviteID).Scan(&notificationCount); err != nil {
+		t.Fatal(err)
+	}
+	if inviteCount != 0 || notificationCount != 0 {
+		t.Fatalf("expired rows remain: invites=%d notifications=%d", inviteCount, notificationCount)
+	}
+	role, err := s.WorkspaceRole(ctx, "u_other", ws.ID)
+	if err != nil || role != "" {
+		t.Fatalf("non-accepting user became a member: role=%q err=%v", role, err)
 	}
 }
 

@@ -18,7 +18,7 @@ func TestCollaborationContractsAreRegistered(t *testing.T) {
 	text := string(spec)
 	for _, expected := range []string{
 		"/api/workspaces/{id}/members:",
-		"/api/workspaces/{id}/invite-candidates:",
+		"/api/workspaces/{id}/invites:",
 		"/api/workspace-invites/{token}/accept:",
 		"/api/materials/{id}/revisions:",
 		"/api/materials/{id}/suggestions:",
@@ -29,7 +29,7 @@ func TestCollaborationContractsAreRegistered(t *testing.T) {
 		"expectedBaseRevision:",
 		"finalizedContent:",
 		"shareRole:",
-		"invitedUserId:",
+		"identifier:",
 		"schemaVersion:",
 		"capabilities:",
 		"originalFragment:",
@@ -37,6 +37,16 @@ func TestCollaborationContractsAreRegistered(t *testing.T) {
 	} {
 		if !strings.Contains(text, expected) {
 			t.Errorf("OpenAPI contract missing %q", expected)
+		}
+	}
+	for _, forbidden := range []string{
+		"/api/workspaces/{id}/invite-candidates:",
+		"/api/workspaces/{id}/invites/{inviteId}:",
+		"CreatedWorkspaceInvite",
+		"WorkspaceInviteCandidate",
+	} {
+		if strings.Contains(text, forbidden) {
+			t.Errorf("OpenAPI contract still exposes %q", forbidden)
 		}
 	}
 }
@@ -91,22 +101,17 @@ func TestMaterialResponseIncludesDecodedContent(t *testing.T) {
 	}
 }
 
-func TestInviteListContractNeverSerializesBearerToken(t *testing.T) {
-	invite := store.WorkspaceInvite{ID: "inv_1", Token: "raw-secret"}
-	listed, err := json.Marshal(apimodel.FromWorkspaceInvite(invite))
+func TestInviteCreateRequestUsesPrivateIdentifier(t *testing.T) {
+	encoded, err := json.Marshal(apimodel.CreateWorkspaceInviteReq{
+		Identifier: "person@example.com",
+		Role:       store.RoleViewer,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(listed), "raw-secret") || strings.Contains(string(listed), `"token"`) {
-		t.Fatalf("listed invite exposed its bearer token: %s", listed)
-	}
-
-	created, err := json.Marshal(apimodel.FromCreatedWorkspaceInvite(invite))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(created), `"token":"raw-secret"`) {
-		t.Fatalf("create response omitted its one-time token: %s", created)
+	if !strings.Contains(string(encoded), `"identifier":"person@example.com"`) ||
+		strings.Contains(string(encoded), `"userId"`) {
+		t.Fatalf("invite request contract is not identifier-only: %s", encoded)
 	}
 }
 

@@ -1,5 +1,4 @@
 import { ListStyleType, toggleList } from '@platejs/list';
-import { KEYS } from 'platejs';
 import type { WidgetGroupId } from './noteEditorPrefs';
 import type { NoteBlockDialogsApi } from './blocks/dialogContext';
 import { customBlockNode } from './blocks/shared';
@@ -12,6 +11,7 @@ export interface EditorCommand {
   id: string;
   label: string;
   description: string;
+  focusEditor?: boolean;
   keywords?: string[];
   widget?: WidgetGroupId;
   run: (editor: NoteEditorInstance, dialogs?: NoteBlockDialogsApi | null) => void;
@@ -86,6 +86,7 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
     run: (editor) =>
       insertEditorNode(editor, {
         type: 'callout',
+        variant: 'info',
         children: [emptyParagraph()],
       }),
   },
@@ -135,13 +136,13 @@ export const EDITOR_COMMANDS: EditorCommand[] = [
     id: 'mention',
     label: 'Mention',
     description: 'Mention a workspace member',
+    focusEditor: false,
     keywords: ['user', '@'],
-    run: (editor) =>
-      insertEditorNode(editor, {
-        type: KEYS.mentionInput,
-        trigger: '@',
-        children: [{ text: '' }],
-      }),
+    // Use the trigger path (same as typing `@`). Inserting mention_input via
+    // insertEditorNode focuses the editor and immediately blur-cancels to `@`.
+    run: (editor) => {
+      editor.tf.insertText('@');
+    },
   },
   {
     id: 'equation',

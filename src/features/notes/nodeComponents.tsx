@@ -1,20 +1,50 @@
 import {
+  useCallback,
+  useEffect,
   useState,
+  type CSSProperties,
   type FocusEvent,
   type KeyboardEvent,
   type MouseEvent as ReactMouseEvent,
+  type MutableRefObject,
+  type Ref,
 } from 'react';
+import { useDraggable, useDropLine } from '@platejs/dnd';
+import { setColumns } from '@platejs/layout';
 import { useLink } from '@platejs/link/react';
-import { useTocElement, useTocElementState } from '@platejs/toc/react';
-import type { TLinkElement } from 'platejs';
+import { useTocElementState } from '@platejs/toc/react';
+import {
+  Check,
+  CircleAlert,
+  CircleCheck,
+  CircleX,
+  Clipboard,
+  Columns2,
+  Columns3,
+  GripHorizontal,
+  Info,
+  PanelLeft,
+  PanelRight,
+  Trash2,
+} from 'lucide-react';
+import { NodeApi, PathApi, type TLinkElement } from 'platejs';
 import {
   PlateElement,
   PlateLeaf,
   type PlateElementProps,
   type PlateLeafProps,
   useEditorRef,
+  useReadOnly,
 } from 'platejs/react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/Select';
 import { Katex } from '@/features/materials/Katex';
+import { cn } from '@/lib/cn';
 import { MediaAssetElement } from './MediaNodes';
 import { MentionInputElement } from './MentionInput';
 import {
@@ -43,6 +73,16 @@ import {
   UL_CLASS,
   tocItemIndent,
 } from './nodeStyles';
+import {
+  CALLOUT_VARIANTS,
+  CALLOUT_VARIANT_CLASS,
+  CODE_BLOCK_LANGUAGES,
+  COLUMN_LAYOUTS,
+  getCodeBlockLanguageLabel,
+  normalizeCalloutVariant,
+  shouldInsertCodeLine,
+  type CalloutVariant,
+} from './richBlockConfig';
 import {
   TableCellElement,
   TableCellHeaderElement,
@@ -90,8 +130,100 @@ function Hr(props: PlateElementProps) {
 }
 
 function CodeBlock(props: PlateElementProps) {
+  const editor = useEditorRef();
+  const readOnly = useReadOnly();
+  const [copied, setCopied] = useState(false);
+  const language = String((props.element as { lang?: string }).lang || 'plaintext');
+
+  useEffect(() => {
+    if (!copied) return;
+    const timeout = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [copied]);
+
+  const attributes = {
+    ...props.attributes,
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (
+        !shouldInsertCodeLine({
+          altKey: event.altKey,
+          ctrlKey: event.ctrlKey,
+          isComposing: event.nativeEvent.isComposing,
+          key: event.key,
+          metaKey: event.metaKey,
+        })
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      editor.tf.insertBreak();
+    },
+  } as PlateElementProps['attributes'];
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(NodeApi.string(props.element));
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   return (
-    <PlateElement {...props} as="pre" className={CODE_BLOCK_CLASS}>
+    <PlateElement
+      {...props}
+      as="pre"
+      attributes={attributes}
+      className={CODE_BLOCK_CLASS}
+      data-language={language}
+    >
+      <div
+        contentEditable={false}
+        className="absolute top-1.5 right-1.5 z-10 flex h-7 items-center gap-1 rounded-row border border-line bg-surface/95 p-0.5 font-sans shadow-sm"
+      >
+        {readOnly ? (
+          <span className="px-2 text-[11px] text-fg-muted">
+            {getCodeBlockLanguageLabel(language)}
+          </span>
+        ) : (
+          <Select
+            value={language}
+            onValueChange={(value) => {
+              const at = editor.api.findPath(props.element);
+              if (at) editor.tf.setNodes({ lang: value }, { at });
+            }}
+          >
+            <SelectTrigger
+              aria-label="Code language"
+              className="h-6 w-auto min-w-24 gap-1 bg-transparent px-2 py-0 text-[11px]"
+              size="sm"
+              variant="noOutline"
+              data-plate-prevent-deselect
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end" className="max-h-72">
+              {CODE_BLOCK_LANGUAGES.map((item) => (
+                <SelectItem key={item.value} value={item.value} size="sm">
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <button
+          type="button"
+          aria-label={copied ? 'Code copied' : 'Copy code'}
+          title={copied ? 'Copied' : 'Copy code'}
+          data-plate-prevent-deselect
+          className="flex size-6 items-center justify-center rounded-row text-fg-muted hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2 focus-visible:ring-action"
+          onClick={() => void copy()}
+        >
+          {copied ? <Check className="size-3.5" /> : <Clipboard className="size-3.5" />}
+        </button>
+      </div>
       {props.children}
     </PlateElement>
   );
@@ -164,39 +296,222 @@ function Lic(props: PlateElementProps) {
 }
 
 /* callout */
+function CalloutIcon({ variant }: { variant: CalloutVariant }) {
+  const className = 'mt-0.5 size-5 shrink-0';
+  switch (variant) {
+    case 'success':
+      return <CircleCheck aria-hidden className={className} />;
+    case 'warning':
+      return <CircleAlert aria-hidden className={className} />;
+    case 'danger':
+      return <CircleX aria-hidden className={className} />;
+    default:
+      return <Info aria-hidden className={className} />;
+  }
+}
+
 function Callout(props: PlateElementProps) {
+  const editor = useEditorRef();
+  const readOnly = useReadOnly();
+  const variant = normalizeCalloutVariant((props.element as { variant?: unknown }).variant);
+
   return (
-    <PlateElement {...props} className={CALLOUT_CLASS}>
-      {props.children}
+    <PlateElement
+      {...props}
+      className={cn(CALLOUT_CLASS, CALLOUT_VARIANT_CLASS[variant], !readOnly && 'pr-28')}
+      data-callout-variant={variant}
+    >
+      <span contentEditable={false}>
+        <CalloutIcon variant={variant} />
+      </span>
+      <div className="min-w-0 flex-1 text-fg">{props.children}</div>
+      {!readOnly && (
+        <div contentEditable={false} className="absolute top-2 right-2 rounded-row bg-surface/80">
+          <Select
+            value={variant}
+            onValueChange={(value) => {
+              const at = editor.api.findPath(props.element);
+              if (at) editor.tf.setNodes({ variant: value }, { at });
+            }}
+          >
+            <SelectTrigger
+              aria-label="Callout style"
+              className="h-7 w-24 bg-transparent px-2 py-0 text-xs"
+              size="sm"
+              variant="noOutline"
+              data-plate-prevent-deselect
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              {CALLOUT_VARIANTS.map((item) => (
+                <SelectItem key={item.value} value={item.value} size="sm">
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </PlateElement>
   );
 }
 
 /* columns */
 function ColumnGroup(props: PlateElementProps) {
+  const editor = useEditorRef();
+  const readOnly = useReadOnly();
+
+  const changeLayout = (widths: string[]) => {
+    setColumns(editor, { at: props.element, widths });
+  };
+
+  const remove = () => {
+    const at = editor.api.findPath(props.element);
+    if (at) editor.tf.removeNodes({ at });
+  };
+
   return (
     <PlateElement {...props} className={COLUMN_GROUP_CLASS}>
       {props.children}
+      {!readOnly && (
+        <div
+          contentEditable={false}
+          className="pointer-events-none absolute top-0 right-0 z-10 flex items-center gap-0.5 rounded-row border border-line bg-surface p-0.5 opacity-0 shadow-sm transition-opacity group-focus-within/columns:pointer-events-auto group-focus-within/columns:opacity-100 group-hover/columns:pointer-events-auto group-hover/columns:opacity-100"
+        >
+          {COLUMN_LAYOUTS.map((layout) => {
+            const LayoutIcon =
+              layout.value === 'equal-3'
+                ? Columns3
+                : layout.value === 'left-wide'
+                  ? PanelRight
+                  : layout.value === 'right-wide'
+                    ? PanelLeft
+                    : Columns2;
+            return (
+              <button
+                key={layout.value}
+                type="button"
+                aria-label={layout.label}
+                title={layout.label}
+                data-plate-prevent-deselect
+                className="flex size-7 items-center justify-center rounded-row text-fg-muted hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2 focus-visible:ring-action"
+                onClick={() => changeLayout(layout.widths)}
+              >
+                <LayoutIcon className="size-4" />
+              </button>
+            );
+          })}
+          <div className="mx-0.5 h-4 w-px bg-divider" />
+          <button
+            type="button"
+            aria-label="Delete columns"
+            title="Delete columns"
+            data-plate-prevent-deselect
+            className="flex size-7 items-center justify-center rounded-row text-fg-muted hover:bg-tint-error hover:text-tint-error-fg focus-visible:ring-2 focus-visible:ring-action"
+            onClick={remove}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      )}
     </PlateElement>
   );
 }
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') {
+    ref(value);
+  } else if (ref) {
+    (ref as MutableRefObject<T | null>).current = value;
+  }
+}
+
 function Column(props: PlateElementProps) {
+  const readOnly = useReadOnly();
   const width = (props.element as { width?: string }).width;
+  const { isDragging, nodeRef, previewRef, handleRef } = useDraggable({
+    element: props.element,
+    orientation: 'horizontal',
+    type: 'column',
+    canDropNode: ({ dragEntry, dropEntry }) =>
+      PathApi.equals(PathApi.parent(dragEntry[1]), PathApi.parent(dropEntry[1])),
+  });
+  const { dropLine } = useDropLine({ orientation: 'horizontal' });
+  const composedRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      assignRef(props.ref, node);
+      assignRef(nodeRef, node);
+      assignRef(previewRef, node);
+    },
+    [nodeRef, previewRef, props.ref]
+  );
+
   return (
     <PlateElement
       {...props}
-      className={COLUMN_CLASS}
-      style={width ? { flexBasis: width } : undefined}
+      ref={composedRef}
+      className={cn(COLUMN_CLASS, isDragging && 'opacity-45')}
+      style={width ? ({ '--column-width': width } as CSSProperties) : undefined}
     >
+      {!readOnly && (
+        <button
+          ref={handleRef}
+          type="button"
+          contentEditable={false}
+          data-plate-prevent-deselect
+          aria-label="Drag to reorder column"
+          title="Drag to reorder column"
+          className="absolute top-1 left-1/2 z-10 flex h-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-row px-1.5 text-fg-muted opacity-0 group-hover/column:opacity-100 hover:bg-surface-hover-bg hover:text-fg active:cursor-grabbing"
+        >
+          <GripHorizontal className="size-4" />
+        </button>
+      )}
       {props.children}
+      {dropLine && (
+        <div
+          contentEditable={false}
+          className={cn(
+            'absolute inset-y-0 z-20 w-0.5 bg-action-accent',
+            dropLine === 'left' ? '-left-1' : '-right-1'
+          )}
+        />
+      )}
     </PlateElement>
   );
 }
 
 /* toc — read-only outline placeholder (headings are the source of truth) */
+const TOC_SCROLL_TOP_OFFSET = 36;
+
+function scrollHeadingIntoView(element: HTMLElement, topOffset: number) {
+  let scroller: HTMLElement | null = element.parentElement;
+  while (scroller) {
+    const { overflowY } = getComputedStyle(scroller);
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+      scroller.scrollHeight > scroller.clientHeight
+    ) {
+      break;
+    }
+    scroller = scroller.parentElement;
+  }
+
+  if (!scroller) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+
+  const scrollerRect = scroller.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  scroller.scrollTo({
+    behavior: 'smooth',
+    top: scroller.scrollTop + (elementRect.top - scrollerRect.top) - topOffset,
+  });
+}
+
 function Toc(props: PlateElementProps) {
   const state = useTocElementState();
-  const { props: tocProps } = useTocElement(state);
   const headings = state.headingList;
 
   return (
@@ -211,7 +526,19 @@ function Toc(props: PlateElementProps) {
                 type="button"
                 className={TOC_ITEM_CLASS}
                 style={tocItemIndent(heading.type)}
-                onClick={(event) => tocProps.onClick(event, heading, 'smooth')}
+                onClick={(event) => {
+                  event.preventDefault();
+                  const node = NodeApi.get(state.editor, heading.path);
+                  if (!node) return;
+
+                  const element = state.editor.api.toDOMNode(node);
+                  if (!element) return;
+
+                  scrollHeadingIntoView(element, TOC_SCROLL_TOP_OFFSET);
+                  state.editor.tf.navigation.flashTarget({
+                    target: { path: heading.path, type: 'node' },
+                  });
+                }}
               >
                 {heading.title}
               </button>

@@ -11,4 +11,5 @@ export const NotificationKind = {
   event: 'event',
   quiz: 'quiz',
   system: 'system',
+  workspace_invite: 'workspace_invite',
 } as const;

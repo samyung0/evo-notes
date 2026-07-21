@@ -324,6 +324,7 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                       onClick={() =>
                         insertNode({
                           type: KEYS.callout,
+                          variant: 'info',
                           children: [{ type: KEYS.p, children: [{ text: '' }] }],
                         })
                       }

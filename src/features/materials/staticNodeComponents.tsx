@@ -1,8 +1,9 @@
 /* Static (read-only) note document components. Rendered by PlateStatic without
  * a Plate store: no Plate hooks, no editor transforms, no edit affordances.
  * Styling is shared with the editable components via nodeStyles. */
-import type { MouseEvent } from 'react';
+import type { CSSProperties, MouseEvent } from 'react';
 import { getTableColumnCount } from '@platejs/table';
+import { CircleAlert, CircleCheck, CircleX, Info } from 'lucide-react';
 import { KEYS, NodeApi, type Path, type TTableElement } from 'platejs';
 import {
   SlateElement,
@@ -66,6 +67,12 @@ import {
   UL_CLASS,
   tocItemIndent,
 } from '@/features/notes/nodeStyles';
+import {
+  CALLOUT_VARIANT_CLASS,
+  getCodeBlockLanguageLabel,
+  normalizeCalloutVariant,
+  type CalloutVariant,
+} from '@/features/notes/richBlockConfig';
 
 /* ------------------------------------------------------------- helpers */
 
@@ -95,6 +102,24 @@ function Hr(props: SlateElementProps) {
   return (
     <SlateElement {...props}>
       <hr className={HR_CLASS} />
+      {props.children}
+    </SlateElement>
+  );
+}
+
+function CodeBlock(props: SlateElementProps) {
+  const language = (props.element as { lang?: unknown }).lang;
+  return (
+    <SlateElement
+      {...props}
+      as="pre"
+      className={cn(CODE_BLOCK_CLASS, !(typeof language === 'string' && language) && 'pt-3')}
+    >
+      {typeof language === 'string' && language && (
+        <span className="absolute top-2 right-2 font-sans text-[11px] text-fg-muted">
+          {getCodeBlockLanguageLabel(language)}
+        </span>
+      )}
       {props.children}
     </SlateElement>
   );
@@ -149,9 +174,37 @@ function Column(props: SlateElementProps) {
     <SlateElement
       {...props}
       className={COLUMN_CLASS}
-      style={width ? { flexBasis: width } : undefined}
+      style={width ? ({ '--column-width': width } as CSSProperties) : undefined}
     >
       {props.children}
+    </SlateElement>
+  );
+}
+
+function CalloutIcon({ variant }: { variant: CalloutVariant }) {
+  const className = 'mt-0.5 size-5 shrink-0';
+  switch (variant) {
+    case 'success':
+      return <CircleCheck aria-hidden className={className} />;
+    case 'warning':
+      return <CircleAlert aria-hidden className={className} />;
+    case 'danger':
+      return <CircleX aria-hidden className={className} />;
+    default:
+      return <Info aria-hidden className={className} />;
+  }
+}
+
+function Callout(props: SlateElementProps) {
+  const variant = normalizeCalloutVariant((props.element as { variant?: unknown }).variant);
+  return (
+    <SlateElement
+      {...props}
+      className={cn(CALLOUT_CLASS, CALLOUT_VARIANT_CLASS[variant])}
+      data-callout-variant={variant}
+    >
+      <CalloutIcon variant={variant} />
+      <div className="min-w-0 flex-1 text-fg">{props.children}</div>
     </SlateElement>
   );
 }
@@ -367,7 +420,7 @@ export const staticNoteComponents = {
   p: element('p', PARAGRAPH_CLASS),
   blockquote: element('blockquote', BLOCKQUOTE_CLASS),
   hr: Hr,
-  code_block: element('pre', CODE_BLOCK_CLASS),
+  code_block: CodeBlock,
   code_line: element(undefined),
   code_syntax: mark('span'),
   a: LinkElement,
@@ -383,7 +436,7 @@ export const staticNoteComponents = {
   tr: element('tr'),
   td: element('td', TD_CLASS),
   th: element('th', TH_CLASS),
-  callout: element('div', CALLOUT_CLASS),
+  callout: Callout,
   column_group: element('div', COLUMN_GROUP_CLASS),
   column: Column,
   toc: Toc,

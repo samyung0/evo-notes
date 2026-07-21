@@ -17,7 +17,7 @@ export const PARAGRAPH_CLASS = 'py-1 px-0 leading-relaxed text-fg';
 export const BLOCKQUOTE_CLASS = 'my-1 border-l-2 border-line pl-4 text-fg-secondary italic';
 export const HR_CLASS = 'py-5 border-divider';
 export const CODE_BLOCK_CLASS =
-  'my-3 overflow-auto rounded-card border border-line bg-surface-hover-bg p-3 font-mono text-xs text-fg';
+  'group/code relative my-3 overflow-auto rounded-card border border-line bg-surface-hover-bg px-3 pt-10 pb-3 font-mono text-xs text-fg';
 export const LINK_CLASS = 'text-link underline underline-offset-2';
 
 export const UL_CLASS = 'my-2 ml-5 list-disc space-y-1';
@@ -30,9 +30,12 @@ export const TD_CLASS = 'h-12 border border-line px-3 py-2 align-top';
 export const TH_CLASS =
   'h-12 border border-line bg-surface-hover-bg px-3 py-2 text-left font-semibold';
 
-export const CALLOUT_CLASS = 'p-4 my-1 rounded-row bg-surface-hover-bg p-3 text-fg';
-export const COLUMN_GROUP_CLASS = 'mb-2 flex flex-col size-full flex-row';
-export const COLUMN_CLASS = 'min-w-0 flex-1 border border-line border-dashed rounded-row p-1.5';
+export const CALLOUT_CLASS =
+  'group/callout relative my-2 flex gap-3 rounded-row border-l-4 px-4 py-3';
+export const COLUMN_GROUP_CLASS =
+  'group/columns relative mb-2 flex size-full flex-col gap-2 pt-9 sm:flex-row';
+export const COLUMN_CLASS =
+  'group/column relative min-w-0 w-full shrink rounded-row border border-line border-dashed p-2 sm:w-(--column-width) sm:basis-(--column-width)';
 
 export const TOC_BOX_CLASS = 'my-3';
 export const TOC_TITLE_CLASS = 'mb-2 t-label text-fg-muted';

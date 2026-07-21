@@ -278,27 +278,6 @@ export interface WorkspaceMember {
   createdAt: string;
 }
 
-export interface WorkspaceInviteCandidate {
-  id: string;
-  name: string;
-  email: string;
-  avatarUrl?: string;
-}
-
-export interface WorkspaceInvite {
-  id: string;
-  workspaceId: string;
-  invitedUserId?: string;
-  email: string;
-  role: Exclude<WorkspaceRole, 'owner'>;
-  token?: string;
-  invitedBy: string;
-  expiresAt: string;
-  acceptedAt?: string;
-  revokedAt?: string;
-  createdAt: string;
-}
-
 export interface MaterialComment {
   id: string;
   discussionId: string;

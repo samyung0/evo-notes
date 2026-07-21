@@ -135,10 +135,9 @@ func FromMaterialRevision(r store.MaterialRevision) MaterialRevision {
 }
 
 type (
-	WorkspaceMember          = store.WorkspaceMember
-	WorkspaceInviteCandidate = store.WorkspaceInviteCandidate
-	Discussion               = store.Discussion
-	Comment                  = store.Comment
+	WorkspaceMember = store.WorkspaceMember
+	Discussion      = store.Discussion
+	Comment         = store.Comment
 )
 
 type MaterialSuggestion struct {
@@ -177,45 +176,6 @@ func FromMaterialSuggestions(suggestions []store.MaterialSuggestion) []MaterialS
 		out[i] = FromMaterialSuggestion(suggestion)
 	}
 	return out
-}
-
-type WorkspaceInvite struct {
-	ID            string              `json:"id"`
-	WorkspaceID   string              `json:"workspaceId"`
-	InvitedUserID string              `json:"invitedUserId"`
-	Email         string              `json:"email"`
-	Role          store.WorkspaceRole `json:"role"`
-	InvitedBy     string              `json:"invitedBy"`
-	ExpiresAt     time.Time           `json:"expiresAt"`
-	AcceptedAt    *time.Time          `json:"acceptedAt,omitempty"`
-	RevokedAt     *time.Time          `json:"revokedAt,omitempty"`
-	CreatedAt     time.Time           `json:"createdAt"`
-}
-
-type CreatedWorkspaceInvite struct {
-	WorkspaceInvite
-	Token string `json:"token"`
-}
-
-func FromWorkspaceInvite(invite store.WorkspaceInvite) WorkspaceInvite {
-	return WorkspaceInvite{
-		ID: invite.ID, WorkspaceID: invite.WorkspaceID, InvitedUserID: invite.InvitedUserID,
-		Email: invite.Email, Role: invite.Role,
-		InvitedBy: invite.InvitedBy, ExpiresAt: invite.ExpiresAt, AcceptedAt: invite.AcceptedAt,
-		RevokedAt: invite.RevokedAt, CreatedAt: invite.CreatedAt,
-	}
-}
-
-func FromWorkspaceInvites(invites []store.WorkspaceInvite) []WorkspaceInvite {
-	out := make([]WorkspaceInvite, len(invites))
-	for i, invite := range invites {
-		out[i] = FromWorkspaceInvite(invite)
-	}
-	return out
-}
-
-func FromCreatedWorkspaceInvite(invite store.WorkspaceInvite) CreatedWorkspaceInvite {
-	return CreatedWorkspaceInvite{WorkspaceInvite: FromWorkspaceInvite(invite), Token: invite.Token}
 }
 
 // Workspace is the response contract. Tags are object-wrapped for useFieldArray.

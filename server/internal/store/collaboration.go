@@ -62,95 +62,79 @@ func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, memberID string
 	return nil
 }
 
-func (s *Store) SearchWorkspaceInviteCandidates(ctx context.Context, wsID, q string) ([]WorkspaceInviteCandidate, error) {
-	q = strings.TrimSpace(q)
-	if q == "" {
-		return []WorkspaceInviteCandidate{}, nil
-	}
-	rows, err := s.pool.Query(ctx, `
-		SELECT u.id, u.name, u.email, COALESCE(u.avatar_url, '')
-		FROM users u
-		JOIN workspaces w ON w.id=$1
-		WHERE u.id<>w.user_id
-			AND (lower(u.name) LIKE $2 OR lower(u.email) LIKE $2)
-			AND NOT EXISTS (
-				SELECT 1 FROM workspace_members wm
-				WHERE wm.workspace_id=$1 AND wm.user_id=u.id
-			)
-			AND NOT EXISTS (
-				SELECT 1 FROM workspace_invites wi
-				WHERE wi.workspace_id=$1
-					AND (
-						wi.invited_user_id=u.id
-						OR lower(wi.email)=lower(u.email)
-					)
-					AND wi.accepted_at IS NULL
-					AND wi.revoked_at IS NULL
-			)
-		ORDER BY lower(u.name), lower(u.email), u.id
-		LIMIT 20`, wsID, "%"+strings.ToLower(q)+"%")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []WorkspaceInviteCandidate{}
-	for rows.Next() {
-		var candidate WorkspaceInviteCandidate
-		if err := rows.Scan(&candidate.ID, &candidate.Name, &candidate.Email, &candidate.AvatarURL); err != nil {
-			return nil, err
-		}
-		out = append(out, candidate)
-	}
-	return out, rows.Err()
-}
-
-func (s *Store) CreateWorkspaceInvite(ctx context.Context, wsID, invitedUserID string, role WorkspaceRole, invitedBy string) (WorkspaceInvite, error) {
-	invitedUserID = strings.TrimSpace(invitedUserID)
-	if invitedUserID == "" || (role != RoleEditor && role != RoleCommenter && role != RoleViewer) {
-		return WorkspaceInvite{}, ErrForbidden
+// CreateWorkspaceInvite resolves an exact user ID or email without revealing
+// whether an eligible account exists. A nil result can therefore mean either a
+// created invitation or an intentional no-op.
+func (s *Store) CreateWorkspaceInvite(ctx context.Context, wsID, identifier string, role WorkspaceRole, invitedBy string) error {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" || (role != RoleEditor && role != RoleCommenter && role != RoleViewer) {
+		return ErrForbidden
 	}
 	token, err := inviteToken()
 	if err != nil {
-		return WorkspaceInvite{}, err
+		return err
 	}
-	invite := WorkspaceInvite{
-		ID: uid("inv"), WorkspaceID: wsID, InvitedUserID: invitedUserID, Role: role,
-		Token: token, InvitedBy: invitedBy,
-		ExpiresAt: time.Now().UTC().Add(7 * 24 * time.Hour), CreatedAt: time.Now().UTC(),
-	}
+	now := time.Now().UTC()
+	expiresAt := now.Add(7 * 24 * time.Hour)
 	tokenHash := inviteTokenHash(token)
-	err = s.pool.QueryRow(ctx, `INSERT INTO workspace_invites
-		(id, workspace_id, invited_user_id, email, role, token_hash, invited_by, expires_at, created_at)
-		SELECT $1,$2,u.id,u.email,$4,$5,$6,$7,$8
-		FROM users u
-		JOIN workspaces w ON w.id=$2
-		WHERE u.id=$3
-			AND u.id<>w.user_id
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var inviteID, invitedUserID, workspaceName string
+	err = tx.QueryRow(ctx, `
+		WITH candidates AS (
+			SELECT id FROM users WHERE id=$2
+			UNION ALL
+			SELECT id FROM users
+			WHERE lower(email)=lower($2)
+				AND NOT EXISTS (SELECT 1 FROM users WHERE id=$2)
+		),
+		target AS (
+			SELECT min(id) AS id FROM candidates HAVING count(*)=1
+		)
+		INSERT INTO workspace_invites
+			(id, workspace_id, invited_user_id, email, role, token_hash, invited_by, expires_at, created_at)
+		SELECT $3,$1,u.id,u.email,$4,$5,$6,$7,$8
+		FROM target
+		JOIN users u ON u.id=target.id
+		JOIN workspaces w ON w.id=$1
+		WHERE u.id<>w.user_id
 			AND NOT EXISTS (
 				SELECT 1 FROM workspace_members wm
-				WHERE wm.workspace_id=$2 AND wm.user_id=u.id
-			)
-			AND NOT EXISTS (
-				SELECT 1 FROM workspace_invites wi
-				WHERE wi.workspace_id=$2
-					AND wi.invited_user_id IS NULL
-					AND lower(wi.email)=lower(u.email)
-					AND wi.accepted_at IS NULL
-					AND wi.revoked_at IS NULL
+				WHERE wm.workspace_id=$1 AND wm.user_id=u.id
 			)
 		ON CONFLICT (workspace_id, invited_user_id)
 			WHERE accepted_at IS NULL AND revoked_at IS NULL AND invited_user_id IS NOT NULL
 		DO UPDATE SET email=EXCLUDED.email, role=EXCLUDED.role, token_hash=EXCLUDED.token_hash,
 			invited_by=EXCLUDED.invited_by, expires_at=EXCLUDED.expires_at,
 			created_at=EXCLUDED.created_at
-		RETURNING id, invited_user_id, email`,
-		invite.ID, invite.WorkspaceID, invite.InvitedUserID, invite.Role, tokenHash[:],
-		invite.InvitedBy, invite.ExpiresAt, invite.CreatedAt).
-		Scan(&invite.ID, &invite.InvitedUserID, &invite.Email)
+		RETURNING id, invited_user_id,
+			(SELECT name FROM workspaces WHERE id=$1)`,
+		wsID, identifier, uid("inv"), role, tokenHash[:], invitedBy, expiresAt, now).
+		Scan(&inviteID, &invitedUserID, &workspaceName)
 	if isNoRows(err) {
-		return WorkspaceInvite{}, ErrForbidden
+		return nil
 	}
-	return invite, err
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, `INSERT INTO notifications
+		(id, user_id, kind, title, body, at, read, href, workspace_invite_id)
+		VALUES ($1,$2,$3,$4,$5,$6,false,$7,$8)
+		ON CONFLICT (workspace_invite_id) WHERE workspace_invite_id IS NOT NULL
+		DO UPDATE SET user_id=EXCLUDED.user_id, kind=EXCLUDED.kind, title=EXCLUDED.title,
+			body=EXCLUDED.body, at=EXCLUDED.at, read=false, href=EXCLUDED.href`,
+		uid("ntf"), invitedUserID, NotifWorkspaceInvite, "Workspace invitation",
+		"You've been invited to join "+workspaceName+".", now, "/workspace-invites/"+token, inviteID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func inviteToken() (string, error) {
@@ -165,37 +149,15 @@ func inviteTokenHash(token string) [sha256.Size]byte {
 	return sha256.Sum256([]byte(token))
 }
 
-func (s *Store) ListWorkspaceInvites(ctx context.Context, wsID string) ([]WorkspaceInvite, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, workspace_id, COALESCE(invited_user_id,''), email, role, invited_by,
-		expires_at, accepted_at, revoked_at, created_at
-		FROM workspace_invites WHERE workspace_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC`, wsID)
+// ExpireWorkspaceInvites removes unaccepted invitations after their deadline.
+// Associated in-app notifications are deleted by the foreign-key cascade.
+func (s *Store) ExpireWorkspaceInvites(ctx context.Context) (int64, error) {
+	ct, err := s.pool.Exec(ctx, `DELETE FROM workspace_invites
+		WHERE accepted_at IS NULL AND expires_at<=now()`)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	out := []WorkspaceInvite{}
-	for rows.Next() {
-		var invite WorkspaceInvite
-		if err := rows.Scan(&invite.ID, &invite.WorkspaceID, &invite.InvitedUserID, &invite.Email, &invite.Role,
-			&invite.InvitedBy, &invite.ExpiresAt, &invite.AcceptedAt,
-			&invite.RevokedAt, &invite.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, invite)
-	}
-	return out, rows.Err()
-}
-
-func (s *Store) RevokeWorkspaceInvite(ctx context.Context, wsID, inviteID string) error {
-	ct, err := s.pool.Exec(ctx, `UPDATE workspace_invites SET revoked_at=now()
-		WHERE id=$1 AND workspace_id=$2 AND accepted_at IS NULL AND revoked_at IS NULL`, inviteID, wsID)
-	if err != nil {
-		return err
-	}
-	if ct.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return ct.RowsAffected(), nil
 }
 
 func (s *Store) AcceptWorkspaceInvite(ctx context.Context, token, userID string) (WorkspaceMember, error) {
@@ -233,6 +195,9 @@ func (s *Store) AcceptWorkspaceInvite(ctx context.Context, token, userID string)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE workspace_invites SET accepted_by=$2, accepted_at=now() WHERE id=$1`,
 		invite.ID, userID); err != nil {
+		return WorkspaceMember{}, err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM notifications WHERE workspace_invite_id=$1`, invite.ID); err != nil {
 		return WorkspaceMember{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

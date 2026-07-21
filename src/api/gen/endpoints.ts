@@ -29,7 +29,6 @@ import type {
   CreateQuizReq,
   CreateWorkspaceInviteReq,
   CreateWorkspaceReq,
-  CreatedWorkspaceInvite,
   Deck,
   Discussion,
   ErrorModel,
@@ -55,7 +54,6 @@ import type {
   SaveCanvasReq,
   SearchParams,
   SearchResult,
-  SearchWorkspaceInviteCandidatesParams,
   Tag,
   Task,
   URLResp,
@@ -75,8 +73,6 @@ import type {
   UpdateWorkspaceSharingReq,
   User,
   Workspace,
-  WorkspaceInvite,
-  WorkspaceInviteCandidate,
   WorkspaceMember,
   WorkspaceStats,
 } from './model';
@@ -3587,125 +3583,17 @@ export const listWorkspaceFiles = async (
   return { data, status: res.status, headers: res.headers } as listWorkspaceFilesResponse;
 };
 
-export type searchWorkspaceInviteCandidatesResponse200 = {
-  data: WorkspaceInviteCandidate[] | null;
-  status: 200;
-};
-
-export type searchWorkspaceInviteCandidatesResponseDefault = {
-  data: ErrorModel;
-  status: Exclude<HTTPStatusCodes, 200>;
-};
-
-export type searchWorkspaceInviteCandidatesResponseSuccess =
-  searchWorkspaceInviteCandidatesResponse200 & {
-    headers: Headers;
-  };
-export type searchWorkspaceInviteCandidatesResponseError =
-  searchWorkspaceInviteCandidatesResponseDefault & {
-    headers: Headers;
-  };
-
-export type searchWorkspaceInviteCandidatesResponse =
-  | searchWorkspaceInviteCandidatesResponseSuccess
-  | searchWorkspaceInviteCandidatesResponseError;
-
-export const getSearchWorkspaceInviteCandidatesUrl = (
-  id: string,
-  params?: SearchWorkspaceInviteCandidatesParams
-) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value));
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0
-    ? `/api/workspaces/${id}/invite-candidates?${stringifiedParams}`
-    : `/api/workspaces/${id}/invite-candidates`;
-};
-
-/**
- * @summary Search users eligible for a workspace invitation
- */
-export const searchWorkspaceInviteCandidates = async (
-  id: string,
-  params?: SearchWorkspaceInviteCandidatesParams,
-  options?: RequestInit
-): Promise<searchWorkspaceInviteCandidatesResponse> => {
-  const res = await fetch(getSearchWorkspaceInviteCandidatesUrl(id, params), {
-    ...options,
-    method: 'GET',
-  });
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-
-  const data: searchWorkspaceInviteCandidatesResponse['data'] = body ? JSON.parse(body) : {};
-  return {
-    data,
-    status: res.status,
-    headers: res.headers,
-  } as searchWorkspaceInviteCandidatesResponse;
-};
-
-export type listWorkspaceInvitesResponse200 = {
-  data: WorkspaceInvite[] | null;
-  status: 200;
-};
-
-export type listWorkspaceInvitesResponseDefault = {
-  data: ErrorModel;
-  status: Exclude<HTTPStatusCodes, 200>;
-};
-
-export type listWorkspaceInvitesResponseSuccess = listWorkspaceInvitesResponse200 & {
-  headers: Headers;
-};
-export type listWorkspaceInvitesResponseError = listWorkspaceInvitesResponseDefault & {
-  headers: Headers;
-};
-
-export type listWorkspaceInvitesResponse =
-  | listWorkspaceInvitesResponseSuccess
-  | listWorkspaceInvitesResponseError;
-
-export const getListWorkspaceInvitesUrl = (id: string) => {
-  return `/api/workspaces/${id}/invites`;
-};
-
-/**
- * @summary List workspace invites
- */
-export const listWorkspaceInvites = async (
-  id: string,
-  options?: RequestInit
-): Promise<listWorkspaceInvitesResponse> => {
-  const res = await fetch(getListWorkspaceInvitesUrl(id), {
-    ...options,
-    method: 'GET',
-  });
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-
-  const data: listWorkspaceInvitesResponse['data'] = body ? JSON.parse(body) : {};
-  return { data, status: res.status, headers: res.headers } as listWorkspaceInvitesResponse;
-};
-
-export type createWorkspaceInviteResponse201 = {
-  data: CreatedWorkspaceInvite;
-  status: 201;
+export type createWorkspaceInviteResponse202 = {
+  data: void;
+  status: 202;
 };
 
 export type createWorkspaceInviteResponseDefault = {
   data: ErrorModel;
-  status: Exclude<HTTPStatusCodes, 201>;
+  status: Exclude<HTTPStatusCodes, 202>;
 };
 
-export type createWorkspaceInviteResponseSuccess = createWorkspaceInviteResponse201 & {
+export type createWorkspaceInviteResponseSuccess = createWorkspaceInviteResponse202 & {
   headers: Headers;
 };
 export type createWorkspaceInviteResponseError = createWorkspaceInviteResponseDefault & {
@@ -3721,7 +3609,7 @@ export const getCreateWorkspaceInviteUrl = (id: string) => {
 };
 
 /**
- * @summary Invite a workspace member
+ * @summary Privately invite a workspace member
  */
 export const createWorkspaceInvite = async (
   id: string,
@@ -3737,52 +3625,8 @@ export const createWorkspaceInvite = async (
 
   const body = [204, 205, 304].includes(res.status) ? null : await res.text();
 
-  const data: createWorkspaceInviteResponse['data'] = body ? JSON.parse(body) : {};
+  const data: createWorkspaceInviteResponse['data'] = body ? JSON.parse(body) : undefined;
   return { data, status: res.status, headers: res.headers } as createWorkspaceInviteResponse;
-};
-
-export type revokeWorkspaceInviteResponse204 = {
-  data: void;
-  status: 204;
-};
-
-export type revokeWorkspaceInviteResponseDefault = {
-  data: ErrorModel;
-  status: Exclude<HTTPStatusCodes, 204>;
-};
-
-export type revokeWorkspaceInviteResponseSuccess = revokeWorkspaceInviteResponse204 & {
-  headers: Headers;
-};
-export type revokeWorkspaceInviteResponseError = revokeWorkspaceInviteResponseDefault & {
-  headers: Headers;
-};
-
-export type revokeWorkspaceInviteResponse =
-  | revokeWorkspaceInviteResponseSuccess
-  | revokeWorkspaceInviteResponseError;
-
-export const getRevokeWorkspaceInviteUrl = (id: string, inviteId: string) => {
-  return `/api/workspaces/${id}/invites/${inviteId}`;
-};
-
-/**
- * @summary Revoke a workspace invite
- */
-export const revokeWorkspaceInvite = async (
-  id: string,
-  inviteId: string,
-  options?: RequestInit
-): Promise<revokeWorkspaceInviteResponse> => {
-  const res = await fetch(getRevokeWorkspaceInviteUrl(id, inviteId), {
-    ...options,
-    method: 'DELETE',
-  });
-
-  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
-
-  const data: revokeWorkspaceInviteResponse['data'] = body ? JSON.parse(body) : undefined;
-  return { data, status: res.status, headers: res.headers } as revokeWorkspaceInviteResponse;
 };
 
 export type listMaterialsResponse200 = {

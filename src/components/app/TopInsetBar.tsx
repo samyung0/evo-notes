@@ -26,7 +26,8 @@ import { useMe, useNotifications, useSearch, useMarkNotificationsRead } from '@/
 import type { SearchKind } from '@/api/types';
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
-const CLERK_ACTIVE = !USE_MSW && !!CLERK_PUBLISHABLE_KEY;import { m } from '@/i18n';
+const CLERK_ACTIVE = !USE_MSW && !!CLERK_PUBLISHABLE_KEY;
+import { m } from '@/i18n';
 import { MobileNav } from './Sidebar';
 import { useDialogs } from '@/stores/dialogs';
 import { VisuallyHidden } from 'radix-ui';
@@ -149,10 +150,12 @@ function SearchButton() {
 function NotificationsBell() {
   const { data } = useNotifications();
   const markRead = useMarkNotificationsRead();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
   const unread = data?.some((n) => !n.read);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <IconButton
           icon="bell"
@@ -177,23 +180,48 @@ function NotificationsBell() {
                 {m.notifications_empty()}
               </div>
             )}
-            {data?.map((n) => (
-              <div
-                key={n.id}
-                className="flex gap-3 border-b border-divider px-4 py-3 last:border-0"
-              >
-                <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-row text-solid-accent-1">
-                  <Icon
-                    name={n.kind === 'event' ? 'schedule' : n.kind === 'quiz' ? 'quiz' : 'bell'}
-                    size={20}
-                  />
-                </span>
-                <div className="t-body flex flex-col">
-                  <p className="m-0 font-semibold">{n.title}</p>
-                  <p className="m-0 text-fg-secondary">{n.body}</p>
+            {data?.map((n) => {
+              const content = (
+                <>
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-row text-solid-accent-1">
+                    <Icon
+                      name={
+                        n.kind === 'event'
+                          ? 'schedule'
+                          : n.kind === 'quiz'
+                            ? 'quiz'
+                            : n.kind === 'workspace_invite'
+                              ? 'workspaces'
+                              : 'bell'
+                      }
+                      size={20}
+                    />
+                  </span>
+                  <span className="t-body flex flex-col text-left">
+                    <span className="font-semibold">{n.title}</span>
+                    <span className="text-fg-secondary">{n.body}</span>
+                  </span>
+                </>
+              );
+              const itemClass = 'flex w-full gap-3 border-b border-divider px-4 py-3 last:border-0';
+              return n.href ? (
+                <button
+                  key={n.id}
+                  type="button"
+                  className={`${itemClass} hover:bg-surface-hover-bg`}
+                  onClick={() => {
+                    setOpen(false);
+                    navigate({ to: n.href });
+                  }}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div key={n.id} className={itemClass}>
+                  {content}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       </PopoverContent>

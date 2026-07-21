@@ -1,0 +1,48 @@
+import { describe, expect, it } from 'vitest';
+import {
+  COLUMN_LAYOUTS,
+  getCodeBlockLanguageLabel,
+  normalizeCalloutVariant,
+  shouldInsertCodeLine,
+} from './richBlockConfig';
+
+describe('rich block configuration', () => {
+  it('falls back legacy and missing callout variants to info', () => {
+    expect(normalizeCalloutVariant(undefined)).toBe('info');
+    expect(normalizeCalloutVariant('note')).toBe('info');
+    expect(normalizeCalloutVariant('danger')).toBe('danger');
+  });
+
+  it('defines the four requested column layouts with complete widths', () => {
+    expect(COLUMN_LAYOUTS.map((layout) => layout.value)).toEqual([
+      'equal-2',
+      'equal-3',
+      'left-wide',
+      'right-wide',
+    ]);
+    for (const layout of COLUMN_LAYOUTS) {
+      const total = layout.widths.reduce((sum, width) => sum + Number.parseFloat(width), 0);
+      expect(total).toBeCloseTo(100, 3);
+    }
+  });
+
+  it('keeps plain Enter inside code while reserving Ctrl/Cmd+Enter for exit', () => {
+    const event = {
+      altKey: false,
+      ctrlKey: false,
+      key: 'Enter',
+      metaKey: false,
+    };
+
+    expect(shouldInsertCodeLine(event)).toBe(true);
+    expect(shouldInsertCodeLine({ ...event, ctrlKey: true })).toBe(false);
+    expect(shouldInsertCodeLine({ ...event, metaKey: true })).toBe(false);
+    expect(shouldInsertCodeLine({ ...event, isComposing: true })).toBe(false);
+  });
+
+  it('labels supported code languages for the block toolbar', () => {
+    expect(getCodeBlockLanguageLabel('typescript')).toBe('TypeScript');
+    expect(getCodeBlockLanguageLabel('')).toBe('Plain text');
+    expect(getCodeBlockLanguageLabel('custom-lang')).toBe('custom-lang');
+  });
+});

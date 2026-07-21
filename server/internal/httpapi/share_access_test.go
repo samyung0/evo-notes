@@ -78,8 +78,6 @@ func TestShareHTTPReads(t *testing.T) {
 		{"anon link deck", "", "/api/decks/dk_e2e_link", 200},
 		{"anon link cards", "", "/api/decks/dk_e2e_link/cards", 200},
 		{"anon link chapters", "", "/api/workspaces/ws_e2e_link/chapters", 200},
-		{"owner invite candidates", "u_owner", "/api/workspaces/ws_e2e_private/invite-candidates?q=u", 200},
-		{"editor invite candidates", "u_editor", "/api/workspaces/ws_e2e_private/invite-candidates?q=u", 404},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -126,9 +124,15 @@ func TestShareHTTPWritesAndClone(t *testing.T) {
 	h := openShareHTTP(t)
 
 	rec := doReq(t, h, http.MethodPost, "/api/workspaces", "u_owner", map[string]any{
-		"name": "Private-by-default workspace",
-		// A stale or malicious client cannot make a new workspace public.
+		"name":    "Private-by-default workspace",
 		"privacy": "public",
+	})
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("workspace create with unsupported privacy = %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doReq(t, h, http.MethodPost, "/api/workspaces", "u_owner", map[string]any{
+		"name": "Private-by-default workspace",
 	})
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("workspace create = %d %s", rec.Code, rec.Body.String())

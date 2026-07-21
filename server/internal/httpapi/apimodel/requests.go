@@ -78,8 +78,8 @@ type UpdateMaterialReq struct {
 }
 
 type CreateWorkspaceInviteReq struct {
-	UserID string              `json:"userId" minLength:"1"`
-	Role   store.WorkspaceRole `json:"role"`
+	Identifier string              `json:"identifier" minLength:"1" doc:"Exact user ID or email address"`
+	Role       store.WorkspaceRole `json:"role"`
 }
 
 type UpdateWorkspaceMemberReq struct {

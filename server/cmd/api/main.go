@@ -109,7 +109,8 @@ func main() {
 		log.Println("E2E auth enabled (X-E2E-User-Id / X-E2E-Secret)")
 	}
 
-	ctx := context.Background()
+	ctx, cancelRuntime := context.WithCancel(context.Background())
+	defer cancelRuntime()
 	st, err := store.New(ctx, dsn)
 	if err != nil {
 		log.Fatalf("db connect: %v", err)
@@ -145,6 +146,32 @@ func main() {
 		log.Println("migrations applied")
 	}
 
+	go func() {
+		expire := func() {
+			count, err := st.ExpireWorkspaceInvites(ctx)
+			if err != nil {
+				if ctx.Err() == nil {
+					log.Printf("expire workspace invites: %v", err)
+				}
+				return
+			}
+			if count > 0 {
+				log.Printf("expired %d workspace invite(s)", count)
+			}
+		}
+		expire()
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				expire()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	cfg := httpapi.Config{
 		ClerkSecretKey:      env("CLERK_SECRET_KEY", ""),
 		ClerkWebhookSecret:  env("CLERK_WEBHOOK_SECRET", ""),
@@ -178,7 +205,8 @@ func main() {
 	<-stop
 
 	log.Println("shutting down…")
-	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	cancelRuntime()
+	shutCtx, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
 	_ = srv.Shutdown(shutCtx)
 }

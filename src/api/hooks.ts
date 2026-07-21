@@ -50,8 +50,6 @@ import type {
   MaterialSuggestion,
   Privacy,
   SuggestionStatus,
-  WorkspaceInvite,
-  WorkspaceInviteCandidate,
   WorkspaceMember,
   WorkspaceRole,
 } from './types';
@@ -228,9 +226,13 @@ export function useUpdateWorkspaceSharing() {
   return useMutation({
     mutationFn: ({ id, ...body }: UpdateWorkspaceSharingReq & { id: string }) =>
       api.patch<Workspace>(`/workspaces/${id}/sharing`, body),
-    onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: ['workspaces'] });
-      qc.invalidateQueries({ queryKey: qk.workspace(v.id) });
+    // Await invalidation so mutateAsync (and ShareDialog's savingField) stay
+    // pending until active workspace queries finish refetching.
+    onSuccess: async (_d, v) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['workspaces'] }),
+        qc.invalidateQueries({ queryKey: qk.workspace(v.id) }),
+      ]);
     },
   });
 }
@@ -592,32 +594,10 @@ export const workspaceMembersQuery = (workspaceId: string, enabled = true) =>
 export const useWorkspaceMembers = (workspaceId: string, enabled = true) =>
   useQuery(workspaceMembersQuery(workspaceId, enabled));
 
-export const workspaceInvitesQuery = (workspaceId: string) =>
-  queryOptions({
-    queryKey: qk.workspaceInvites(workspaceId),
-    queryFn: () => api.get<WorkspaceInvite[]>(`/workspaces/${workspaceId}/invites`),
-    enabled: !!workspaceId,
-  });
-
-export const useWorkspaceInvites = (workspaceId: string) =>
-  useQuery(workspaceInvitesQuery(workspaceId));
-
-export const useWorkspaceInviteCandidates = (workspaceId: string, query: string) =>
-  useQuery({
-    queryKey: qk.workspaceInviteCandidates(workspaceId, query.trim()),
-    queryFn: () =>
-      api.get<WorkspaceInviteCandidate[]>(
-        `/workspaces/${workspaceId}/invite-candidates?q=${encodeURIComponent(query.trim())}`
-      ),
-    enabled: !!workspaceId && query.trim().length >= 2,
-  });
-
 export function useCreateWorkspaceInvite(workspaceId: string) {
-  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { userId: string; role: Exclude<WorkspaceRole, 'owner'> }) =>
-      api.post<WorkspaceInvite>(`/workspaces/${workspaceId}/invites`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.workspaceInvites(workspaceId) }),
+    mutationFn: (body: { identifier: string; role: Exclude<WorkspaceRole, 'owner'> }) =>
+      api.post<void>(`/workspaces/${workspaceId}/invites`, body),
   });
 }
 
@@ -630,16 +610,8 @@ export function useAcceptWorkspaceInvite() {
       qc.invalidateQueries({ queryKey: ['workspaces'] });
       qc.invalidateQueries({ queryKey: qk.workspace(member.workspaceId) });
       qc.invalidateQueries({ queryKey: qk.workspaceMembers(member.workspaceId) });
+      qc.invalidateQueries({ queryKey: qk.notifications });
     },
-  });
-}
-
-export function useRevokeWorkspaceInvite(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (inviteId: string) =>
-      api.del<void>(`/workspaces/${workspaceId}/invites/${inviteId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.workspaceInvites(workspaceId) }),
   });
 }
 

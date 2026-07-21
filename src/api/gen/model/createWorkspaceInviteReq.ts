@@ -9,7 +9,10 @@ import type { WorkspaceRole } from './workspaceRole.ts';
 export interface CreateWorkspaceInviteReq {
   /** A URL to the JSON Schema for this object. */
   readonly $schema?: string;
+  /**
+   * Exact user ID or email address
+   * @minLength 1
+   */
+  identifier: string;
   role: WorkspaceRole;
-  /** @minLength 1 */
-  userId: string;
 }

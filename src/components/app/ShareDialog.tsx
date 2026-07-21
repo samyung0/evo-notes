@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Privacy, WorkspaceRole } from '@/api/types';
 import { Button } from '@/components/ui/Button';
-import { SimpleDialog } from '@/components/ui/Dialog';
+import { ConfirmDialog, SimpleDialog } from '@/components/ui/Dialog';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { userToast } from '@/components/ui/Sonner';
 import {
@@ -17,6 +17,9 @@ import { InputTitle } from '../ui';
 
 type SharedRole = Exclude<WorkspaceRole, 'owner'>;
 type SavingField = 'privacy' | 'shareRole';
+type PendingDangerousChange =
+  | { kind: 'privacy'; value: Privacy }
+  | { kind: 'shareRole'; value: SharedRole };
 
 const PRIVACY_OPTIONS: { value: Privacy; label: string; icon: IconName; hint: string }[] = [
   { value: 'private', label: 'Private', icon: 'lock', hint: 'Only you can access.' },
@@ -48,6 +51,13 @@ const SHARED_ROLE_OPTIONS: Array<{ value: SharedRole; label: string; hint: strin
   },
 ];
 
+const PUBLIC_EDITOR_WARNING =
+  'Public workspaces are searchable. Combined with edit access, anyone signed in can find and change your files.';
+
+function isPublicEditor(privacy: Privacy, shareRole: SharedRole | undefined): boolean {
+  return privacy === 'public' && shareRole === 'editor';
+}
+
 function toastShareSuccess(kind: SavingField) {
   userToast({
     title: 'Sharing updated',
@@ -64,8 +74,6 @@ function toastShareError(err: unknown, kind: SavingField) {
     button: { label: 'Dismiss', onClick: () => {} },
   });
 }
-
-// TODO: make public + editor as dangerous, show a warning
 
 /** Generic share dialog: pick a visibility (private / link / public) and copy
  * the share link. Used by workspaces, quizzes and flashcard decks. */
@@ -97,6 +105,7 @@ export function ShareDialog({
 }) {
   const [copied, setCopied] = useState(false);
   const [savingField, setSavingField] = useState<SavingField | null>(null);
+  const [pendingDangerous, setPendingDangerous] = useState<PendingDangerousChange | null>(null);
   const busy = Boolean(saving) || savingField !== null;
   const privacyOptions = workspaceId
     ? PRIVACY_OPTIONS.map((option) =>
@@ -112,7 +121,12 @@ export function ShareDialog({
   const current = privacyOptions.find((o) => o.value === privacy) ?? privacyOptions[0];
   const currentRole =
     SHARED_ROLE_OPTIONS.find((option) => option.value === shareRole) ?? SHARED_ROLE_OPTIONS[0];
+  const roleHint =
+    privacy === 'public' && currentRole.value === 'editor'
+      ? 'Anyone who finds this workspace can edit your files.'
+      : currentRole.hint;
   const absoluteLink = link.startsWith('http') ? link : `${window.location.origin}${link}`;
+  const publicEditorActive = isPublicEditor(privacy, shareRole);
 
   async function copy() {
     try {
@@ -128,8 +142,7 @@ export function ShareDialog({
     }
   }
 
-  async function handlePrivacyChange(next: Privacy) {
-    if (next === privacy || busy) return;
+  async function applyPrivacyChange(next: Privacy) {
     setSavingField('privacy');
     try {
       await onPrivacyChange(next);
@@ -141,8 +154,8 @@ export function ShareDialog({
     }
   }
 
-  async function handleShareRoleChange(next: SharedRole) {
-    if (!onShareRoleChange || next === shareRole || busy) return;
+  async function applyShareRoleChange(next: SharedRole) {
+    if (!onShareRoleChange) return;
     setSavingField('shareRole');
     try {
       await onShareRoleChange(next);
@@ -154,8 +167,52 @@ export function ShareDialog({
     }
   }
 
+  function handlePrivacyChange(next: Privacy) {
+    if (next === privacy || busy) return;
+    if (isPublicEditor(next, shareRole)) {
+      setPendingDangerous({ kind: 'privacy', value: next });
+      return;
+    }
+    void applyPrivacyChange(next);
+  }
+
+  function handleShareRoleChange(next: SharedRole) {
+    if (!onShareRoleChange || next === shareRole || busy) return;
+    if (isPublicEditor(privacy, next)) {
+      setPendingDangerous({ kind: 'shareRole', value: next });
+      return;
+    }
+    void applyShareRoleChange(next);
+  }
+
+  function confirmDangerousChange() {
+    if (!pendingDangerous) return;
+    const pending = pendingDangerous;
+    setPendingDangerous(null);
+    if (pending.kind === 'privacy') void applyPrivacyChange(pending.value);
+    else void applyShareRoleChange(pending.value);
+  }
+
+  const confirmingDangerous = pendingDangerous !== null;
+
   return (
-    <SimpleDialog open={open} onClose={onClose} title={title ?? 'Share'}>
+    <SimpleDialog
+      open={open}
+      onClose={() => {
+        if (confirmingDangerous) return;
+        onClose();
+      }}
+      title={title ?? 'Share'}
+      onPointerDownOutside={(e) => {
+        if (confirmingDangerous) e.preventDefault();
+      }}
+      onInteractOutside={(e) => {
+        if (confirmingDangerous) e.preventDefault();
+      }}
+      onEscapeKeyDown={(e) => {
+        if (confirmingDangerous) e.preventDefault();
+      }}
+    >
       <div className="flex flex-col gap-6">
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
@@ -165,7 +222,7 @@ export function ShareDialog({
           <div className="max-w-70 min-w-45">
             <Select
               value={privacy}
-              onValueChange={(v) => void handlePrivacyChange(v as Privacy)}
+              onValueChange={(v) => handlePrivacyChange(v as Privacy)}
               disabled={busy}
             >
               <SelectTrigger loading={savingField === 'privacy'}>
@@ -174,7 +231,15 @@ export function ShareDialog({
               <SelectContent>
                 <SelectGroup>
                   {privacyOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
+                    <SelectItem
+                      key={o.value}
+                      value={o.value}
+                      className={
+                        o.value === 'public' && shareRole === 'editor'
+                          ? 'text-tint-error-fg hover:bg-tint-error'
+                          : undefined
+                      }
+                    >
                       <div className="flex items-center gap-1.5">
                         <Icon name={o.icon} className="size-4.5" />
                         <span className="translate-y-px">{o.label}</span>
@@ -187,34 +252,49 @@ export function ShareDialog({
           </div>
         </div>
         {workspaceId && privacy !== 'private' && shareRole && onShareRoleChange && (
-          <>
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <InputTitle>Anyone with access</InputTitle>
-                <p className="t-meta text-fg-muted">{currentRole.hint}</p>
-              </div>
-              <div className="max-w-70 min-w-45">
-                <Select
-                  value={shareRole}
-                  onValueChange={(value) => void handleShareRoleChange(value as SharedRole)}
-                  disabled={busy}
-                >
-                  <SelectTrigger loading={savingField === 'shareRole'}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {SHARED_ROLE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <InputTitle>Anyone with access</InputTitle>
+              <p className="t-meta text-fg-muted">{roleHint}</p>
             </div>
-          </>
+            <div className="max-w-70 min-w-45">
+              <Select
+                value={shareRole}
+                onValueChange={(value) => handleShareRoleChange(value as SharedRole)}
+                disabled={busy}
+              >
+                <SelectTrigger loading={savingField === 'shareRole'}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {SHARED_ROLE_OPTIONS.map((option) => (
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        className={
+                          option.value === 'editor' && privacy === 'public'
+                            ? 'text-tint-error-fg hover:bg-tint-error'
+                            : undefined
+                        }
+                      >
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+        {publicEditorActive && (
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-row border border-solid-error/30 bg-tint-error px-3 py-2.5 text-sm text-tint-error-fg"
+          >
+            <Icon name="warning" className="mt-0.5 size-4.5 shrink-0" />
+            <p>{PUBLIC_EDITOR_WARNING}</p>
+          </div>
         )}
         {privacy !== 'private' && (
           <div className="flex items-center gap-2">
@@ -228,6 +308,15 @@ export function ShareDialog({
         )}
         {workspaceId && open && <WorkspaceMemberManager workspaceId={workspaceId} />}
       </div>
+      <ConfirmDialog
+        open={confirmingDangerous}
+        onClose={() => setPendingDangerous(null)}
+        onConfirm={confirmDangerousChange}
+        title="Allow public editing?"
+        body={PUBLIC_EDITOR_WARNING}
+        confirmLabel="Allow public editing"
+        danger
+      />
     </SimpleDialog>
   );
 }

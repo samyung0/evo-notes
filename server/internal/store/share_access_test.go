@@ -166,3 +166,21 @@ func TestMaterialLevelShareUnderPrivateWorkspace(t *testing.T) {
 		t.Fatalf("material-level link should be readable: %v", err)
 	}
 }
+
+func TestSearchFlashcardsUsesMaterials(t *testing.T) {
+	s := openAccessTestStore(t)
+
+	results, err := s.Search(context.Background(), "u_editor", "E2E Private Deck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, result := range results {
+		if result.ID == "dk_e2e_private" {
+			if result.Kind != SearchFlashcards || result.Title != "E2E Private Deck" {
+				t.Fatalf("unexpected flashcard result: %#v", result)
+			}
+			return
+		}
+	}
+	t.Fatalf("flashcard material missing from search results: %#v", results)
+}

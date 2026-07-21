@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { canCreateExternalEditorAssets, isEditorCommandAllowed } from './editorMode';
+import {
+  canCreateExternalEditorAssets,
+  isEditorCommandAllowed,
+  noteEditorStatusLabel,
+} from './editorMode';
 
 describe('suggestion mode plugin gates', () => {
   it('prevents irreversible asset creation in suggestion mode', () => {
@@ -21,5 +25,19 @@ describe('suggestion mode plugin gates', () => {
     expect(canCreateExternalEditorAssets('edit', false)).toBe(false);
     expect(isEditorCommandAllowed('edit', { widget: 'media' }, false)).toBe(false);
     expect(isEditorCommandAllowed('edit', { widget: 'table' }, false)).toBe(true);
+  });
+});
+
+describe('noteEditorStatusLabel', () => {
+  it('formats edit and suggestion chrome status', () => {
+    expect(noteEditorStatusLabel(null)).toBeNull();
+    expect(noteEditorStatusLabel({ mode: 'edit', saveState: 'saved' })).toBe('Saved');
+    expect(noteEditorStatusLabel({ mode: 'edit', saveState: 'pending' })).toBe('Unsaved');
+    expect(noteEditorStatusLabel({ mode: 'edit', saveState: 'saving' })).toBe('Saving…');
+    expect(noteEditorStatusLabel({ mode: 'edit', saveState: 'error' })).toBe(
+      'Save conflict or failure'
+    );
+    expect(noteEditorStatusLabel({ mode: 'suggestion', dirty: false })).toBe('Suggesting');
+    expect(noteEditorStatusLabel({ mode: 'suggestion', dirty: true })).toBe('Suggestion draft');
   });
 });

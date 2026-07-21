@@ -77,23 +77,28 @@ import {
   ExitBreakPlugin,
   KEYS,
   TrailingBlockPlugin,
-  type TElement,
   type SlateEditor,
+  type TElement,
 } from 'platejs';
-import { BlockPlaceholderPlugin, ParagraphPlugin, type RenderNodeWrapper } from 'platejs/react';
+import {
+  BlockPlaceholderPlugin,
+  createPlatePlugin,
+  ParagraphPlugin,
+  type RenderNodeWrapper,
+} from 'platejs/react';
 import { createElement } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { BlockContextMenu, BlockDraggable } from './BlockInteractions';
-import { buildCollaborationPlugins, type EditorCollaborationOptions } from './Collaboration';
-import { MediaPlaceholderElement } from './MediaNodes';
-import { MentionInputElement } from './MentionInput';
-import { SlashInputElement } from './SlashInput';
 import { buildAiPlugins } from './ai/PlateAi';
+import { BlockContextMenu, BlockDraggable } from './BlockInteractions';
 import { customBlockPlugins } from './blocks/plugins';
+import { buildCollaborationPlugins, type EditorCollaborationOptions } from './Collaboration';
 import { canCreateExternalEditorAssets, type NoteEditorMode } from './editorMode';
 import { LinkFloatingToolbar } from './LinkFloatingToolbar';
 import { noteMarkdownPlugin } from './markdown';
+import { MediaPlaceholderElement } from './MediaNodes';
+import { MentionInputElement } from './MentionInput';
+import { SlashInputElement } from './SlashInput';
 
 // Plugin-derived editor types are intentionally wider than Plate's base tuple.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -316,6 +321,22 @@ const AutoformatPlugin = createSlatePlugin({
   ],
 });
 
+function createSaveShortcutPlugin(onSave: () => void) {
+  return createPlatePlugin({
+    key: 'evo-save-shortcut',
+    shortcuts: {
+      save: {
+        keys: 'mod+s',
+        handler: ({ event }) => {
+          event.preventDefault();
+          onSave();
+          return true;
+        },
+      },
+    },
+  });
+}
+
 const SlashKit = [
   SlashPlugin.configure({
     options: {
@@ -344,6 +365,10 @@ function buildBlockInteractionKit(mode: NoteEditorMode, allowExternalAssets: boo
   return [
     BlockSelectionPlugin.configure(({ editor }) => ({
       options: {
+        // Keep Mod+A's standard text-selection behavior. Block selection's
+        // custom select-all conflicts with nested editors such as tables,
+        // columns, and code blocks.
+        disableSelectAll: true,
         enableContextMenu: true,
         isSelectable: (element) =>
           ![
@@ -435,11 +460,9 @@ export interface BuildPluginsOptions extends EditorCollaborationOptions {
   workspaceId: string;
   mode: NoteEditorMode;
   allowExternalAssets: boolean;
+  onSave: () => void;
 }
 
-// TODO: code block let user choose language and copy on top right (refer to playground template), pressing enter should not jump out of the code block (only ctrl+enter should, just like how other blocks do it)
-// TODO: redesign callouts using left-accent alerts from https://readymadeui.com/tailwind-components/alerts, make 4 callout nature (success, warning, danger, info), let user choose the callout style at the top right (similar to the code block)
-// TODO: fix column layout plugins, default should insert 2 columns, floating action allows user to change between 2 column (even), 3 columns, 2 columns (2:1 ratio), 2 columns (1:2 ratios) or delete, user should be able to drag and drop each column to switch the order
 // TODO: allow direct recording with audio/video uploads
 // TODO: fix right click to select block, sometimes the browser default right click takes over (e.g. when I clicked in a text block and the blinking cursor was in the text, the browser right click menu took over instead of the block context menu)
 
@@ -452,6 +475,7 @@ export function buildPlugins(options: BuildPluginsOptions): AnyPlugin[] {
     ...buildCollaborationPlugins(options),
     ...SlashKit,
     AutoformatPlugin,
+    createSaveShortcutPlugin(options.onSave),
     ...buildBlockInteractionKit(options.mode, options.allowExternalAssets),
     ExitBreakPlugin.configure({
       shortcuts: {
@@ -463,7 +487,7 @@ export function buildPlugins(options: BuildPluginsOptions): AnyPlugin[] {
     BlockPlaceholderPlugin.configure({
       options: {
         className:
-          'before:absolute before:cursor-text before:text-placeholder/70 before:font-normal before:content-[attr(placeholder)]',
+          'before:absolute before:cursor-text before:text-placeholder before:font-normal before:content-[attr(placeholder)]',
         placeholders: { [KEYS.p]: 'Type  /  for commands ...' },
         query: ({ path }) => path.length === 1,
       },

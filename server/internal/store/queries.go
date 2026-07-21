@@ -104,8 +104,11 @@ func (s *Store) Search(ctx context.Context, userID, q string) ([]SearchResult, e
 	}
 	rows.Close()
 
-	rows, err = s.pool.Query(ctx, `SELECT d.id, d.name, d.workspace_name FROM decks d
-		JOIN workspaces w ON w.id=d.workspace_id WHERE w.user_id=$2 AND lower(d.name) LIKE $1`, like, userID)
+	rows, err = s.pool.Query(ctx, `SELECT m.id, m.title, m.workspace_name
+		FROM materials m
+		WHERE (m.user_id=$2 OR EXISTS (
+			SELECT 1 FROM workspace_members wm WHERE wm.workspace_id=m.workspace_id AND wm.user_id=$2
+		)) AND m.kind='flashcards' AND lower(m.title) LIKE $1`, like, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +141,20 @@ func (s *Store) Search(ctx context.Context, userID, q string) ([]SearchResult, e
 }
 
 func (s *Store) Notifications(ctx context.Context, userID string) ([]Notification, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, body, at, read FROM notifications WHERE user_id=$1 ORDER BY at DESC`, userID)
+	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, body, at, read, COALESCE(href,'')
+		FROM notifications n
+		WHERE n.user_id=$1
+			AND (
+				n.workspace_invite_id IS NULL
+				OR EXISTS (
+					SELECT 1 FROM workspace_invites wi
+					WHERE wi.id=n.workspace_invite_id
+						AND wi.accepted_at IS NULL
+						AND wi.revoked_at IS NULL
+						AND wi.expires_at>now()
+				)
+			)
+		ORDER BY at DESC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +162,7 @@ func (s *Store) Notifications(ctx context.Context, userID string) ([]Notificatio
 	out := []Notification{}
 	for rows.Next() {
 		var n Notification
-		if err := rows.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.At, &n.Read); err != nil {
+		if err := rows.Scan(&n.ID, &n.Kind, &n.Title, &n.Body, &n.At, &n.Read, &n.Href); err != nil {
 			return nil, err
 		}
 		out = append(out, n)

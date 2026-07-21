@@ -39,7 +39,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(res.status, res.statusText, detail || undefined);
   }
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const body = await res.text();
+  return (body ? JSON.parse(body) : undefined) as T;
 }
 
 /** Multipart upload (real file bytes). Lets the browser set the multipart
@@ -153,9 +154,6 @@ export const qk = {
   materialDiscussions: (id: string) => ['material', id, 'discussions'] as const,
   materialSuggestions: (id: string) => ['material', id, 'suggestions'] as const,
   workspaceMembers: (id: string) => ['workspace', id, 'members'] as const,
-  workspaceInvites: (id: string) => ['workspace', id, 'invites'] as const,
-  workspaceInviteCandidates: (id: string, query: string) =>
-    ['workspace', id, 'invite-candidates', query] as const,
   attempts: ['attempts'] as const,
   attempt: (id: string) => ['attempt', id] as const,
   mistakes: ['mistakes'] as const,
