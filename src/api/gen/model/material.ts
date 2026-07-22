@@ -22,6 +22,7 @@ export interface Material {
   id: string;
   isOwner: boolean;
   kind: string;
+  position: number;
   privacy: Privacy;
   revision: number;
   role?: WorkspaceRole;

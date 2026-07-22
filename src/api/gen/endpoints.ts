@@ -51,6 +51,7 @@ import type {
   Quiz,
   RecentFile,
   ReorderChaptersReq,
+  ReorderContentReq,
   SaveCanvasReq,
   SearchParams,
   SearchResult,
@@ -3449,6 +3450,50 @@ export const cloneWorkspace = async (
 
   const data: cloneWorkspaceResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as cloneWorkspaceResponse;
+};
+
+export type reorderContentResponse204 = {
+  data: void;
+  status: 204;
+};
+
+export type reorderContentResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 204>;
+};
+
+export type reorderContentResponseSuccess = reorderContentResponse204 & {
+  headers: Headers;
+};
+export type reorderContentResponseError = reorderContentResponseDefault & {
+  headers: Headers;
+};
+
+export type reorderContentResponse = reorderContentResponseSuccess | reorderContentResponseError;
+
+export const getReorderContentUrl = (id: string) => {
+  return `/api/workspaces/${id}/content/reorder`;
+};
+
+/**
+ * @summary Move and reorder chapter content
+ */
+export const reorderContent = async (
+  id: string,
+  reorderContentReq: NonReadonly<ReorderContentReq>,
+  options?: RequestInit
+): Promise<reorderContentResponse> => {
+  const res = await fetch(getReorderContentUrl(id), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reorderContentReq),
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: reorderContentResponse['data'] = body ? JSON.parse(body) : undefined;
+  return { data, status: res.status, headers: res.headers } as reorderContentResponse;
 };
 
 export type listConversationsResponse200 = {

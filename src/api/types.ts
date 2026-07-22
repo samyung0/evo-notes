@@ -83,8 +83,8 @@ export type AttemptDetail = Omit<GenAttemptDetail, 'questions' | 'answers'> & {
 /* ---------------- overridden contracts ----------------
    Same generated shape, minus the wire's opaque / client-only fields. */
 
-/** Adds a transient client-only ingest progress (0–100), driven by SSE. */
-export type SourceFile = GenFile & { ingestPct?: number };
+/** Adds transient client state while tolerating legacy mock rows without a position. */
+export type SourceFile = Omit<GenFile, 'position'> & { position?: number; ingestPct?: number };
 
 /** `color` is a client-side tint derived from the owning workspace/label/deck. */
 export type SearchResult = GenSearchResult & { color?: UserColor };
@@ -251,6 +251,8 @@ export interface Material {
   /** Chapter this material is filed under (membership). null = unfiled.
    * Orthogonal to scopeChapters (provenance of the generated content). */
   chapterId: string | null;
+  /** Shared ordering position among files and materials in the same bucket. */
+  position?: number;
   scopeChapters: string[];
   scopeFileIds: string[];
   privacy: Privacy;
@@ -336,6 +338,8 @@ export interface MaterialRef {
   title: string;
   /** Chapter this material is filed under (membership). null = unfiled. */
   chapterId: string | null;
+  /** Shared ordering position among files and materials in the same bucket. */
+  position: number;
   createdAt: string;
 }
 

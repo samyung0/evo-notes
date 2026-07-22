@@ -535,12 +535,42 @@ export const handlers = [
     });
     return new HttpResponse(null, { status: 204 });
   }),
+  http.post('/api/workspaces/:id/content/reorder', async ({ params, request }) => {
+    const body = (await request.json()) as {
+      chapterId: string | null;
+      items: { id: string; type: 'file' | 'material' }[];
+    };
+    body.items.forEach((item, position) => {
+      if (item.type === 'file') {
+        db.chapters.forEach((chapter) => {
+          chapter.fileIds = chapter.fileIds.filter((id) => id !== item.id);
+        });
+        if (body.chapterId) {
+          db.chapters.find((chapter) => chapter.id === body.chapterId)?.fileIds.push(item.id);
+        }
+      }
+      const content =
+        item.type === 'file'
+          ? db.files.find((file) => file.id === item.id && file.workspaceId === params.id)
+          : db.materials.find(
+              (material) => material.id === item.id && material.workspaceId === params.id
+            );
+      if (content) {
+        content.chapterId = body.chapterId;
+        content.position = position;
+      }
+    });
+    return new HttpResponse(null, { status: 204 });
+  }),
   http.delete('/api/chapters/:id', async ({ params }) => {
     const i = db.chapters.findIndex((c) => c.id === params.id);
     if (i >= 0) {
       // keep files — just unfile them
       db.files.forEach((f) => {
         if (f.chapterId === params.id) f.chapterId = null;
+      });
+      db.materials.forEach((material) => {
+        if (material.chapterId === params.id) material.chapterId = null;
       });
       db.chapters.splice(i, 1);
     }
@@ -595,6 +625,7 @@ export const handlers = [
         type: refType(mt.kind),
         title: mt.title,
         chapterId: mt.chapterId ?? null,
+        position: mt.position ?? 0,
         createdAt: mt.createdAt,
       }))
       .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));

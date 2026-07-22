@@ -44,6 +44,16 @@ type ReorderChaptersReq struct {
 	IDs []string `json:"ids" doc:"Chapter ids in the desired order"`
 }
 
+type ContentOrderItem struct {
+	ID   string `json:"id" minLength:"1"`
+	Type string `json:"type" enum:"file,material"`
+}
+
+type ReorderContentReq struct {
+	ChapterID *string            `json:"chapterId" doc:"Destination chapter; null means the unfiled bucket"`
+	Items     []ContentOrderItem `json:"items" minItems:"1" doc:"Destination content in the desired mixed order"`
+}
+
 // UpdateFileReq is the (partial) body for PATCH /api/files/{id} — rename and/or
 // move to a chapter.
 type UpdateFileReq struct {

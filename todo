@@ -30,18 +30,16 @@ low priority:
 high PRIORITIES:
 
 1. fix the suggestion mode
-2. toc item click doesnt scroll to heading for some reasons
-3. move the save/suggestion status into header (should we use zustand for global state??)
-4. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
-5. add layout adjust in editor to make the document smaller or larger in width
-6. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
-7. set loading state for submit buttons (esp dialogs)
-8. remove all the <Text> components
-9. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
-10. add icons for common file format
-11. export to diff files
-12. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
-13. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
+2. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
+3. add layout adjust in editor to make the document smaller or larger in width
+4. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
+5. set loading state for submit buttons (esp dialogs)
+6. remove all the <Text> components
+7. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
+8. add icons for common file format
+9. export to diff files
+10. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
+11. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
 
 rag system caution
 chapter scoped query/filtering is only soft steered using prompt, underlying reason why hard filtering during query is quite impossible is because after ingestion, an entity can be pointed to by multiple documents

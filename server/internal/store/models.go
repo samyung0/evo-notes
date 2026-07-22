@@ -83,6 +83,7 @@ type File struct {
 	ID          string     `json:"id"`
 	WorkspaceID string     `json:"workspaceId"`
 	ChapterID   *string    `json:"chapterId"` // null = unfiled (not omitempty)
+	Position    int64      `json:"position"`
 	Name        string     `json:"name"`
 	Kind        FileKind   `json:"kind"`
 	SizeKb      int        `json:"sizeKb"`
@@ -169,6 +170,7 @@ type Material struct {
 	// model decodes it so clients receive an object rather than a JSON string.
 	Content       string    `json:"-"`
 	ChapterID     *string   `json:"chapterId"` // null = unfiled (not omitempty)
+	Position      int64     `json:"position"`
 	ScopeChapters []string  `json:"scopeChapters" nullable:"false"`
 	ScopeFileIDs  []string  `json:"scopeFileIds" nullable:"false"`
 	Privacy       Privacy   `json:"privacy"`
@@ -300,7 +302,13 @@ type MaterialRef struct {
 	Type      string    `json:"type"` // mindmap | diagram | quiz | deck
 	Title     string    `json:"title"`
 	ChapterID *string   `json:"chapterId"`
+	Position  int64     `json:"position"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+type ContentOrderItem struct {
+	ID   string
+	Type string // file | material
 }
 
 type Label struct {

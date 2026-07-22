@@ -570,7 +570,7 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 	// row copy (keyed by workspace) keeps the file <-> document link intact.
 	fileMap := map[string]string{}
 	{
-		rows, err := tx.Query(ctx, `SELECT id, chapter_id, name, kind, size_kb, status, parser, engine, blob_path, url, content, doc_id
+		rows, err := tx.Query(ctx, `SELECT id, chapter_id, position, name, kind, size_kb, status, parser, engine, blob_path, url, content, doc_id
 			FROM files WHERE workspace_id=$1 ORDER BY added_at`, srcID)
 		if err != nil {
 			return Workspace{}, err
@@ -580,11 +580,12 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 			chapterID, parser, engine, blobPath *string
 			url, content, docID                 *string
 			sizeKb                              int
+			position                            int64
 		}
 		var files []file
 		for rows.Next() {
 			var f file
-			if err := rows.Scan(&f.id, &f.chapterID, &f.name, &f.kind, &f.sizeKb, &f.status, &f.parser, &f.engine, &f.blobPath, &f.url, &f.content, &f.docID); err != nil {
+			if err := rows.Scan(&f.id, &f.chapterID, &f.position, &f.name, &f.kind, &f.sizeKb, &f.status, &f.parser, &f.engine, &f.blobPath, &f.url, &f.content, &f.docID); err != nil {
 				rows.Close()
 				return Workspace{}, err
 			}
@@ -608,9 +609,9 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 				u := "/api/files/" + nid + "/raw"
 				url = &u
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO files (id, workspace_id, chapter_id, name, kind, size_kb, added_at, status, parser, engine, blob_path, url, content, doc_id)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-				nid, newID, chapterID, f.name, f.kind, f.sizeKb, time.Now().UTC(), f.status, f.parser, f.engine, f.blobPath, url, f.content, f.docID); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO files (id, workspace_id, chapter_id, position, name, kind, size_kb, added_at, status, parser, engine, blob_path, url, content, doc_id)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+				nid, newID, chapterID, f.position, f.name, f.kind, f.sizeKb, time.Now().UTC(), f.status, f.parser, f.engine, f.blobPath, url, f.content, f.docID); err != nil {
 				return Workspace{}, err
 			}
 		}
@@ -657,9 +658,9 @@ func (s *Store) CloneWorkspace(ctx context.Context, userID, srcID string) (Works
 					return Workspace{}, err
 				}
 			}
-			if _, err := tx.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color, updated_at, revision, updated_by)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'private',$11,$12,$13,$2)`,
-				nid, userID, newID, name, mt.Kind, mt.Title, json.RawMessage(content), chapterID, mt.ScopeChapters, scopeFiles, mt.Color, mt.UpdatedAt, mt.Revision); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO materials (id, user_id, workspace_id, workspace_name, kind, title, content, chapter_id, position, scope_chapters, scope_file_ids, privacy, color, updated_at, revision, updated_by)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'private',$12,$13,$14,$2)`,
+				nid, userID, newID, name, mt.Kind, mt.Title, json.RawMessage(content), chapterID, mt.Position, mt.ScopeChapters, scopeFiles, mt.Color, mt.UpdatedAt, mt.Revision); err != nil {
 				return Workspace{}, err
 			}
 			rewrite := func(value string) (string, error) { return value, nil }

@@ -463,7 +463,6 @@ export interface BuildPluginsOptions extends EditorCollaborationOptions {
   onSave: () => void;
 }
 
-// TODO: allow direct recording with audio/video uploads
 // TODO: fix right click to select block, sometimes the browser default right click takes over (e.g. when I clicked in a text block and the blinking cursor was in the text, the browser right click menu took over instead of the block context menu)
 
 /** Full playground registry. Preferences filter commands only; no document

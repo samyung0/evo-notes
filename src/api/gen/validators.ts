@@ -621,6 +621,7 @@ export const ListAllFilesResponseItem = zod.object({
     'unknown',
   ]),
   name: zod.string(),
+  position: zod.number(),
   sizeKb: zod.number(),
   status: zod.enum(['processing', 'ready', 'failed']).optional(),
   url: zod.string().optional(),
@@ -664,6 +665,7 @@ export const GetFileResponse = zod.object({
     'unknown',
   ]),
   name: zod.string(),
+  position: zod.number(),
   sizeKb: zod.number(),
   status: zod.enum(['processing', 'ready', 'failed']).optional(),
   url: zod.string().optional(),
@@ -702,6 +704,7 @@ export const UpdateFileResponse = zod.object({
     'unknown',
   ]),
   name: zod.string(),
+  position: zod.number(),
   sizeKb: zod.number(),
   status: zod.enum(['processing', 'ready', 'failed']).optional(),
   url: zod.string().optional(),
@@ -837,6 +840,7 @@ export const GetMaterialResponse = zod.object({
   id: zod.string(),
   isOwner: zod.boolean(),
   kind: zod.string(),
+  position: zod.number(),
   privacy: zod.enum(['private', 'public', 'link']),
   revision: zod.number(),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
@@ -900,6 +904,7 @@ export const UpdateMaterialResponse = zod.object({
   id: zod.string(),
   isOwner: zod.boolean(),
   kind: zod.string(),
+  position: zod.number(),
   privacy: zod.enum(['private', 'public', 'link']),
   revision: zod.number(),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
@@ -938,6 +943,7 @@ export const CloneMaterialResponse = zod.object({
   id: zod.string(),
   isOwner: zod.boolean(),
   kind: zod.string(),
+  position: zod.number(),
   privacy: zod.enum(['private', 'public', 'link']),
   revision: zod.number(),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
@@ -1740,6 +1746,29 @@ export const CloneWorkspaceResponse = zod.object({
 });
 
 /**
+ * @summary Move and reorder chapter content
+ */
+export const ReorderContentParams = zod.object({
+  id: zod.string(),
+});
+
+export const ReorderContentBody = zod.object({
+  chapterId: zod.string().nullable().describe('Destination chapter; null means the unfiled bucket'),
+  items: zod
+    .array(
+      zod.object({
+        id: zod.string().min(1),
+        type: zod.enum(['file', 'material']),
+      })
+    )
+    .min(1)
+    .nullable()
+    .describe('Destination content in the desired mixed order'),
+});
+
+export const ReorderContentResponse = zod.void();
+
+/**
  * @summary List a workspace's chat conversations
  */
 export const ListConversationsParams = zod.object({
@@ -1809,6 +1838,7 @@ export const ListWorkspaceFilesResponseItem = zod.object({
     'unknown',
   ]),
   name: zod.string(),
+  position: zod.number(),
   sizeKb: zod.number(),
   status: zod.enum(['processing', 'ready', 'failed']).optional(),
   url: zod.string().optional(),
@@ -1841,6 +1871,7 @@ export const ListMaterialsResponseItem = zod.object({
   chapterId: zod.string().nullable(),
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
+  position: zod.number(),
   title: zod.string(),
   type: zod.string(),
 });
@@ -1887,6 +1918,7 @@ export const CreateMaterialResponse = zod.object({
   id: zod.string(),
   isOwner: zod.boolean(),
   kind: zod.string(),
+  position: zod.number(),
   privacy: zod.enum(['private', 'public', 'link']),
   revision: zod.number(),
   role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),

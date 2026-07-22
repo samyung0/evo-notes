@@ -461,7 +461,7 @@ func (s *Store) DeleteWorkspace(ctx context.Context, userID, id string) error {
 
 /* ----------------------------------------------------------- chapters/files */
 
-const chFiles = `COALESCE((SELECT array_agg(f.id ORDER BY f.added_at) FROM files f WHERE f.chapter_id=c.id), '{}')`
+const chFiles = `COALESCE((SELECT array_agg(f.id ORDER BY f.position, f.added_at DESC) FROM files f WHERE f.chapter_id=c.id), '{}')`
 
 func (s *Store) ListChapters(ctx context.Context, wsID string) ([]Chapter, error) {
 	rows, err := s.pool.Query(ctx, `SELECT c.id, c.workspace_id, c.name, c.position, `+chFiles+`
@@ -516,6 +516,57 @@ func (s *Store) ReorderChapters(ctx context.Context, ids []string) error {
 	return nil
 }
 
+// ReorderContent atomically moves content into a chapter (or the unfiled
+// bucket) and assigns one shared order across files and materials.
+func (s *Store) ReorderContent(ctx context.Context, wsID string, chapterID *string, items []ContentOrderItem) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if chapterID != nil {
+		var valid bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(
+			SELECT 1 FROM chapters WHERE id=$1 AND workspace_id=$2
+		)`, *chapterID, wsID).Scan(&valid); err != nil {
+			return err
+		}
+		if !valid {
+			return ErrNotFound
+		}
+	}
+
+	seen := make(map[string]struct{}, len(items))
+	for position, item := range items {
+		key := item.Type + ":" + item.ID
+		if _, exists := seen[key]; exists {
+			return fmt.Errorf("duplicate content item %q", item.ID)
+		}
+		seen[key] = struct{}{}
+
+		var table string
+		switch item.Type {
+		case "file":
+			table = "files"
+		case "material":
+			table = "materials"
+		default:
+			return fmt.Errorf("unsupported content type %q", item.Type)
+		}
+		ct, err := tx.Exec(ctx, `UPDATE `+table+`
+			SET chapter_id=$1, position=$2
+			WHERE id=$3 AND workspace_id=$4`, chapterID, position, item.ID, wsID)
+		if err != nil {
+			return err
+		}
+		if ct.RowsAffected() != 1 {
+			return ErrNotFound
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 // DeleteChapter removes the chapter; files keep existing (ON DELETE SET NULL
 // unfiles them) per the product rule.
 func (s *Store) DeleteChapter(ctx context.Context, id string) error {
@@ -523,16 +574,16 @@ func (s *Store) DeleteChapter(ctx context.Context, id string) error {
 	return err
 }
 
-const fileCols = `id, workspace_id, chapter_id, name, kind, size_kb, added_at, status, url, content`
+const fileCols = `id, workspace_id, chapter_id, position, name, kind, size_kb, added_at, status, url, content`
 
 func scanFile(row pgx.Row) (File, error) {
 	var f File
-	err := row.Scan(&f.ID, &f.WorkspaceID, &f.ChapterID, &f.Name, &f.Kind, &f.SizeKb, &f.AddedAt, &f.Status, &f.URL, &f.Content)
+	err := row.Scan(&f.ID, &f.WorkspaceID, &f.ChapterID, &f.Position, &f.Name, &f.Kind, &f.SizeKb, &f.AddedAt, &f.Status, &f.URL, &f.Content)
 	return f, err
 }
 
 func (s *Store) ListFiles(ctx context.Context, userID, wsID string) ([]File, error) {
-	const fCols = `f.id, f.workspace_id, f.chapter_id, f.name, f.kind, f.size_kb, f.added_at, f.status, f.url, f.content`
+	const fCols = `f.id, f.workspace_id, f.chapter_id, f.position, f.name, f.kind, f.size_kb, f.added_at, f.status, f.url, f.content`
 	q := `SELECT ` + fileCols + ` FROM files`
 	args := []any{}
 	if wsID != "" {
@@ -542,7 +593,7 @@ func (s *Store) ListFiles(ctx context.Context, userID, wsID string) ([]File, err
 		q = `SELECT ` + fCols + ` FROM files f JOIN workspaces w ON w.id=f.workspace_id WHERE w.user_id=$1`
 		args = append(args, userID)
 	}
-	q += ` ORDER BY added_at DESC`
+	q += ` ORDER BY position, added_at DESC`
 	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, err
@@ -585,6 +636,18 @@ type FilePatch struct {
 	ChapterID **string // double pointer: nil = leave, &nil = clear, &&v = set
 }
 
+func (s *Store) nextContentPosition(ctx context.Context, wsID string, chapterID *string) (int64, error) {
+	var position int64
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(MAX(position), -1) + 1 FROM (
+		SELECT position FROM files
+			WHERE workspace_id=$1 AND chapter_id IS NOT DISTINCT FROM $2
+		UNION ALL
+		SELECT position FROM materials
+			WHERE workspace_id=$1 AND chapter_id IS NOT DISTINCT FROM $2
+	) content`, wsID, chapterID).Scan(&position)
+	return position, err
+}
+
 func (s *Store) UpdateFile(ctx context.Context, id string, p FilePatch) (File, error) {
 	if p.Name != nil {
 		if _, err := s.pool.Exec(ctx, `UPDATE files SET name=$2 WHERE id=$1`, id, *p.Name); err != nil {
@@ -592,7 +655,29 @@ func (s *Store) UpdateFile(ctx context.Context, id string, p FilePatch) (File, e
 		}
 	}
 	if p.ChapterID != nil {
-		if _, err := s.pool.Exec(ctx, `UPDATE files SET chapter_id=$2 WHERE id=$1`, id, *p.ChapterID); err != nil {
+		var wsID string
+		if err := s.pool.QueryRow(ctx, `SELECT workspace_id FROM files WHERE id=$1`, id).Scan(&wsID); err != nil {
+			if isNoRows(err) {
+				return File{}, ErrNotFound
+			}
+			return File{}, err
+		}
+		if *p.ChapterID != nil {
+			var valid bool
+			if err := s.pool.QueryRow(ctx, `SELECT EXISTS(
+				SELECT 1 FROM chapters WHERE id=$1 AND workspace_id=$2
+			)`, **p.ChapterID, wsID).Scan(&valid); err != nil {
+				return File{}, err
+			}
+			if !valid {
+				return File{}, ErrNotFound
+			}
+		}
+		position, err := s.nextContentPosition(ctx, wsID, *p.ChapterID)
+		if err != nil {
+			return File{}, err
+		}
+		if _, err := s.pool.Exec(ctx, `UPDATE files SET chapter_id=$2, position=$3 WHERE id=$1`, id, *p.ChapterID, position); err != nil {
 			return File{}, err
 		}
 	}
@@ -612,12 +697,12 @@ func (s *Store) DeleteFile(ctx context.Context, id string) error {
 
 /* ------------------------------------------------------------- materials */
 
-const materialCols = `id, COALESCE(workspace_id,''), workspace_name, kind, title, content, chapter_id, scope_chapters, scope_file_ids, privacy, color, created_at, updated_at, revision`
-const materialColsM = `m.id, COALESCE(m.workspace_id,''), m.workspace_name, m.kind, m.title, m.content, m.chapter_id, m.scope_chapters, m.scope_file_ids, m.privacy, m.color, m.created_at, m.updated_at, m.revision`
+const materialCols = `id, COALESCE(workspace_id,''), workspace_name, kind, title, content, chapter_id, position, scope_chapters, scope_file_ids, privacy, color, created_at, updated_at, revision`
+const materialColsM = `m.id, COALESCE(m.workspace_id,''), m.workspace_name, m.kind, m.title, m.content, m.chapter_id, m.position, m.scope_chapters, m.scope_file_ids, m.privacy, m.color, m.created_at, m.updated_at, m.revision`
 
 func scanMaterial(row pgx.Row) (Material, error) {
 	var mt Material
-	err := row.Scan(&mt.ID, &mt.WorkspaceID, &mt.WorkspaceName, &mt.Kind, &mt.Title, &mt.Content, &mt.ChapterID, &mt.ScopeChapters, &mt.ScopeFileIDs, &mt.Privacy, &mt.Color, &mt.CreatedAt, &mt.UpdatedAt, &mt.Revision)
+	err := row.Scan(&mt.ID, &mt.WorkspaceID, &mt.WorkspaceName, &mt.Kind, &mt.Title, &mt.Content, &mt.ChapterID, &mt.Position, &mt.ScopeChapters, &mt.ScopeFileIDs, &mt.Privacy, &mt.Color, &mt.CreatedAt, &mt.UpdatedAt, &mt.Revision)
 	if mt.ScopeChapters == nil {
 		mt.ScopeChapters = []string{}
 	}
@@ -767,6 +852,29 @@ func (s *Store) UpdateMaterial(ctx context.Context, id string, p MaterialPatch) 
 	}
 	if p.ChapterID != nil {
 		add("chapter_id", *p.ChapterID)
+		var wsID string
+		if err := s.pool.QueryRow(ctx, `SELECT COALESCE(workspace_id, '') FROM materials WHERE id=$1`, id).Scan(&wsID); err != nil {
+			if isNoRows(err) {
+				return Material{}, ErrNotFound
+			}
+			return Material{}, err
+		}
+		if *p.ChapterID != nil {
+			var valid bool
+			if err := s.pool.QueryRow(ctx, `SELECT EXISTS(
+				SELECT 1 FROM chapters WHERE id=$1 AND workspace_id=$2
+			)`, **p.ChapterID, wsID).Scan(&valid); err != nil {
+				return Material{}, err
+			}
+			if !valid {
+				return Material{}, ErrNotFound
+			}
+		}
+		position, err := s.nextContentPosition(ctx, wsID, *p.ChapterID)
+		if err != nil {
+			return Material{}, err
+		}
+		add("position", position)
 	}
 	if p.ScopeChapters != nil {
 		sc := *p.ScopeChapters
@@ -853,14 +961,15 @@ func (s *Store) MaterialWorkspaceID(ctx context.Context, id string) (string, err
 // as the legacy ref type "deck".
 func (s *Store) ListMaterialRefs(ctx context.Context, wsID string) ([]MaterialRef, error) {
 	out := []MaterialRef{}
-	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, chapter_id, created_at FROM materials WHERE workspace_id=$1 ORDER BY created_at DESC`, wsID)
+	rows, err := s.pool.Query(ctx, `SELECT id, kind, title, chapter_id, position, created_at
+		FROM materials WHERE workspace_id=$1 ORDER BY position, created_at DESC`, wsID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var r MaterialRef
-		if err := rows.Scan(&r.ID, &r.Type, &r.Title, &r.ChapterID, &r.CreatedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.Type, &r.Title, &r.ChapterID, &r.Position, &r.CreatedAt); err != nil {
 			return nil, err
 		}
 		if r.Type == "flashcards" {

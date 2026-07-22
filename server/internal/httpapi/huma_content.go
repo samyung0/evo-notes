@@ -32,6 +32,10 @@ type reorderChaptersInput struct {
 	ID   string `path:"id"`
 	Body apimodel.ReorderChaptersReq
 }
+type reorderContentInput struct {
+	ID   string `path:"id"`
+	Body apimodel.ReorderContentReq
+}
 type filesOutput struct {
 	Body []apimodel.File
 }
@@ -51,6 +55,7 @@ func (a *api) registerContent(api huma.API) {
 	reg(api, http.MethodGet, "/api/workspaces/{id}/chapters", "listChapters", tag, "List chapters", http.StatusOK, a.listChapters)
 	reg(api, http.MethodPost, "/api/workspaces/{id}/chapters", "addChapter", tag, "Add a chapter", http.StatusCreated, a.addChapter)
 	reg(api, http.MethodPost, "/api/workspaces/{id}/chapters/reorder", "reorderChapters", tag, "Reorder chapters", http.StatusNoContent, a.reorderChapters)
+	reg(api, http.MethodPost, "/api/workspaces/{id}/content/reorder", "reorderContent", tag, "Move and reorder chapter content", http.StatusNoContent, a.reorderContent)
 	reg(api, http.MethodPatch, "/api/chapters/{id}", "updateChapter", tag, "Update a chapter", http.StatusOK, a.updateChapter)
 	reg(api, http.MethodDelete, "/api/chapters/{id}", "deleteChapter", tag, "Delete a chapter", http.StatusNoContent, a.deleteChapter)
 
@@ -107,6 +112,20 @@ func (a *api) reorderChapters(ctx context.Context, in *reorderChaptersInput) (*E
 		return nil, hErr(err)
 	}
 	if err := a.s.ReorderChapters(ctx, in.Body.IDs); err != nil {
+		return nil, hErr(err)
+	}
+	return &Empty{}, nil
+}
+
+func (a *api) reorderContent(ctx context.Context, in *reorderContentInput) (*Empty, error) {
+	if err := a.assertWorkspaceEditor(ctx, in.ID); err != nil {
+		return nil, hErr(err)
+	}
+	items := make([]store.ContentOrderItem, len(in.Body.Items))
+	for i, item := range in.Body.Items {
+		items[i] = store.ContentOrderItem{ID: item.ID, Type: item.Type}
+	}
+	if err := a.s.ReorderContent(ctx, in.ID, in.Body.ChapterID, items); err != nil {
 		return nil, hErr(err)
 	}
 	return &Empty{}, nil

@@ -29,12 +29,14 @@ import {
   useMaterials,
   useMoveFile,
   useMoveMaterial,
+  useReorderContent,
   useReorderChapters,
   useUpdateChapter,
   useUpdateWorkspaceSharing,
   useWorkspace,
+  type ContentOrderItem,
 } from '@/api/hooks';
-import type { Chapter, MaterialRef, MaterialRefType } from '@/api/types';
+import type { Chapter, MaterialRef, MaterialRefType, SourceFile } from '@/api/types';
 import { FileListItem } from '@/features/files/FileListItem';
 import { CenterContent } from '@/features/materials/CenterContent';
 import {
@@ -71,6 +73,10 @@ const GENERATING_MATERIAL: Record<GenerateMode, { type: MaterialRefType; title: 
   mindmap: { type: 'mindmap', title: 'Generating mindmap…' },
   diagram: { type: 'diagram', title: 'Generating diagram…' },
 };
+
+type WorkspaceContentItem =
+  | { type: 'file'; id: string; position?: number; createdAt: string; data: SourceFile }
+  | { type: 'material'; id: string; position?: number; createdAt: string; data: MaterialRef };
 
 function MaterialListItem({
   data: matRef,
@@ -166,6 +172,7 @@ export default function WorkspaceOpen() {
   const delMaterial = useDeleteMaterial(workspaceId);
   const moveMaterial = useMoveMaterial(workspaceId);
   const moveFile = useMoveFile(workspaceId);
+  const reorderContent = useReorderContent(workspaceId);
   const createNote = useCreateNote(workspaceId);
   const cloneWorkspace = useCloneWorkspace();
   const updateSharing = useUpdateWorkspaceSharing();
@@ -195,34 +202,75 @@ export default function WorkspaceOpen() {
   const [generating, setGenerating] = useState<GenerateMode | null>(null);
   const [mode, setMode] = useState('chat');
   const [openChapters, setOpenChapters] = useState<Record<string, boolean>>({});
-  // Drop-target highlight while dragging a material. 'unfiled' = the flat list.
+  // Drop-target highlight while dragging workspace content.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [insertTarget, setInsertTarget] = useState<{
+    key: string;
+    edge: 'before' | 'after';
+  } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 
   const pair = userColorPair(ws?.color);
   const unfiled = files?.filter((f) => f.chapterId === null) ?? [];
   const unfiledMaterials = materials?.filter((mt) => mt.chapterId == null) ?? [];
 
-  function filesFor(chapterId: string) {
-    return files?.filter((f) => f.chapterId === chapterId) ?? [];
+  function contentFor(chapterId: string | null): WorkspaceContentItem[] {
+    const chapterFiles = files?.filter((file) => file.chapterId === chapterId) ?? [];
+    const chapterMaterials =
+      materials?.filter((material) => material.chapterId === chapterId) ?? [];
+    return [
+      ...chapterFiles.map(
+        (file): WorkspaceContentItem => ({
+          type: 'file',
+          id: file.id,
+          position: file.position,
+          createdAt: file.addedAt,
+          data: file,
+        })
+      ),
+      ...chapterMaterials.map(
+        (material): WorkspaceContentItem => ({
+          type: 'material',
+          id: material.id,
+          position: material.position,
+          createdAt: material.createdAt,
+          data: material,
+        })
+      ),
+    ].sort((a, b) => {
+      const positionDiff =
+        (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER);
+      if (positionDiff) return positionDiff;
+      if (a.type !== b.type) return a.type === 'file' ? -1 : 1;
+      return +new Date(b.createdAt) - +new Date(a.createdAt);
+    });
   }
-  function materialsFor(chapterId: string) {
-    return materials?.filter((mt) => mt.chapterId === chapterId) ?? [];
-  }
-  // Native drag-and-drop: a material or file row carries its id; chapters (and
-  // the unfiled buckets) are drop zones that re-file whichever was dropped.
+
+  // Native drag-and-drop: rows expose their content type and id. A row drop
+  // inserts before/after that row; a chapter/background drop appends.
   const DND_TYPES = ['application/x-evo-material', 'application/x-evo-file'];
+  function draggedContent(e: React.DragEvent): ContentOrderItem | null {
+    const materialId = e.dataTransfer.getData('application/x-evo-material');
+    if (materialId) return { id: materialId, type: 'material' };
+    const fileId = e.dataTransfer.getData('application/x-evo-file');
+    if (fileId) return { id: fileId, type: 'file' };
+    return null;
+  }
+  function moveContent(dragged: ContentOrderItem, chapterId: string | null, targetIndex: number) {
+    const items = contentFor(chapterId)
+      .map(({ id, type }) => ({ id, type }))
+      .filter((item) => item.id !== dragged.id || item.type !== dragged.type);
+    items.splice(Math.max(0, Math.min(targetIndex, items.length)), 0, dragged);
+    reorderContent.mutate({ chapterId, items });
+    if (chapterId) setOpenChapters((state) => ({ ...state, [chapterId]: true }));
+  }
   function onItemDrop(chapterId: string | null, e: React.DragEvent) {
     if (readOnly) return;
     e.preventDefault();
     setDropTarget(null);
-    const matId = e.dataTransfer.getData('application/x-evo-material');
-    if (matId) {
-      moveMaterial.mutate({ id: matId, chapterId });
-      return;
-    }
-    const fileId = e.dataTransfer.getData('application/x-evo-file');
-    if (fileId) moveFile.mutate({ id: fileId, chapterId });
+    setInsertTarget(null);
+    const dragged = draggedContent(e);
+    if (dragged) moveContent(dragged, chapterId, contentFor(chapterId).length);
   }
   function dropZone(key: string, chapterId: string | null) {
     if (readOnly) return {};
@@ -239,6 +287,44 @@ export default function WorkspaceOpen() {
           setDropTarget((t) => (t === key ? null : t));
       },
       onDrop: (e: React.DragEvent) => onItemDrop(chapterId, e),
+    };
+  }
+  function contentDropZone(item: WorkspaceContentItem, chapterId: string | null) {
+    const key = `${item.type}:${item.id}`;
+    if (readOnly) return {};
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!DND_TYPES.some((type) => e.dataTransfer.types.includes(type))) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = e.currentTarget.getBoundingClientRect();
+        const edge = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+        setDropTarget(null);
+        setInsertTarget((current) =>
+          current?.key === key && current.edge === edge ? current : { key, edge }
+        );
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const dragged = draggedContent(e);
+        setInsertTarget(null);
+        if (dragged) {
+          if (dragged.id === item.id && dragged.type === item.type) return;
+          const destination = contentFor(chapterId).filter(
+            (content) => content.id !== dragged.id || content.type !== dragged.type
+          );
+          const targetIndex = destination.findIndex(
+            (content) => content.id === item.id && content.type === item.type
+          );
+          const rect = e.currentTarget.getBoundingClientRect();
+          const edge = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+          const insertionIndex =
+            targetIndex < 0 ? destination.length : targetIndex + (edge === 'after' ? 1 : 0);
+          moveContent(dragged, chapterId, insertionIndex);
+        }
+      },
     };
   }
   function renderMaterial(mt: MaterialRef) {
@@ -271,6 +357,43 @@ export default function WorkspaceOpen() {
             : undefined
         }
       />
+    );
+  }
+  function renderContentItem(item: WorkspaceContentItem, chapterId: string | null) {
+    const key = `${item.type}:${item.id}`;
+    return (
+      <div
+        key={key}
+        {...contentDropZone(item, chapterId)}
+        onDragEnd={() => {
+          setDropTarget(null);
+          setInsertTarget(null);
+        }}
+        className="relative"
+      >
+        {insertTarget?.key === key && (
+          <div
+            className={cn(
+              'bg-accent pointer-events-none absolute right-1 left-1 z-10 h-0.5 rounded-full',
+              insertTarget.edge === 'before' ? 'top-0' : 'bottom-0'
+            )}
+          />
+        )}
+        {item.type === 'file' ? (
+          <FileListItem
+            file={item.data}
+            color={ws?.color}
+            active={isFileActive(item.id)}
+            onOpen={(id) => setOpenItem({ kind: 'file', id })}
+            workspaceId={workspaceId}
+            chapters={chapters}
+            onDeleted={onFileDeleted}
+            readOnly={readOnly}
+          />
+        ) : (
+          renderMaterial(item.data)
+        )}
+      </div>
     );
   }
   function moveChapter(idx: number, dir: -1 | 1) {
@@ -500,21 +623,8 @@ export default function WorkspaceOpen() {
                           </div>
                           {expanded && (
                             <div className="flex flex-col pl-4">
-                              {filesFor(ch.id).map((f) => (
-                                <FileListItem
-                                  key={f.id}
-                                  file={f}
-                                  color={ws?.color}
-                                  active={isFileActive(f.id)}
-                                  onOpen={(id) => setOpenItem({ kind: 'file', id })}
-                                  workspaceId={workspaceId}
-                                  chapters={chapters}
-                                  onDeleted={onFileDeleted}
-                                  readOnly={readOnly}
-                                />
-                              ))}
-                              {materialsFor(ch.id).map(renderMaterial)}
-                              {filesFor(ch.id).length === 0 && materialsFor(ch.id).length === 0 && (
+                              {contentFor(ch.id).map((item) => renderContentItem(item, ch.id))}
+                              {contentFor(ch.id).length === 0 && (
                                 <div className="px-1.5 py-1 text-xs text-fg-muted">Empty</div>
                               )}
                             </div>
@@ -535,20 +645,7 @@ export default function WorkspaceOpen() {
                     >
                       <div className="t-label px-1.5 py-1.5 text-fg-muted">Others</div>
                       <div>
-                        {unfiled.map((f) => (
-                          <FileListItem
-                            key={f.id}
-                            file={f}
-                            color={ws?.color}
-                            active={isFileActive(f.id)}
-                            onOpen={(id) => setOpenItem({ kind: 'file', id })}
-                            workspaceId={workspaceId}
-                            chapters={chapters}
-                            onDeleted={onFileDeleted}
-                            readOnly={readOnly}
-                          />
-                        ))}
-                        {unfiledMaterials.map(renderMaterial)}
+                        {contentFor(null).map((item) => renderContentItem(item, null))}
                         {generating && (
                           <MaterialListItem
                             data={{
@@ -556,6 +653,7 @@ export default function WorkspaceOpen() {
                               type: GENERATING_MATERIAL[generating].type,
                               title: GENERATING_MATERIAL[generating].title,
                               chapterId: null,
+                              position: Number.MAX_SAFE_INTEGER,
                               createdAt: new Date().toISOString(),
                             }}
                             active={false}

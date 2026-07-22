@@ -88,6 +88,7 @@ type Material struct {
 	Title         string                   `json:"title"`
 	Content       materialdoc.Envelope     `json:"content"`
 	ChapterID     *string                  `json:"chapterId"`
+	Position      int64                    `json:"position"`
 	ScopeChapters []string                 `json:"scopeChapters" nullable:"false"`
 	ScopeFileIDs  []string                 `json:"scopeFileIds" nullable:"false"`
 	Privacy       store.Privacy            `json:"privacy"`
@@ -108,6 +109,7 @@ func FromMaterial(m store.Material) Material {
 	return Material{
 		ID: m.ID, WorkspaceID: m.WorkspaceID, WorkspaceName: m.WorkspaceName,
 		Kind: m.Kind, Title: m.Title, Content: content, ChapterID: m.ChapterID,
+		Position:      m.Position,
 		ScopeChapters: m.ScopeChapters, ScopeFileIDs: m.ScopeFileIDs,
 		Privacy: m.Privacy, Color: m.Color, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt,
 		Revision: m.Revision, IsOwner: m.IsOwner, Role: m.Role, Capabilities: m.Capabilities,

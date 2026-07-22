@@ -17,6 +17,7 @@ export interface File {
   id: string;
   kind: FileKind;
   name: string;
+  position: number;
   sizeKb: number;
   status?: FileStatus;
   url?: string;

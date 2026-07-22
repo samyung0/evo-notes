@@ -297,6 +297,21 @@ components:
         - createdAt
         - updatedAt
       type: object
+    ContentOrderItem:
+      additionalProperties: false
+      properties:
+        id:
+          minLength: 1
+          type: string
+        type:
+          enum:
+            - file
+            - material
+          type: string
+      required:
+        - id
+        - type
+      type: object
     Conversation:
       additionalProperties: false
       properties:
@@ -842,6 +857,9 @@ components:
           $ref: "#/components/schemas/FileKind"
         name:
           type: string
+        position:
+          format: int64
+          type: integer
         sizeKb:
           format: int64
           type: integer
@@ -855,6 +873,7 @@ components:
         - id
         - workspaceId
         - chapterId
+        - position
         - name
         - kind
         - sizeKb
@@ -967,6 +986,9 @@ components:
           type: boolean
         kind:
           type: string
+        position:
+          format: int64
+          type: integer
         privacy:
           $ref: "#/components/schemas/Privacy"
         revision:
@@ -999,6 +1021,7 @@ components:
         - title
         - content
         - chapterId
+        - position
         - scopeChapters
         - scopeFileIds
         - privacy
@@ -1019,6 +1042,9 @@ components:
           type: string
         id:
           type: string
+        position:
+          format: int64
+          type: integer
         title:
           type: string
         type:
@@ -1028,6 +1054,7 @@ components:
         - type
         - title
         - chapterId
+        - position
         - createdAt
       type: object
     MaterialRevision:
@@ -1410,6 +1437,30 @@ components:
           type: array
       required:
         - ids
+      type: object
+    ReorderContentReq:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/ReorderContentReq.json
+          format: uri
+          readOnly: true
+          type: string
+        chapterId:
+          description: Destination chapter; null means the unfiled bucket
+          nullable: true
+          type: string
+        items:
+          description: Destination content in the desired mixed order
+          items:
+            $ref: "#/components/schemas/ContentOrderItem"
+          minItems: 1
+          nullable: true
+          type: array
+      required:
+        - chapterId
+        - items
       type: object
     SaveCanvasReq:
       additionalProperties: false
@@ -4003,6 +4054,33 @@ paths:
       summary: Clone a shared workspace
       tags:
         - Sharing
+  /api/workspaces/{id}/content/reorder:
+    post:
+      operationId: reorderContent
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderContentReq"
+        required: true
+      responses:
+        "204":
+          description: No Content
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Move and reorder chapter content
+      tags:
+        - Content
   /api/workspaces/{id}/conversations:
     get:
       operationId: listConversations

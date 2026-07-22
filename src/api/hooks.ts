@@ -346,6 +346,55 @@ export function useReorderChapters(wsId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.chapters(wsId) }),
   });
 }
+
+export interface ContentOrderItem {
+  id: string;
+  type: 'file' | 'material';
+}
+
+/** Move and reorder the mixed file/material rows in one destination bucket. */
+export function useReorderContent(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ chapterId, items }: { chapterId: string | null; items: ContentOrderItem[] }) =>
+      api.post<void>(`/workspaces/${wsId}/content/reorder`, { chapterId, items }),
+    onMutate: async ({ chapterId, items }) => {
+      await Promise.all([
+        qc.cancelQueries({ queryKey: qk.files(wsId) }),
+        qc.cancelQueries({ queryKey: qk.materials(wsId) }),
+      ]);
+      const prevFiles = qc.getQueryData<SourceFile[]>(qk.files(wsId));
+      const prevMaterials = qc.getQueryData<MaterialRef[]>(qk.materials(wsId));
+      const positions = new Map(
+        items.map((item, position) => [`${item.type}:${item.id}`, position])
+      );
+      qc.setQueryData<SourceFile[]>(qk.files(wsId), (list) =>
+        list?.map((file) => {
+          const position = positions.get(`file:${file.id}`);
+          return position === undefined ? file : { ...file, chapterId, position };
+        })
+      );
+      qc.setQueryData<MaterialRef[]>(qk.materials(wsId), (list) =>
+        list?.map((material) => {
+          const position = positions.get(`material:${material.id}`);
+          return position === undefined ? material : { ...material, chapterId, position };
+        })
+      );
+      return { prevFiles, prevMaterials };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.prevFiles) qc.setQueryData(qk.files(wsId), context.prevFiles);
+      if (context?.prevMaterials) qc.setQueryData(qk.materials(wsId), context.prevMaterials);
+    },
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: qk.files(wsId) }),
+        qc.invalidateQueries({ queryKey: qk.materials(wsId) }),
+        qc.invalidateQueries({ queryKey: qk.chapters(wsId) }),
+      ]),
+  });
+}
+
 export function useDeleteChapter(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
