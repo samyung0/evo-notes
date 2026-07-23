@@ -1,21 +1,5 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { useChat as useBaseChat } from '@ai-sdk/react';
-import { BaseAIPlugin, withAIBatch } from '@platejs/ai';
-import {
-  AIChatPlugin,
-  AIPlugin,
-  CopilotPlugin,
-  aiCommentToRange,
-  applyAISuggestions,
-  applyTableCellSuggestion,
-  getInsertPreviewStart,
-  streamInsertChunk,
-  useChatChunk,
-} from '@platejs/ai/react';
-import { getCommentKey } from '@platejs/comment';
-import { serializeMd, stripMarkdown } from '@platejs/markdown';
-import { BlockSelectionPlugin } from '@platejs/selection/react';
-import { ElementApi, KEYS, PathApi, TextApi, type TElement } from 'platejs';
+import { AIChatPlugin, CopilotPlugin } from '@platejs/ai/react';
+import { useCursorOverlay } from '@platejs/selection/react';
 import {
   PlateElement,
   PlateText,
@@ -25,182 +9,39 @@ import {
   useElement,
   usePluginOption,
 } from 'platejs/react';
-import { createPlateAiTransport, plateAiCopilotUrl, plateAiFetch } from '@/api/plateAiTransport';
-import { useCreateMaterialDiscussion } from '@/api/hooks';
-import { createMaterialDocument, type MaterialValue } from '@/features/materials/document';
-import { useEditorRuntime } from '../EditorRuntime';
 
-/* The AI SDK data parts emitted by the Go adapter. */
-type PlateToolName = 'comment' | 'edit' | 'generate';
-type PlateDataPart = {
-  toolName: PlateToolName;
-  table?: {
-    status: 'finished' | 'streaming';
-    cellUpdate: { id: string; content: string } | null;
-  };
-  comment?: {
-    status: 'finished' | 'streaming';
-    comment: { blockId: string; comment: string; content: string } | null;
-  };
-};
-
-function usePlateChat(workspaceId: string) {
-  const editor = useEditorRef();
-  const { materialId } = useEditorRuntime();
-  const createDiscussion = useCreateMaterialDiscussion(materialId);
-  const transport = useMemo(() => createPlateAiTransport(workspaceId), [workspaceId]);
-  const chat = useBaseChat<import('ai').UIMessage<Record<string, never>, PlateDataPart>>({
-    id: `plate-${materialId}`,
-    transport,
-    onData(part) {
-      if (part.type === 'data-toolName') {
-        editor.setOption(AIChatPlugin, 'toolName', part.data as PlateToolName);
-        return;
-      }
-      if (part.type === 'data-table' && part.data) {
-        const data = part.data as PlateDataPart['table'];
-        if (data?.status === 'streaming' && data.cellUpdate) {
-          withAIBatch(editor, () => applyTableCellSuggestion(editor, data.cellUpdate!));
-        }
-        return;
-      }
-      if (part.type === 'data-comment' && part.data) {
-        const data = part.data as PlateDataPart['comment'];
-        if (!data?.comment || data.status !== 'streaming') return;
-        const range = aiCommentToRange(editor, data.comment);
-        if (!range) return;
-        void createDiscussion
-          .mutateAsync({
-            blockId: data.comment.blockId,
-            documentContent: data.comment.content,
-            contentRich: [{ type: 'p', children: [{ text: data.comment.comment }] }],
-          })
-          .then((discussion) => {
-            editor.tf.setNodes(
-              {
-                [KEYS.comment]: true,
-                [getCommentKey(discussion.id)]: true,
-              },
-              { at: range, match: TextApi.isText, split: true }
-            );
-          });
-      }
-    },
-  });
-  // AI SDK v4 returns a new helpers object on every render. Plate stores plugin
-  // options externally, so writing that changing reference causes a render loop.
-  const stableChatRef = useRef({ ...chat });
-  Object.assign(stableChatRef.current, chat);
-
-  useEffect(() => {
-    if (editor.getOption(AIChatPlugin, 'chat') !== stableChatRef.current) {
-      editor.setOption(AIChatPlugin, 'chat', stableChatRef.current as never);
-    }
-  }, [editor]);
-
-  return stableChatRef.current;
+/**
+ * Renders the CursorOverlayPlugin snapshot taken when the editor blurs into an
+ * element marked data-plate-focus (the AI prompt input). This is how the Plate
+ * playground keeps the selection visible while the menu input has focus.
+ */
+export function AiCursorOverlay() {
+  const { cursors } = useCursorOverlay();
+  const streaming = usePluginOption(AIChatPlugin, 'streaming');
+  if (streaming) return null;
+  return (
+    <>
+      {cursors.map(({ id, selectionRects }) =>
+        id === 'selection'
+          ? selectionRects.map((rect, index) => (
+              <div
+                key={index}
+                className="pointer-events-none absolute z-10 bg-action-accent/25"
+                style={{
+                  height: rect.height,
+                  left: rect.left,
+                  top: rect.top,
+                  width: rect.width,
+                }}
+              />
+            ))
+          : null
+      )}
+    </>
+  );
 }
 
-function createAiChatPlugin(workspaceId: string) {
-  return AIChatPlugin.extend({
-    options: {
-      chatOptions: {
-        api: `/api/workspaces/${encodeURIComponent(workspaceId)}/ai/command`,
-        body: {},
-      },
-    },
-    render: {
-      afterContainer: AiLoadingBar,
-      node: AiAnchorElement,
-    },
-    shortcuts: { show: { keys: 'mod+j' } },
-    useHooks: ({ editor, getOption }) => {
-      usePlateChat(workspaceId);
-      const mode = usePluginOption(AIChatPlugin, 'mode');
-      const toolName = usePluginOption(AIChatPlugin, 'toolName');
-      useChatChunk({
-        onChunk: ({ chunk, isFirst, nodes, text }) => {
-          if (isFirst && mode === 'insert') {
-            const { startBlock, startInEmptyParagraph } = getInsertPreviewStart(editor);
-            editor.getTransforms(BaseAIPlugin).ai.beginPreview({
-              originalBlocks:
-                startInEmptyParagraph && startBlock && ElementApi.isElement(startBlock)
-                  ? [structuredClone(startBlock)]
-                  : [],
-            });
-            editor.tf.withoutSaving(() => {
-              editor.tf.insertNodes(
-                {
-                  children: [{ text: '' }],
-                  type: editor.getType(KEYS.aiChat),
-                },
-                { at: PathApi.next(editor.selection!.focus.path.slice(0, 1)) }
-              );
-            });
-            editor.setOption(AIChatPlugin, 'streaming', true);
-          }
-          if (mode === 'insert' && nodes.length > 0) {
-            editor.tf.withoutSaving(() => {
-              if (!getOption('streaming')) return;
-              editor.tf.withScrolling(() =>
-                streamInsertChunk(editor, chunk, {
-                  textProps: { [editor.getType(KEYS.ai)]: true },
-                })
-              );
-            });
-          }
-          if (toolName === 'edit' && mode === 'chat') {
-            withAIBatch(editor, () => applyAISuggestions(editor, text), { split: isFirst });
-          }
-        },
-        onFinish: () => editor.getApi(AIChatPlugin).aiChat.stop(),
-      });
-    },
-  });
-}
-
-const COPILOT_INSTRUCTIONS =
-  'Continue naturally to the next punctuation mark. Preserve tone, do not repeat text, and do not start a new block. Return 0 when no useful continuation exists.';
-
-function createCopilotPlugin(workspaceId: string) {
-  return CopilotPlugin.configure(({ api }) => ({
-    options: {
-      completeOptions: {
-        api: plateAiCopilotUrl(workspaceId),
-        body: { instructions: COPILOT_INSTRUCTIONS },
-        fetch: plateAiFetch,
-        onFinish: (_, completion) => {
-          if (completion && completion !== '0') {
-            api.copilot.setBlockSuggestion({ text: stripMarkdown(completion) });
-          }
-        },
-      },
-      debounceDelay: 500,
-      renderGhostText: GhostText,
-      getPrompt: ({ editor }) => {
-        const context = editor.api.block({ highest: true });
-        if (!context) return '';
-        return serializeMd(editor, { value: [context[0] as TElement] });
-      },
-    },
-    shortcuts: {
-      accept: { keys: 'tab' },
-      acceptNextWord: { keys: 'mod+right' },
-      reject: { keys: 'escape' },
-      triggerSuggestion: { keys: 'ctrl+space' },
-    },
-  }));
-}
-
-export function buildAiPlugins(workspaceId: string) {
-  return [
-    createCopilotPlugin(workspaceId),
-    AIPlugin.withComponent(AiLeaf),
-    createAiChatPlugin(workspaceId),
-  ];
-}
-
-function AiLoadingBar() {
+export function AiLoadingBar() {
   const streaming = usePluginOption(AIChatPlugin, 'streaming');
   if (!streaming) return null;
   return (
@@ -214,7 +55,7 @@ function AiLoadingBar() {
   );
 }
 
-function AiLeaf(props: PlateTextProps) {
+export function AiLeaf(props: PlateTextProps) {
   return (
     <PlateText
       {...props}
@@ -223,7 +64,7 @@ function AiLeaf(props: PlateTextProps) {
   );
 }
 
-function AiAnchorElement(props: PlateElementProps) {
+export function AiAnchorElement(props: PlateElementProps) {
   return (
     <PlateElement {...props}>
       <span className="h-px" />
@@ -232,7 +73,7 @@ function AiAnchorElement(props: PlateElementProps) {
   );
 }
 
-function GhostText() {
+export function GhostText() {
   const editor = useEditorRef();
   const element = useElement();
   const isSuggested = usePluginOption(CopilotPlugin, 'isSuggested', element.id as string);
@@ -261,9 +102,4 @@ function GhostText() {
       </span> */}
     </span>
   );
-}
-
-/** Snapshot helper used by tests and command payload diagnostics. */
-export function editorValueDocument(value: MaterialValue) {
-  return createMaterialDocument(value);
 }

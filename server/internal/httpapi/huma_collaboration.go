@@ -53,7 +53,7 @@ func (a *api) registerCollaboration(api huma.API) {
 	reg(api, http.MethodGet, "/api/materials/{id}/revisions", "listMaterialRevisions", tag, "List material revisions", http.StatusOK, a.listMaterialRevisions)
 	reg(api, http.MethodGet, "/api/materials/{id}/suggestions", "listMaterialSuggestions", tag, "List material suggestions", http.StatusOK, a.listMaterialSuggestions)
 	reg(api, http.MethodPost, "/api/materials/{id}/suggestions", "createMaterialSuggestion", tag, "Create a material suggestion", http.StatusCreated, a.createMaterialSuggestion)
-	reg(api, http.MethodPatch, "/api/material-suggestions/{id}", "updateMaterialSuggestionStatus", tag, "Accept, reject, or withdraw a suggestion", http.StatusOK, a.updateMaterialSuggestionStatus)
+	regWithMaxBody(api, http.MethodPatch, "/api/material-suggestions/{id}", "updateMaterialSuggestionStatus", tag, "Accept, reject, or withdraw a suggestion", http.StatusOK, materialRequestMaxBytes, a.updateMaterialSuggestionStatus)
 	reg(api, http.MethodDelete, "/api/material-suggestions/{id}", "withdrawMaterialSuggestion", tag, "Withdraw a suggestion", http.StatusNoContent, a.withdrawMaterialSuggestion)
 	reg(api, http.MethodGet, "/api/materials/{id}/discussions", "listMaterialDiscussions", tag, "List material discussions", http.StatusOK, a.listMaterialDiscussions)
 	reg(api, http.MethodPost, "/api/materials/{id}/discussions", "createMaterialDiscussion", tag, "Create a material discussion", http.StatusCreated, a.createMaterialDiscussion)

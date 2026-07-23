@@ -3,7 +3,6 @@ import {
   COLUMN_LAYOUTS,
   getCodeBlockLanguageLabel,
   normalizeCalloutVariant,
-  shouldInsertCodeLine,
 } from './richBlockConfig';
 
 describe('rich block configuration', () => {
@@ -24,20 +23,6 @@ describe('rich block configuration', () => {
       const total = layout.widths.reduce((sum, width) => sum + Number.parseFloat(width), 0);
       expect(total).toBeCloseTo(100, 3);
     }
-  });
-
-  it('keeps plain Enter inside code while reserving Ctrl/Cmd+Enter for exit', () => {
-    const event = {
-      altKey: false,
-      ctrlKey: false,
-      key: 'Enter',
-      metaKey: false,
-    };
-
-    expect(shouldInsertCodeLine(event)).toBe(true);
-    expect(shouldInsertCodeLine({ ...event, ctrlKey: true })).toBe(false);
-    expect(shouldInsertCodeLine({ ...event, metaKey: true })).toBe(false);
-    expect(shouldInsertCodeLine({ ...event, isComposing: true })).toBe(false);
   });
 
   it('labels supported code languages for the block toolbar', () => {

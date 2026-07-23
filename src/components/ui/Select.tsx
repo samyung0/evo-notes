@@ -25,7 +25,7 @@ function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.V
 }
 
 const selectTriggerVariants = cva(
-  'flex w-full items-center justify-between gap-2 bg-surface text-left hover:border-line-strong focus-visible:border-line-strong disabled:cursor-not-allowed disabled:opacity-40 data-[state=open]:border-line-strong',
+  'flex w-full items-center justify-between gap-2 bg-surface text-left text-fg hover:border-line-strong focus-visible:border-line-strong disabled:cursor-not-allowed disabled:opacity-40 data-[state=open]:border-line-strong',
   {
     variants: {
       size: {
@@ -51,10 +51,12 @@ function SelectTrigger({
   variant = 'border',
   loading = false,
   children,
+  showDownIcon = true,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> &
   VariantProps<typeof selectTriggerVariants> & {
     loading?: boolean;
+    showDownIcon?: boolean;
   }) {
   return (
     <SelectPrimitive.Trigger
@@ -68,14 +70,14 @@ function SelectTrigger({
       {children}
       {loading ? (
         <Spinner className="size-4 shrink-0 text-fg-muted" />
-      ) : (
+      ) : showDownIcon ? (
         <SelectPrimitive.Icon asChild>
           <Icon
             name="chevronDown"
             className="size-4 text-fg-muted transition-transform duration-200 data-[state=open]:rotate-180"
           />
         </SelectPrimitive.Icon>
-      )}
+      ) : null}
     </SelectPrimitive.Trigger>
   );
 }

@@ -18,6 +18,9 @@ type materialRefsOutput struct {
 type materialOutput struct {
 	Body apimodel.Material
 }
+type materialUpdateOutput struct {
+	Body apimodel.MaterialUpdateResult
+}
 type materialIDInput struct {
 	ID string `path:"id"`
 }
@@ -33,9 +36,9 @@ type updateMaterialInput struct {
 func (a *api) registerMaterials(api huma.API) {
 	const tag = "Materials"
 	reg(api, http.MethodGet, "/api/workspaces/{id}/materials", "listMaterials", tag, "List study materials", http.StatusOK, a.listMaterials)
-	reg(api, http.MethodPost, "/api/workspaces/{id}/materials", "createMaterial", tag, "Create a note material", http.StatusCreated, a.createMaterial)
+	regWithMaxBody(api, http.MethodPost, "/api/workspaces/{id}/materials", "createMaterial", tag, "Create a note material", http.StatusCreated, materialRequestMaxBytes, a.createMaterial)
 	reg(api, http.MethodGet, "/api/materials/{id}", "getMaterial", tag, "Get a material", http.StatusOK, a.getMaterial)
-	reg(api, http.MethodPatch, "/api/materials/{id}", "updateMaterial", tag, "Update a material", http.StatusOK, a.updateMaterial)
+	regWithMaxBody(api, http.MethodPatch, "/api/materials/{id}", "updateMaterial", tag, "Update a material", http.StatusOK, materialRequestMaxBytes, a.updateMaterial)
 	reg(api, http.MethodDelete, "/api/materials/{id}", "deleteMaterial", tag, "Delete a material", http.StatusNoContent, a.deleteMaterial)
 	a.registerMembership(api)
 	a.registerCollaboration(api)
@@ -156,7 +159,10 @@ func (a *api) getMaterial(ctx context.Context, in *materialIDInput) (*materialOu
 	return &materialOutput{Body: materialWithAccess(res, role)}, nil
 }
 
-func (a *api) updateMaterial(ctx context.Context, in *updateMaterialInput) (*materialOutput, error) {
+func (a *api) updateMaterial(
+	ctx context.Context,
+	in *updateMaterialInput,
+) (*materialUpdateOutput, error) {
 	access, err := a.s.AssertMaterialContentEditor(ctx, userID(ctx), in.ID)
 	if err != nil {
 		return nil, collaborationError(err)
@@ -212,11 +218,12 @@ func (a *api) updateMaterial(ctx context.Context, in *updateMaterialInput) (*mat
 		}
 		return nil, hErr(err)
 	}
-	role, err := a.s.MaterialEffectiveRole(ctx, userID(ctx), res.ID)
-	if err != nil {
-		return nil, hErr(err)
-	}
-	return &materialOutput{Body: materialWithAccess(res, role)}, nil
+	return &materialUpdateOutput{Body: apimodel.MaterialUpdateResult{
+		ID:           res.ID,
+		Revision:     res.Revision,
+		ContentBytes: len(res.Content),
+		UpdatedAt:    res.UpdatedAt,
+	}}, nil
 }
 
 func (a *api) deleteMaterial(ctx context.Context, in *materialIDInput) (*Empty, error) {

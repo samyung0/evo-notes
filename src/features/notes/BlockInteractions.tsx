@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { AIChatPlugin } from '@platejs/ai/react';
 import { useDraggable, useDropLine } from '@platejs/dnd';
-import { BlockSelectionPlugin } from '@platejs/selection/react';
+import { BlockMenuPlugin, BlockSelectionPlugin, useBlockSelected } from '@platejs/selection/react';
 import { GripVertical } from 'lucide-react';
 import {
   MemoizedChildren,
   type PlateElementProps,
   type RenderNodeWrapper,
   useEditorRef,
+  usePluginOption,
   useReadOnly,
 } from 'platejs/react';
 import { KEYS } from 'platejs';
 import { cn } from '@/lib/cn';
+import { useEditorRuntime } from './EditorRuntime';
+import { openAiMenu } from './ai/aiMenuState';
 
 const UNDRAGGABLE = new Set<string>([KEYS.column, KEYS.tr, KEYS.td, KEYS.th]);
 
@@ -23,6 +27,7 @@ export const BlockDraggable: RenderNodeWrapper = (props) => {
 };
 
 function DraggableBlock({ children, editor, element }: PlateElementProps) {
+  const isBlockSelected = useBlockSelected();
   const { isDragging, nodeRef, handleRef } = useDraggable({ element });
   const { dropLine } = useDropLine();
   const [handleTop, setHandleTop] = useState(3);
@@ -30,7 +35,11 @@ function DraggableBlock({ children, editor, element }: PlateElementProps) {
   return (
     <div
       ref={nodeRef}
-      className={cn('group relative flow-root', isDragging && 'opacity-45')}
+      className={cn(
+        'group relative flow-root',
+        isBlockSelected && 'bg-tint-accent-1/30',
+        isDragging && 'opacity-45'
+      )}
       onMouseEnter={() => {
         if (isDragging) return;
 
@@ -73,30 +82,36 @@ function DraggableBlock({ children, editor, element }: PlateElementProps) {
   );
 }
 
-type MenuState = { x: number; y: number } | null;
-
 export function BlockContextMenu({ children }: { children: React.ReactNode }) {
   const editor = useEditorRef();
   const readOnly = useReadOnly();
-  const [menu, setMenu] = useState<MenuState>(null);
+  const { allowExternalAssets } = useEditorRuntime();
+  const openId = usePluginOption(BlockMenuPlugin, 'openId');
+  const position = usePluginOption(BlockMenuPlugin, 'position');
+  const menu = openId === 'context' ? position : null;
 
   useEffect(() => {
-    if (!menu) return;
-    const close = () => setMenu(null);
+    if (openId !== 'context') return;
+    const close = () => editor.getApi(BlockMenuPlugin).blockMenu.hide();
     window.addEventListener('pointerdown', close, { once: true });
     window.addEventListener('blur', close, { once: true });
     return () => {
       window.removeEventListener('pointerdown', close);
       window.removeEventListener('blur', close);
     };
-  }, [menu]);
+  }, [editor, openId]);
+
+  useEffect(() => {
+    if (openId !== 'context' || !allowExternalAssets) return;
+    editor.getApi(AIChatPlugin).aiChat.hide({ focus: false });
+  }, [allowExternalAssets, editor, openId]);
 
   if (readOnly) return children;
 
   const act = (action: () => void) => {
     action();
     editor.tf.focus();
-    setMenu(null);
+    editor.getApi(BlockMenuPlugin).blockMenu.hide();
   };
 
   return (
@@ -107,7 +122,13 @@ export function BlockContextMenu({ children }: { children: React.ReactNode }) {
           const target = event.target as HTMLElement;
           if (target.closest('input, textarea, [data-plate-open-context-menu="false"]')) return;
           event.preventDefault();
-          setMenu({ x: event.clientX, y: event.clientY });
+          if (allowExternalAssets) {
+            editor.getApi(AIChatPlugin).aiChat.hide({ focus: false });
+          }
+          editor.getApi(BlockMenuPlugin).blockMenu.show('context', {
+            x: event.clientX,
+            y: event.clientY,
+          });
         }}
       >
         {children}
@@ -116,10 +137,19 @@ export function BlockContextMenu({ children }: { children: React.ReactNode }) {
         createPortal(
           <div
             role="menu"
-            className="fixed z-50 min-w-48 rounded-card border border-line bg-surface p-1 shadow-pop"
+            className="fixed z-50 min-w-60 rounded-row border border-line bg-surface p-1 shadow-pop"
             style={{ left: menu.x, top: menu.y }}
             onPointerDown={(event) => event.stopPropagation()}
           >
+            {allowExternalAssets && (
+              <>
+                <MenuButton
+                  label="Ask AI"
+                  onClick={() => openAiMenu(editor, { selectCurrentBlock: true })}
+                />
+                <div className="my-1 h-px bg-divider" />
+              </>
+            )}
             <MenuButton
               label="Duplicate"
               onClick={() =>

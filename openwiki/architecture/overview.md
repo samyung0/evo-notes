@@ -1,133 +1,110 @@
 ---
 type: Architecture
 title: Architecture Overview
-description: System architecture for Evo Notes. Covers the full stack topology, service boundaries, request/data flow, and key design decisions.
-tags: [architecture, overview]
+description: System topology for evo-notes — how the frontend, Go gateway, Python RAG pipeline, Modal GPU parser, Postgres, Redis, B2, Clerk, and Stripe connect and exchange data.
+tags: [architecture, topology, data-flow]
 ---
 
 # Architecture Overview
 
-Evo Notes is a three-tier study workspace application: a React SPA, a Go HTTP gateway, and a Python RAG pipeline. All services share a single PostgreSQL database (with pgvector + Apache AGE extensions) and communicate through Redis pub/sub for real-time progress.
-
-## Service Topology
+## System Topology
 
 ```
-┌──────────────────┐
-│   Browser (SPA)  │
-│  React + Plate   │
-└────────┬─────────┘
-         │ /api (Vite proxy)
-         ▼
-┌──────────────────┐          ┌────────────────┐
-│  Go Gateway      │─────────▶│  PostgreSQL 16 │
-│  (chi + Huma)    │          │  pgvector+AGE  │
-│  :8080           │          └────────────────┘
-└──┬────┬────┬─────┘
-   │    │    │
-   │    │    ├───▶ Backblaze B2 (blob storage, presigned URLs)
-   │    │
-   │    ├───▶ Redis 7 (ingest progress pub/sub)
-   │
-   └───▶ Python Retrieval Service (FastAPI :8001)
-              │
-              ▼
-         LightRAG (per-workspace)
-         ├─ PGKVStorage
-         ├─ PGVectorStorage
-         ├─ PGGraphStorage (Apache AGE)
-         └─ PGDocStatusStorage
-
-┌──────────────────┐
-│ Python Worker    │──▶ Modal GPU (MineRU parsing)
-│ (asyncio loop)   │──▶ MinerU Lite API (free parsing)
-│                  │──▶ B2 (source download, artifact cache)
-└──────────────────┘
+Browser
+  │  JWT (Clerk)
+  │  /api (REST + SSE)
+  ▼
+┌─────────────────────────────────────────────┐
+│  Go Gateway (:8080)                          │
+│  chi router + huma (OpenAPI)                 │
+│  ├── auth.Middleware (Clerk JWT / dev / E2E) │
+│  ├── huma JSON CRUD (60+ endpoints)         │
+│  └── raw chi routes (SSE, multipart, webhooks│
+│      pipeline passthrough, blob presign)     │
+└──────┬────────┬──────────┬──────────┬────────┘
+       │        │          │          │
+       ▼        ▼          ▼          ▼
+   Postgres   Redis    B2 (S3)   Python Pipeline
+   (pgvector  (progress  (blob    (:8001, retrieval)
+    + AGE)    pub/sub)   storage)   ├── /chat/stream (SSE)
+   ├── users  ▲          ▲          ├── /generate
+   ├── files  │          │          ├── /complete/stream
+   ├── materials         │          ├── /transcribe
+   ├── jobs   │          │          ├── /workspace/clone
+   ├── lightrag_*        │          └── /plate-ai/*
+   └── AGE graph         │
+       │                  │
+       ▼                  │
+   Ingest Worker ◄────────┘
+   (polls jobs every 2s)
+       │
+       ├── text files → raw ainsert
+       ├── parseMode=normal → MinerU Lite (free cloud, via Cloudflare relay)
+       └── parseMode=advanced (default) → Modal GPU (L4, MineRU hybrid)
 ```
 
 ## Service Responsibilities
 
-### Frontend (React SPA)
+### Go Gateway (`server/`)
+A thin HTTP gateway implementing the frontend's `/api` contract. Owns all CRUD against Postgres, presigned B2 upload/download flows, Clerk JWT authentication, Stripe billing, and Clerk/Stripe webhooks. Proxies AI/RAG requests to the Python pipeline with SSE passthrough. See [Backend: API & Store](../backend/api-and-store.md).
 
-- **Role**: User interface, real-time editor, study modes.
-- **Stack**: React 19, Vite, TanStack Router, TanStack Query, Plate.js v53, Tailwind CSS 4, Zustand.
-- **Auth**: Clerk (frontend SDK). In dev, MSW mocks all API calls.
-- **Key flow**: Bootstrap → AuthProvider → AppShell → Router → route component (e.g., WorkspaceOpen) → API hooks (TanStack Query) → render.
-- **API contract**: Generated from the Go server's OpenAPI spec via orval → TypeScript types + Zod validators + TanStack Query hooks. See [Frontend Editor & UI](../frontend/editor-and-ui.md).
+### Python Pipeline (`pipeline/`)
+Two runtime modes from the same Docker image:
+- **Retrieval service** (FastAPI, `:8001`) — Handles chat (SSE streaming), content generation (flashcards/quizzes/mindmaps/diagrams), note AI completion, audio transcription, Plate editor AI adapter, and workspace RAG clone. Each workspace gets an isolated LightRAG instance cached in an LRU.
+- **Ingest worker** — Long-running asyncio process polling a Postgres job queue (`FOR UPDATE SKIP LOCKED`). Fetches source files from B2, parses them (text, MinerU Lite, or Modal GPU), and inserts them into LightRAG. Publishes progress to Redis. See [Pipeline: RAG](../pipeline/rag-pipeline.md).
 
-### Go Gateway
+### Modal GPU App (`modal/`)
+Serverless GPU document parsing using MineRU (MinerU2.5 VLM + multilingual OCR). Scale-to-zero for cost efficiency; cold-start mitigated by GPU memory snapshots. Receives source from B2, returns a parsed ZIP artifact back to B2. See [Pipeline: RAG](../pipeline/rag-pipeline.md).
 
-- **Role**: HTTP API, auth, authorization, blob upload orchestration, pipeline proxy, billing, webhooks.
-- **Stack**: Go 1.25, chi v5 router, Huma v2 (OpenAPI-first), pgx/v5, Backblaze B2 SDK (AWS SDK Go v2).
-- **Key flow**: Request → CORS → Auth middleware → Huma handler (CRUD) or raw chi handler (streaming/multipart/webhooks) → store query → JSON response.
-- **Migrations**: Embedded SQL migrations applied on startup (`MIGRATE=true` by default).
-- **Design**: Hybrid router — Huma owns JSON CRUD (auto OpenAPI spec), raw chi handles SSE streaming, multipart uploads, blob redirects, webhooks, and pipeline passthrough. See [Backend API & Auth](../backend/api-and-auth.md).
+### Cloudflare Worker (`cloudflare/mineru-relay/`)
+Streams private B2 objects directly to MinerU's signed OSS upload URL for the "normal" parse mode, avoiding double bandwidth through the Python worker. Token-authenticated, host-validated, 10 MiB cap. See [Pipeline: RAG](../pipeline/rag-pipeline.md).
 
-### Python Pipeline (Worker + Retrieval)
+### React Frontend (`src/`)
+SPA with TanStack Router, TanStack Query, Plate.js editor, and a Radix UI + Tailwind design system. MSW mocks enabled by default in dev; disabling proxies to the Go gateway. See [Frontend: Editor & UI](../frontend/editor-and-ui.md).
 
-- **Role**: Document ingestion (parsing, embedding, graph building) and AI retrieval/generation (chat, generate).
-- **Stack**: Python 3.11, LightRAG v1.5, FastAPI (retrieval), asyncio worker (ingest), psycopg (job queue), asyncpg (LightRAG storages), boto3 (B2).
-- **Key flow (ingest)**: Worker claims job via `FOR UPDATE SKIP LOCKED` → downloads source from B2 → parses (Modal/MinerU Lite/direct) → LightRAG `ainsert` → publishes progress to Redis → sets `files.doc_id`.
-- **Key flow (retrieval)**: Go gateway → HTTP POST to FastAPI → per-workspace LightRAG `aquery` → streamed response back through gateway SSE to browser.
-- **Model providers**: DeepSeek (text LLM), OpenRouter/Qwen (embeddings), Gemini (vision), Whisper (STT). See [RAG Pipeline](../pipeline/rag-pipeline.md).
+## Data Flow
 
-### PostgreSQL
+### Document Ingestion
+1. User uploads a file → Go gateway creates a `files` row (`status=processing`) + enqueues a job in one transaction
+2. Go gateway returns presigned B2 PUT URL → browser uploads directly to B2
+3. Ingest worker claims the job, fetches the file from B2
+4. Parser runs (text / MinerU Lite / Modal GPU depending on `parseMode`)
+5. Parsed content inserted into LightRAG → pgvector (embeddings) + Apache AGE (knowledge graph)
+6. Worker publishes progress stages to Redis (`ingest:{workspaceId}` channel)
+7. Go gateway subscribes to Redis, fans out progress to browser via SSE (`/api/workspaces/{id}/ingest-events`)
+8. Worker updates `files.status=ready` + `files.doc_id` in Postgres
 
-- **Role**: Shared data store for all services. Gateway owns business tables; LightRAG owns `lightrag_*` tables in the same database.
-- **Extensions**: pgvector (vector embeddings, HNSW_HALFVEC index), Apache AGE (graph storage for LightRAG).
-- **Per-workspace isolation**: LightRAG storages add a `workspace` column; AGE graph names are derived per workspace.
+### AI Chat (RAG)
+1. Frontend sends `POST /api/workspaces/{id}/chat/stream` with query
+2. Go gateway proxies to pipeline `POST /chat/stream`
+3. Pipeline loads (or creates) a cached LightRAG instance for the workspace
+4. LightRAG performs `aquery(mode="mix")` — hybrid local + global retrieval over the knowledge graph
+5. Response streamed as SSE: `start` → `citations` → `token*` → `done`
+6. Citations reference source files by ID/name/snippet
+
+### Note Editor AI Completion
+1. User triggers inline AI (slash menu or selection)
+2. Plate's AI plugin sends request through `plateAiTransport` → Go gateway → pipeline `/complete/stream`
+3. Pipeline runs a non-RAG LLM completion (command or continue mode)
+4. Tokens stream back as SSE, inserted into the editor live
+
+### Material Save (Optimistic Concurrency)
+1. Frontend debounces save (5s) with `expectedRevision`
+2. Go gateway validates the Plate document via `materialdoc.Validate`
+3. Store checks revision match — on conflict returns `409`
+4. On success, stores new `Material` content + creates a `MaterialRevision` history entry
+5. Frontend reconciles or shows error state
+
+## Shared Infrastructure
+
+### Postgres
+Single instance serves three roles:
+- **Application data** — users, workspaces, chapters, files, materials, quizzes, flashcards, events, tasks, collaboration, billing
+- **pgvector** — 2560-dimensional halfvec HNSW indexes for LightRAG embeddings (requires pgvector ≥0.7.0 for halfvec support)
+- **Apache AGE** — Graph database extension for LightRAG's knowledge graph storage
 
 ### Redis
-
-- **Role**: Pub/sub bus for ingest progress events. Worker publishes progress → gateway subscribes → fans out via SSE to the browser.
+Progress pub/sub channel for ingest events. Also used for rate limiting when configured.
 
 ### Backblaze B2
-
-- **Role**: Cloud object storage for uploaded source files, parsed artifacts, and editor assets. Uses presigned URLs so file downloads never proxy through the gateway.
-
-## Request Flow Examples
-
-### File Upload + Ingest
-
-1. Browser `POST /api/workspaces/{id}/sources` (multipart) → Go gateway
-2. Gateway stores bytes in B2 (presigned upload)
-3. If `parseMode != "none"`: creates file row (status=`processing`) + enqueues ingest job
-4. Worker claims job → downloads from B2 → parses via Modal or MinerU Lite → LightRAG `ainsert`
-5. Worker publishes progress to Redis → gateway SSE → browser updates UI
-6. Worker sets `files.doc_id` and `status='ready'`
-
-### AI Chat (Streaming)
-
-1. Browser `POST /api/workspaces/{id}/chat/stream` → Go gateway
-2. Gateway forwards to Python retrieval service (`PostStream`)
-3. Retrieval service runs LightRAG `aquery` with per-workspace context
-4. Response tokens stream back through gateway as SSE → browser renders incrementally
-
-### Collaborative Editing
-
-1. Browser editor (Plate.js) → `PATCH /api/materials/{id}` with `ExpectedRevision`
-2. Gateway checks effective access via `MaterialEffectiveAccess` (see [Backend API & Auth](../backend/api-and-auth.md))
-3. Shared (non-explicit) editors can only replace versioned content; metadata/filing/deletion require explicit membership
-4. Gateway increments `revision` and creates `MaterialRevision` row
-5. Suggestions/discussions/comments flow through dedicated collaboration endpoints
-
-## Key Design Decisions
-
-- **OpenAPI-first**: The Go server generates the API spec; the frontend generates types from it. This enforces contract parity. (See `orval.config.ts`, `server/cmd/openapi/main.go`)
-- **Universal Material Envelope**: Migration `0010` consolidated quizzes, flashcards, mindmaps, and diagrams into a single `materials` table with a Plate document as content. Legacy tables were backfilled and dropped. See [Data Model](data-model.md).
-- **Per-workspace LightRAG**: Each workspace gets isolated vector storage, graph, and KV storage within the same Postgres database.
-- **Security through obscurity**: `ErrForbidden` is mapped to `ErrNotFound` for shared resources, preventing information leakage about resource existence.
-- **Lazy user provisioning**: On first Clerk-authenticated request, the middleware creates the user record and a default workspace.
-
-## Source References
-
-| Component | Key Source Files |
-|-----------|-----------------|
-| Go entrypoint | `server/cmd/api/main.go` |
-| Go router/middleware | `server/internal/httpapi/server.go` |
-| Go auth | `server/internal/auth/middleware.go` |
-| Go data models | `server/internal/store/models.go` |
-| Frontend entry | `src/main.tsx` |
-| Frontend routing | `src/router.tsx` |
-| Pipeline config | `pipeline/pipeline/config.py` |
-| Pipeline worker | `pipeline/pipeline/ingest/worker.py` |
-| Docker stack | `deploy/docker-compose.yml` |
+S3-compatible blob storage for source files, parsed artifacts, and editor-embedded media. The Go gateway presigns PUT/GET URLs; browsers upload/download directly to B2 without proxying through the server.

@@ -68,6 +68,7 @@ export * from './materialSuggestion.ts';
 export * from './materialSuggestionAnchor.ts';
 export * from './materialSuggestionOriginalFragmentItem.ts';
 export * from './materialSuggestionProposedFragmentItem.ts';
+export * from './materialUpdateResult.ts';
 export * from './message.ts';
 export * from './notification.ts';
 export * from './notificationKind.ts';

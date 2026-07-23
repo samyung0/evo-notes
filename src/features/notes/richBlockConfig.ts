@@ -25,7 +25,7 @@ export const CALLOUT_VARIANT_CLASS: Record<CalloutVariant, string> = {
 
 export const CODE_BLOCK_LANGUAGES = [
   { label: 'Auto detect', value: 'auto' },
-  { label: 'Plain text', value: 'plaintext' },
+  { label: 'Plain Text', value: 'plaintext' },
   { label: 'Arduino', value: 'arduino' },
   { label: 'Bash', value: 'bash' },
   { label: 'C', value: 'c' },
@@ -83,15 +83,3 @@ export const COLUMN_LAYOUTS: readonly ColumnLayout[] = [
   { label: 'Two columns, 2:1', value: 'left-wide', widths: ['66.667%', '33.333%'] },
   { label: 'Two columns, 1:2', value: 'right-wide', widths: ['33.333%', '66.667%'] },
 ];
-
-export function shouldInsertCodeLine(event: {
-  altKey: boolean;
-  ctrlKey: boolean;
-  isComposing?: boolean;
-  key: string;
-  metaKey: boolean;
-}): boolean {
-  return (
-    event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing
-  );
-}

@@ -1,184 +1,107 @@
 ---
 type: Operations
-title: Deployment & Operations
-description: Docker deployment stack, environment variables, B2/Redis/Postgres configuration, and the Stripe reconcile cron job for Evo Notes.
-tags: [operations, deployment, docker, infrastructure]
+title: "Operations: Deployment"
+description: Deployment and operations for evo-notes — Docker Compose dev and e2e stacks, environment variables, Postgres+pgvector+AGE image, Modal cold-start strategy, and CI/CD workflow.
+tags: [operations, deployment, docker, ci-cd]
 ---
 
-# Deployment & Operations
+# Operations: Deployment
 
-Evo Notes runs as a multi-service Docker stack. The Go gateway and Python pipeline share a single PostgreSQL database. Backblaze B2 handles blob storage. Redis handles real-time ingest progress.
+## Docker Compose — Dev Stack
 
-## Docker Compose Stack
+**`deploy/docker-compose.yml`** — Five services plus optional reconcile:
 
-**Source**: `deploy/docker-compose.yml`
+| Service | Role | Port |
+|---------|------|------|
+| **db** | Postgres 16 + pgvector + Apache AGE (built from `deploy/postgres/Dockerfile`). `shared_preload_libraries=age`. Volume `evo_pgdata`. | 5432 (+ 5433 escape hatch) |
+| **redis** | Redis 7 Alpine. Progress pub/sub bus for ingest events. | 6379 |
+| **server** | Go gateway. Writes uploads to B2, subscribes to Redis, fans progress over SSE. Proxies to retrieval at `http://retrieval:8001`. | 8080 |
+| **worker** | Python ingest worker (same Dockerfile as retrieval). Polls Postgres job queue, parses on Modal, builds LightRAG graph. Volume `evo_rag`. | — |
+| **retrieval** | Python FastAPI retrieval service (same Dockerfile). Volume `evo_rag` shared with worker. | 8001 |
+| **reconcile** | Go binary (`/app/reconcile`), Stripe reconciliation. Profile-gated. | — |
 
-### Services
+### Local Development
 
-| Service | Image/Build | Port | Purpose |
-|---------|-------------|------|---------|
-| **db** | Custom Postgres 16 + pgvector + Apache AGE | 5432, 5433 | LightRAG's KV/vector/graph/doc-status backends. AGE preloaded via `shared_preload_libraries=age`. |
-| **redis** | `redis:7-alpine` | 6379 | Pub/sub bus for live ingest progress (worker → server → SSE) |
-| **server** | Go gateway (built from `../server`) | 8080 | Frontend's `/api`. Writes uploads to B2, subscribes to Redis, fans progress over SSE. |
-| **worker** | Python ingest worker (built from `../pipeline`) | — | LightRAG ingestion. Parses on Modal GPU MineRU, builds graph in Postgres. |
-| **retrieval** | Python FastAPI (same pipeline image, command override) | 8001 | Per-workspace LightRAG chat/generate queries. |
+```bash
+cd deploy && docker compose up
+# Frontend (separate terminal)
+pnpm dev
+```
 
-### Environment Wiring
+By default `VITE_USE_MSW=true` — the frontend uses MSW mocks. Set `VITE_USE_MSW=false` and `VITE_API_URL=http://localhost:8080` to hit the real Go server.
 
-All services share `DATABASE_URL: postgres://evo:evo@db:5432/evo?sslmode=disable`.
+## Docker Compose — E2E Stack
 
-- **Server** receives: `PIPELINE_URL=http://retrieval:8001`, Clerk auth keys, Stripe keys, B2 config, `AUTH_DISABLED=true` (dev default)
-- **Worker** receives: `MODAL_PARSE_URL`, `MODAL_PARSE_TOKEN`, `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_API_KEY`, embedding config, MinerU relay config, B2 credentials, `DATABASE_URL`, `REDIS_URL`
-- **Retrieval** receives: same model API keys, `DATABASE_URL`, embedding config
+**`deploy/docker-compose.e2e.yml`** — Minimal disposable stack for Playwright e2e tests. Only `db` + `server`:
+- Host ports offset (55432, 18080) to avoid conflicts
+- `BLOB_BACKEND=memory`, `AUTH_DISABLED=true`, `E2E_AUTH=true` with header-based identity
+- No B2/Redis/pipeline needed — focused on sharing/access tests
 
-### Key Config Notes
+## Postgres Image — `deploy/postgres/Dockerfile`
 
-- `AUTH_DISABLED` defaults to `true` in dev (dev mode uses fixed user ID `u_1`)
-- B2 credentials are required for production; startup verifies bucket access and exits if invalid
-- Migrations are applied automatically on server startup (`MIGRATE=true` default)
+Multi-stage build on `pgvector/pgvector:pg16`:
+1. **Build stage**: Installs build tools, clones Apache AGE (branch `PG16`), compiles `age.so` + extension files
+2. **Runtime stage**: Copies `age.so`, `age.control`, `age--*.sql` into the pgvector image
 
-## E2E Docker Stack
-
-**Source**: `deploy/docker-compose.e2e.yml`
-
-Disposable stack for Playwright/backend access tests:
-
-- Only **db** + **server** (no Redis, no B2, no pipeline)
-- `BLOB_BACKEND: memory` — in-memory blob storage
-- `AUTH_DISABLED: true`, `E2E_AUTH: true` with shared secret
-- Pre-defined test user IDs: `u_owner`, `u_editor`, `u_commenter`, `u_viewer`, `u_other`
-- Host ports offset (db: 55432, server: 18080) to run alongside dev stack
-- Separate volume (`evo_e2e_pgdata`)
-
-See [Testing & E2E](../testing/e2e.md) for the test framework.
+Result: a single Postgres 16 with both pgvector (≥0.8, for halfvec HNSW indexes) and AGE (for LightRAG graph storage).
 
 ## Environment Variables
 
-### Frontend (Vite)
+### Server (`server/.env.example`)
 
-**Source**: `.env.example`
+| Category | Variables |
+|----------|-----------|
+| Database | `DATABASE_URL`, `ADDR`, `MIGRATE` |
+| B2 blob | `B2_ENDPOINT`, `B2_REGION`, `B2_BUCKET`, `B2_KEY_ID`, `B2_APP_KEY`, `B2_FORCE_PATH_STYLE`, `B2_PRESIGN_TTL` |
+| Pipeline | `PIPELINE_URL`, `EVO_PARSER` (default: mineru), `EVO_ENGINE` (default: lightrag) |
+| Cache | `REDIS_URL` |
+| Auth | `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET`, `AUTH_DISABLED`, `DEV_USER_ID` |
+| Billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM` |
+| App | `APP_URL` (frontend origin — Stripe redirects, OAuth return links) |
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `VITE_USE_MSW` | `true` | Enable MSW mocks (false = real gateway) |
-| `VITE_PORT` | `5173` | Vite dev server port |
-| `VITE_API_URL` | `http://localhost:8080` | Gateway URL (Vite proxies `/api` here) |
-| `VITE_CLERK_PUBLISHABLE_KEY` | — | Clerk frontend key (required when MSW off) |
-| `VITE_STRIPE_PUBLISHABLE_KEY` | — | Stripe.js (optional, checkout redirects server-side) |
-| `VITE_DIRECT_B2_UPLOAD` | `true` | Upload files directly to B2 instead of proxying |
+### Pipeline (`deploy/.env.example`)
 
-### Go Gateway
+| Category | Variables |
+|----------|-----------|
+| Modal | `MODAL_PARSE_URL`, `MODAL_PARSE_TOKEN`, `EVO_PARSE_METHOD` |
+| MinerU relay | `MINERU_RELAY_URL`, `MINERU_RELAY_TOKEN` |
+| Models | `OPENROUTER_API_KEY` (embeddings), `DEEPSEEK_API_KEY` (text LLM), `GOOGLE_API_KEY` (vision VLM) |
+| B2 | `B2_ENDPOINT`, `B2_BUCKET`, `B2_KEY_ID`, `B2_APP_KEY` |
+| LightRAG | `EVO_LIGHTRAG_CACHE_SIZE` (default 16), `EVO_INGEST_LLM_CACHE` |
 
-**Source**: `server/.env.example`, `server/cmd/api/main.go`
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `DATABASE_URL` | `postgres://evo:evo@localhost:5432/evo?sslmode=disable` | Postgres DSN |
-| `ADDR` | `:8080` | Listen address |
-| `MIGRATE` | `true` | Apply migrations on startup |
-| `APP_URL`, `APP_ENV` | — | App URL and environment (`e2e` for tests) |
-| `CLERK_SECRET_KEY` | — | Clerk JWT verification |
-| `CLERK_WEBHOOK_SECRET` | — | Clerk webhook signature verification |
-| `AUTH_DISABLED` | `false` | Dev mode (fixed user ID) |
-| `DEV_USER_ID` | `u_1` | User ID in dev mode |
-| `E2E_AUTH` | `false` | E2E header-based auth |
-| `E2E_AUTH_SECRET` | — | Shared secret for e2e auth |
-| `E2E_AUTH_USER_IDS` | — | Allowlisted e2e user IDs |
-| `STRIPE_SECRET_KEY` | — | Stripe API key |
-| `STRIPE_WEBHOOK_SECRET` | — | Stripe webhook signature |
-| `STRIPE_PRICE_PRO` | — | Stripe price ID for Pro tier |
-| `STRIPE_PRICE_TEAM` | — | Stripe price ID for Team tier |
-| `PIPELINE_URL` | — | Python retrieval service URL |
-| `REDIS_URL` | — | Redis URL (pub/sub for ingest progress) |
-| `B2_*` | — | Backblaze B2 credentials (bucket, key, secret, endpoint) |
-| `EVO_PARSER` | `docling` | Default parser (historical) |
-| `EVO_ENGINE` | `linearrag` | Default RAG engine (historical) |
-
-### Pipeline
-
-**Source**: `pipeline/.env.example`, `pipeline/pipeline/config.py`
-
-| Variable | Purpose |
-|----------|---------|
-| `DATABASE_URL` | Postgres DSN (shared with gateway) |
-| `REDIS_URL` | Redis URL for progress pub/sub |
-| `OPENROUTER_API_KEY` | Embedding model provider |
-| `DEEPSEEK_API_KEY` | Text LLM provider |
-| `GOOGLE_API_KEY` | Gemini VLM provider |
-| `MODAL_PARSE_URL` | Modal GPU MineRU endpoint |
-| `MODAL_PARSE_TOKEN` | Modal auth token |
-| `MINERU_RELAY_URL` | Cloudflare Worker relay URL (optional) |
-| `B2_*` | B2 credentials for source download/artifact upload |
-| `LLM_CACHE` | Enable LLM response caching (ingest only) |
-
-## Postgres Configuration
-
-**Source**: `deploy/postgres/Dockerfile`
-
-Custom Postgres 16 image with:
-
-- **pgvector** extension for vector embeddings
-- **Apache AGE** extension for LightRAG graph storage (preloaded via `shared_preload_libraries=age`)
-- Ports: 5432 (primary) + 5433 (escape hatch)
-
-## Backblaze B2
-
-B2 is the blob storage backend for:
-
-- Uploaded source files (PDF, DOCX, etc.)
-- Parsed artifacts (cached MineRU output bundles)
-- Editor assets (images pasted into the editor)
-
-The gateway generates presigned URLs for direct browser↔B2 uploads and downloads, avoiding proxying through the server. See [Backend API & Auth](../backend/api-and-auth.md) for the upload flow.
-
-B2 CORS configuration example: `deploy/b2-cors.example.json`.
-
-## Reconcile Cron
-
-**Source**: `server/cmd/reconcile/main.go`
-
-A standalone Go binary that syncs Stripe subscription state with the local database. Designed to run daily via cron.
-
-**Flow**: Init Stripe → Connect to Postgres → List all local Stripe customer records → For each, query Stripe for active/trialing subscriptions → If local DB differs from Stripe ("drift"), update the local record.
-
-This handles cases where webhook delivery fails or subscriptions change outside the webhook flow (e.g., Stripe dashboard edits, expired cards, dunning).
-
-## Running Standalone
-
-### Go Gateway Only
+## API Code Generation
 
 ```bash
-cd server
-cp .env.example .env
-go mod tidy
-go run ./cmd/api
-# Gateway on http://localhost:8080
+# One-shot: Go server → openapi.yaml → orval TS types + Zod validators
+pnpm gen:api:msw
+
+# Live regeneration (pairs with `air` in server/)
+cd server && air          # Regenerates openapi.yaml on Go rebuild
+pnpm gen:api:watch        # orval watches openapi.yaml
 ```
 
-Requires a reachable Postgres at `DATABASE_URL` and valid B2 credentials.
+The OpenAPI spec is generated by `go run ./cmd/openapi -o ../openapi.yaml` from the Go server's huma router. orval then generates TypeScript interfaces (`src/api/gen/model/`), Zod validators (`src/api/gen/validators.ts`), and thin fetch endpoints (`src/api/gen/endpoints.ts` — intentionally unused; `client.ts` + `hooks.ts` are source of truth).
 
-### Pipeline Only
+## Modal GPU Cold-Start Strategy
 
-```bash
-cd pipeline
-uv sync
-python -m pipeline.ingest.worker    # Worker mode
-# OR
-uvicorn pipeline.retrieve:app --port 8001  # Retrieval mode
-```
+The Modal app (`modal/mineru_app.py`) uses three layers to minimize cold-start impact:
 
-## Source References
+1. **Model preloading** — `@modal.enter(snap=True)` loads MineRU models via `aio_do_parse` + `ModelSingleton` on container start. Warm requests skip model loading entirely.
+2. **GPU memory snapshots** — `enable_memory_snapshot=True`, `enable_gpu_snapshot=True` checkpoint after model load + warmup parse. Cold boots restore directly into ready-to-serve state.
+3. **Scaledown window** — `scaledown_window=60` keeps container alive ~5 min after last request.
 
-| Component | Source File |
-|-----------|-------------|
-| Docker compose | `deploy/docker-compose.yml` |
-| E2E compose | `deploy/docker-compose.e2e.yml` |
-| Postgres image | `deploy/postgres/Dockerfile` |
-| Server Dockerfile | `server/Dockerfile` |
-| Pipeline Dockerfile | `pipeline/Dockerfile` |
-| Frontend env | `.env.example` |
-| Server env | `server/.env.example` |
-| Pipeline env | `pipeline/.env.example` |
-| Reconcile | `server/cmd/reconcile/main.go` |
-| B2 CORS example | `deploy/b2-cors.example.json` |
-| Air config | `server/.air.toml` |
+`scaledown_window=60` balances cost (scale-to-zero when idle) with latency (container stays warm between bursts).
+
+## CI/CD
+
+**`.github/workflows/openwiki-update.yml`** — The only GitHub Actions workflow currently configured.
+
+- **Trigger**: `workflow_dispatch` + scheduled cron `0 8 * * *` (daily 8 AM UTC)
+- **Purpose**: Automated documentation update via OpenWiki CLI
+- **Process**: Checks out repo, installs OpenWiki, runs `openwiki code --update --print` with OpenRouter, auto-creates a PR on branch `openwiki/update`
+
+No CI workflow for running tests, building, or deploying was found. Tests are run locally or via the Playwright e2e Docker compose stack.
+
+## Stripe Reconciliation
+
+**`server/cmd/reconcile/main.go`** — Daily cron job that syncs Stripe subscription state with the local database: lists all Stripe customers, checks active subscriptions, fixes drift in `plan_tier` / `subscription_status`. Run as a separate Go binary, typically via Docker Compose profile.

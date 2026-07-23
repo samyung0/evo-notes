@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { AIChatPlugin } from '@platejs/ai/react';
 import { toUnitLess } from '@platejs/basic-styles';
 import { FontSizePlugin } from '@platejs/basic-styles/react';
-import { encodeUrlIfNeeded, upsertLink, validateUrl } from '@platejs/link';
+import { encodeUrlIfNeeded, validateUrl } from '@platejs/link';
 import { ListStyleType, toggleList } from '@platejs/list';
 import { TablePlugin, useTableMergeState } from '@platejs/table/react';
 import { KEYS } from 'platejs';
@@ -84,6 +83,7 @@ import {
 import { cn } from '@/lib/cn';
 import { useNoteBlockDialogs } from './blocks/dialogContext';
 import { customBlockNode } from './blocks/shared';
+import { openAiMenu } from './ai/aiMenuState';
 import { CommentToolbarActions } from './Collaboration';
 import {
   downloadEditorFile,
@@ -94,12 +94,14 @@ import {
   importJsonDocument,
   importMarkdownDocument,
 } from './documentAdapters';
+import { toggleEditorBlock } from './editorTransforms';
 import { insertMediaPlaceholder } from './MediaNodes';
 import { MaterialKit } from './plugins';
 import { type WidgetGroupId, useNoteEditorPrefs, WIDGET_GROUPS } from './noteEditorPrefs';
 import { useEditorRuntime } from './EditorRuntime';
 import { canCreateExternalEditorAssets } from './editorMode';
 import { insertEditorNode } from './insertEditorNode';
+import { cloneLinkSelection, type LinkSelection, upsertLinkAtSelection } from './linkEditor';
 import { getHiddenToolbarGroupIndexes } from './responsiveToolbar';
 
 // TODO: what is this
@@ -203,7 +205,10 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
   const [moreOpen, setMoreOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const [linkText, setLinkText] = useState('');
   const [linkError, setLinkError] = useState('');
+  const [editingLink, setEditingLink] = useState(false);
+  const linkSelectionRef = useRef<LinkSelection | null>(null);
 
   useLayoutEffect(() => {
     const container = toolbarGroupsRef.current;
@@ -229,7 +234,7 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
   };
   const block = (type: string) => {
     editor.tf.focus();
-    editor.tf.toggleBlock(type);
+    toggleEditorBlock(editor, type);
   };
   const insertNode = (node: unknown) => insertEditorNode(editor, node);
   async function importFile(file: File, kind: ImportKind) {
@@ -246,19 +251,26 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
     const url = encodeUrlIfNeeded(linkUrl.trim());
     if (!url) return;
     if (!validateUrl(editor, url)) {
-      setLinkError('Enter a valid web, email, telephone, document, or anchor URL.');
+      setLinkError("Hey, that's not a valid link.");
       return;
     }
 
-    editor.tf.focus();
-    if (!upsertLink(editor, { url })) {
-      setLinkError('Select text or place the cursor where the link should be inserted.');
+    const selection = linkSelectionRef.current;
+    if (!selection) {
+      setLinkError('The text selection is no longer available. Select the text and try again.');
+      return;
+    }
+
+    if (!upsertLinkAtSelection(editor, selection, { text: linkText, url })) {
+      setLinkError('Hey, select some text so I can place the link.');
       return;
     }
 
     setLinkOpen(false);
     setLinkUrl('');
+    setLinkText('');
     setLinkError('');
+    linkSelectionRef.current = null;
   }
 
   return (
@@ -283,19 +295,16 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
               <ToolbarButton label="Redo" disabled={!canRedo} onClick={() => editor.tf.redo()}>
                 <Redo2 />
               </ToolbarButton>
-            </ToolbarGroup>
-            {allowExternalAssets && (
-              <ToolbarGroup>
+              {allowExternalAssets && (
                 <ToolbarButton
                   label="AI commands (Ctrl/Cmd+J)"
-                  onClick={() => editor.getApi(AIChatPlugin).aiChat.show()}
+                  onClick={() => openAiMenu(editor)}
                   className="size-fit gap-1.5 px-2 py-1"
                 >
                   <Sparkles />
-                  <span className="translate-y-px">Ask AI</span>
                 </ToolbarButton>
-              </ToolbarGroup>
-            )}
+              )}
+            </ToolbarGroup>
             <ToolbarGroup className="gap-1">
               {canCreateAssets && <ImportMenu importFile={importFile} />}
               <ExportMenu editor={editor} />
@@ -451,10 +460,21 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
               <ToolbarButton
                 label="Link"
                 onClick={() => {
+                  const selection = cloneLinkSelection(editor.selection);
                   const entry = editor.api.above({
+                    at: selection ?? undefined,
                     match: { type: editor.getType(KEYS.link) },
                   });
+                  linkSelectionRef.current = selection;
                   setLinkUrl(entry ? String(entry[0].url ?? '') : '');
+                  setLinkText(
+                    entry
+                      ? editor.api.string(entry[1])
+                      : selection
+                        ? editor.api.string(selection)
+                        : ''
+                  );
+                  setEditingLink(Boolean(entry));
                   setLinkError('');
                   setLinkOpen(true);
                 }}
@@ -515,37 +535,59 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
           setLinkOpen(open);
           if (!open) {
             setLinkUrl('');
+            setLinkText('');
             setLinkError('');
+            setEditingLink(false);
+            linkSelectionRef.current = null;
           }
         }}
       >
-        <DialogContent className="max-w-md">
-          <DialogTitle>Insert link</DialogTitle>
-          <label className="flex flex-col gap-1.5">
-            <InputTitle>Link URL</InputTitle>
-            <Input
-              autoFocus
-              value={linkUrl}
-              aria-invalid={Boolean(linkError)}
-              onChange={(event) => {
-                setLinkUrl(event.target.value);
-                setLinkError('');
-              }}
-              placeholder="https://example.com"
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') applyLink();
-              }}
-            />
-            <InputError>{linkError}</InputError>
-          </label>
-          <DialogFooter>
-            <Button variant="ghost-hover" onClick={() => setLinkOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="accent" disabled={!linkUrl.trim()} onClick={applyLink}>
-              Apply
-            </Button>
-          </DialogFooter>
+        <DialogContent
+          className="max-w-md"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            editor.tf.focus();
+          }}
+        >
+          <DialogTitle>{editingLink ? 'Edit link' : 'Insert link'}</DialogTitle>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              applyLink();
+            }}
+          >
+            <label className="flex flex-col gap-1.5">
+              <InputTitle>Link URL</InputTitle>
+              <Input
+                autoFocus
+                value={linkUrl}
+                aria-invalid={Boolean(linkError)}
+                onChange={(event) => {
+                  setLinkUrl(event.target.value);
+                  setLinkError('');
+                }}
+                placeholder="https://example.com"
+              />
+              <InputError>{linkError}</InputError>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <InputTitle>Displayed text</InputTitle>
+              <Input
+                value={linkText}
+                onChange={(event) => setLinkText(event.target.value)}
+                placeholder="Use the URL as text"
+              />
+            </label>
+            <DialogFooter>
+              <Button type="button" variant="ghost-hover" onClick={() => setLinkOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="accent" disabled={!linkUrl.trim()}>
+                {editingLink ? 'Save' : 'Apply'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>
@@ -580,8 +622,14 @@ function FontSizeControl() {
       if (Number.isFinite(parsedSize)) return clampFontSize(parsedSize);
     }
 
-    const [block] = currentEditor.api.block() ?? [];
-    return (block?.type && BLOCK_FONT_SIZES[String(block.type)]) || DEFAULT_FONT_SIZE;
+    const [block] = editor.api.block() ?? [];
+    const domNode = block && editor.api.toDOMNode(block);
+    if (domNode) {
+      const size = Number.parseFloat(window.getComputedStyle(domNode).fontSize);
+      if (Number.isFinite(size)) return clampFontSize(size);
+    }
+
+    return DEFAULT_FONT_SIZE;
   }, []);
 
   const setFontSize = (size: number, closePopover = false) => {

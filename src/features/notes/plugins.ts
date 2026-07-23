@@ -40,7 +40,7 @@ import {
 } from '@platejs/basic-styles/react';
 import { CalloutPlugin } from '@platejs/callout/react';
 import { CaptionPlugin } from '@platejs/caption/react';
-import { CodeBlockRules } from '@platejs/code-block';
+import { CodeBlockRules, toggleCodeBlock } from '@platejs/code-block';
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from '@platejs/code-block/react';
 import { DndPlugin } from '@platejs/dnd';
 import { DocxPlugin } from '@platejs/docx';
@@ -89,7 +89,7 @@ import {
 import { createElement } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { buildAiPlugins } from './ai/PlateAi';
+import { buildAiPlugins } from './ai/aiPlugins';
 import { BlockContextMenu, BlockDraggable } from './BlockInteractions';
 import { customBlockPlugins } from './blocks/plugins';
 import { buildCollaborationPlugins, type EditorCollaborationOptions } from './Collaboration';
@@ -107,7 +107,16 @@ type AnyPlugin = any;
 // `common` (~35 languages) instead of `all`: the full highlight.js language set
 // is roughly a megabyte of grammars that almost no document uses.
 const lowlight = createLowlight(common);
-const listTargets = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock, KEYS.img];
+// Code blocks deliberately break out of lists instead of becoming list items.
+const listTargets = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.img];
+const codeBlockListProps = [
+  'listStyleType',
+  'indent',
+  'checked',
+  'listStart',
+  'listRestart',
+  'listRestartPolite',
+];
 
 function TodoListItem({
   element,
@@ -180,7 +189,7 @@ const IndentListKit = [
     },
     render: {
       belowNodes: ((props) => {
-        if (!props.element.listStyleType) return;
+        if (!listTargets.includes(props.element.type) || !props.element.listStyleType) return;
 
         if (props.element.listStyleType === KEYS.listTodo) {
           return (nextProps) =>
@@ -215,6 +224,27 @@ const IndentListKit = [
     },
   }),
 ];
+
+const CodeBlockListCleanupPlugin = createSlatePlugin({
+  key: 'evo-code-block-list-cleanup',
+}).overrideEditor(({ editor, tf: { normalizeNode } }) => ({
+  transforms: {
+    normalizeNode([node, path]) {
+      // toggleBlock can preserve list props while changing a list paragraph to
+      // a code block. Remove them before the list plugin can render markers.
+      if (
+        'type' in node &&
+        node.type === editor.getType(KEYS.codeBlock) &&
+        codeBlockListProps.some((key) => key in node)
+      ) {
+        editor.tf.unsetNodes(codeBlockListProps, { at: path });
+        return;
+      }
+
+      normalizeNode([node, path]);
+    },
+  },
+}));
 
 const BasicBlocksKit = [
   ParagraphPlugin,
@@ -418,10 +448,19 @@ export const MaterialKit: AnyPlugin[] = [
   CodeBlockPlugin.configure({
     inputRules: [CodeBlockRules.markdown({ on: 'match' })],
     options: { lowlight },
-    shortcuts: { toggle: { keys: 'mod+alt+8' } },
+    shortcuts: {
+      toggle: {
+        keys: 'mod+alt+8',
+        handler: ({ editor }) => {
+          toggleCodeBlock(editor);
+          return true;
+        },
+      },
+    },
   }),
   CodeLinePlugin,
   CodeSyntaxPlugin,
+  CodeBlockListCleanupPlugin,
   TablePlugin.configure({ options: { minColumnWidth: 48 } }),
   TableRowPlugin,
   TableCellPlugin,
@@ -486,7 +525,7 @@ export function buildPlugins(options: BuildPluginsOptions): AnyPlugin[] {
     BlockPlaceholderPlugin.configure({
       options: {
         className:
-          'before:absolute before:cursor-text before:text-placeholder before:font-normal before:content-[attr(placeholder)]',
+          'before:absolute before:cursor-text before:text-placeholder before:text-sm before:leading-[2] before:font-normal before:content-[attr(placeholder)]',
         placeholders: { [KEYS.p]: 'Type  /  for commands ...' },
         query: ({ path }) => path.length === 1,
       },

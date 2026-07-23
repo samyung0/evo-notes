@@ -8,6 +8,7 @@ import type {
   CreateEventReq,
   CreateQuizReq,
   CreateWorkspaceReq,
+  MaterialUpdateResult,
   UpdateCardReq,
   UpdateChapterReq,
   UpdateQuizReq,
@@ -624,10 +625,38 @@ export function useUpdateMaterial(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdateMaterialInput }) =>
-      api.patch<Material>(`/materials/${id}`, patch),
-    onSuccess: (mt) => {
-      qc.setQueryData(qk.material(mt.id), mt);
-      qc.invalidateQueries({ queryKey: qk.materials(wsId) });
+      api.patch<MaterialUpdateResult>(`/materials/${id}`, patch),
+    onSuccess: (result, { id, patch }) => {
+      // PATCH returns only persistence metadata. The client already owns the
+      // exact document it sent, so merge that immutable snapshot into cache
+      // instead of downloading and JSON-parsing the whole document again.
+      qc.setQueryData<Material>(qk.material(id), (current) =>
+        current
+          ? {
+              ...current,
+              ...(patch.title === undefined ? {} : { title: patch.title }),
+              ...(patch.content === undefined ? {} : { content: patch.content }),
+              ...(patch.scopeChapters === undefined
+                ? {}
+                : { scopeChapters: patch.scopeChapters }),
+              ...(patch.scopeFileIds === undefined ? {} : { scopeFileIds: patch.scopeFileIds }),
+              revision: result.revision,
+              contentBytes: result.contentBytes,
+              updatedAt: result.updatedAt,
+            }
+          : current
+      );
+      // Content/revision/byte-count are absent from MaterialRef rows, so an
+      // autosave cannot make the workspace material list stale. Avoid a
+      // pointless list refetch after every save; metadata patches still need
+      // one because they can change titles or grouping.
+      if (
+        patch.title !== undefined ||
+        patch.scopeChapters !== undefined ||
+        patch.scopeFileIds !== undefined
+      ) {
+        qc.invalidateQueries({ queryKey: qk.materials(wsId) });
+      }
     },
   });
 }

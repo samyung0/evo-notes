@@ -282,6 +282,16 @@ function InlineEquation(props: SlateElementProps) {
   );
 }
 
+function CodeSyntax(props: SlateLeafProps) {
+  const tokenClassName = props.leaf.className as string | undefined;
+
+  return (
+    <SlateLeaf {...props} as="span" className={tokenClassName}>
+      {props.children}
+    </SlateLeaf>
+  );
+}
+
 function MediaAssetElement(props: SlateElementProps) {
   return (
     <SlateElement {...props} className="my-3">
@@ -422,7 +432,7 @@ export const staticNoteComponents = {
   hr: Hr,
   code_block: CodeBlock,
   code_line: element(undefined),
-  code_syntax: mark('span'),
+  code_syntax: CodeSyntax,
   a: LinkElement,
   img: MediaAssetElement,
   video: MediaAssetElement,

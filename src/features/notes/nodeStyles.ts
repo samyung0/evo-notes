@@ -15,9 +15,9 @@ export const HEADING_CLASS: Record<string, string> = {
 
 export const PARAGRAPH_CLASS = 'py-1 px-0 leading-relaxed text-fg';
 export const BLOCKQUOTE_CLASS = 'my-1 border-l-2 border-line pl-4 text-fg-secondary italic';
-export const HR_CLASS = 'py-5 border-divider';
+export const HR_CLASS = 'my-5 border-divider';
 export const CODE_BLOCK_CLASS =
-  'group/code relative my-3 overflow-auto rounded-card border border-line bg-surface-hover-bg px-3 pt-10 pb-3 font-mono text-xs text-fg';
+  'group/code relative overflow-auto rounded-row my-1 bg-surface-hover-bg pr-4 p-8 text-sm [tab-size:2] print:break font-mono text-fg';
 export const LINK_CLASS = 'text-link underline underline-offset-2';
 
 export const UL_CLASS = 'my-2 ml-5 list-disc space-y-1';
@@ -32,10 +32,9 @@ export const TH_CLASS =
 
 export const CALLOUT_CLASS =
   'group/callout relative my-2 flex gap-3 rounded-row border-l-4 px-4 py-3';
-export const COLUMN_GROUP_CLASS =
-  'group/columns relative mb-2 flex size-full flex-col gap-2 pt-9 sm:flex-row';
+export const COLUMN_GROUP_CLASS = 'group/columns relative my-2 flex size-full gap-2 flex-row';
 export const COLUMN_CLASS =
-  'group/column relative min-w-0 w-full shrink rounded-row border border-line border-dashed p-2 sm:w-(--column-width) sm:basis-(--column-width)';
+  'group/column relative min-w-0 shrink rounded-row border border-line border-dashed p-2 w-(--column-width) basis-(--column-width)';
 
 export const TOC_BOX_CLASS = 'my-3';
 export const TOC_TITLE_CLASS = 'mb-2 t-label text-fg-muted';

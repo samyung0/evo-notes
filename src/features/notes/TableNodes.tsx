@@ -4,7 +4,6 @@ import { getTableColumnCount } from '@platejs/table';
 import {
   TablePlugin,
   TableProvider,
-  useCellIndices,
   useTableCellElement,
   useTableCellElementResizable,
   useTableColSizes,
@@ -23,7 +22,7 @@ import {
   Ungroup,
   X,
 } from 'lucide-react';
-import { PathApi, type TElement, type TTableCellElement, type TTableElement } from 'platejs';
+import { PathApi, type TTableCellElement, type TTableElement } from 'platejs';
 import {
   PlateElement,
   type PlateElementProps,
@@ -35,18 +34,15 @@ import {
   useReadOnly,
   useSelected,
 } from 'platejs/react';
-import { createContext, useContext, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { TABLE_CLASS, TABLE_WRAP_CLASS, TD_CLASS, TH_CLASS } from './nodeStyles';
+import { FloatingActionButton } from './nodeComponents';
 
 const DEFAULT_COLUMN_WIDTH = 120;
 const DEFAULT_ROW_HEIGHT = 48;
-type RowDragHandleContextValue = {
-  handleRef: ReturnType<typeof useDraggable>['handleRef'];
-  selectRow: () => void;
-};
-const RowDragHandleContext = createContext<RowDragHandleContextValue | null>(null);
+const TABLE_GRIP_COLUMN_WIDTH = 8;
 
 export function TableElement(props: PlateElementProps) {
   return (
@@ -68,7 +64,9 @@ function TableElementContent({ children, ...props }: PlateElementProps) {
       (_, index) => colSizes[index] || DEFAULT_COLUMN_WIDTH
     );
   }, [colSizes, props.element]);
-  const tableWidth = resolvedColSizes.reduce((total, width) => total + width, 0);
+  const tableWidth =
+    resolvedColSizes.reduce((total, width) => total + width, 0) +
+    (readOnly ? 0 : TABLE_GRIP_COLUMN_WIDTH);
 
   useTableSelectionDom(tableRef);
 
@@ -92,6 +90,7 @@ function TableElementContent({ children, ...props }: PlateElementProps) {
         style={{ width: tableWidth }}
       >
         <colgroup>
+          {!readOnly && <col style={{ width: TABLE_GRIP_COLUMN_WIDTH }} />}
           {resolvedColSizes.map((width, index) => (
             <col key={index} style={{ width }} />
           ))}
@@ -145,87 +144,69 @@ function TableFloatingToolbarContent({ multiCell }: { multiCell: boolean }) {
       avoidCollisions={false}
       contentEditable={false}
       onOpenAutoFocus={(event) => event.preventDefault()}
-      className="w-auto max-w-[90vw] flex-row gap-0.5 overflow-x-auto rounded-card border border-line bg-surface p-1 shadow-pop"
+      className="w-auto max-w-[90vw] min-w-14 flex-row justify-center gap-0.5 overflow-x-auto rounded-card border border-line bg-surface p-1 shadow-pop"
     >
       {canMerge && (
-        <TableActionButton label="Merge cells" onClick={() => action(() => tf.table.merge())}>
+        <FloatingActionButton label="Merge cells" onClick={() => action(() => tf.table.merge())}>
           <Combine />
-        </TableActionButton>
+        </FloatingActionButton>
       )}
       {canSplit && (
-        <TableActionButton label="Split cell" onClick={() => action(() => tf.table.split())}>
+        <FloatingActionButton label="Split cell" onClick={() => action(() => tf.table.split())}>
           <Ungroup />
-        </TableActionButton>
+        </FloatingActionButton>
       )}
 
       {!multiCell && (
         <>
           {(canMerge || canSplit) && <TableActionSeparator />}
-          <TableActionButton
+          <FloatingActionButton
             label="Insert row before"
             onClick={() => action(() => tf.insert.tableRow({ before: true }))}
           >
             <ArrowUp />
-          </TableActionButton>
-          <TableActionButton
+          </FloatingActionButton>
+          <FloatingActionButton
             label="Insert row after"
             onClick={() => action(() => tf.insert.tableRow())}
           >
             <ArrowDown />
-          </TableActionButton>
-          <TableActionButton label="Delete row" onClick={() => action(() => tf.remove.tableRow())}>
+          </FloatingActionButton>
+          <FloatingActionButton
+            label="Delete row"
+            onClick={() => action(() => tf.remove.tableRow())}
+          >
             <X />
-          </TableActionButton>
+          </FloatingActionButton>
           <TableActionSeparator />
-          <TableActionButton
+          <FloatingActionButton
             label="Insert column before"
             onClick={() => action(() => tf.insert.tableColumn({ before: true }))}
           >
             <ArrowLeft />
-          </TableActionButton>
-          <TableActionButton
+          </FloatingActionButton>
+          <FloatingActionButton
             label="Insert column after"
             onClick={() => action(() => tf.insert.tableColumn())}
           >
             <ArrowRight />
-          </TableActionButton>
-          <TableActionButton
+          </FloatingActionButton>
+          <FloatingActionButton
             label="Delete column"
             onClick={() => action(() => tf.remove.tableColumn())}
           >
             <X />
-          </TableActionButton>
+          </FloatingActionButton>
           <TableActionSeparator />
-          <TableActionButton label="Delete table" onClick={() => action(() => tf.remove.table())}>
+          <FloatingActionButton
+            label="Delete table"
+            onClick={() => action(() => tf.remove.table())}
+          >
             <Trash2 />
-          </TableActionButton>
+          </FloatingActionButton>
         </>
       )}
     </PopoverContent>
-  );
-}
-
-function TableActionButton({
-  children,
-  label,
-  onClick,
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      data-plate-prevent-deselect
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={onClick}
-      className="focus-visible:ring-focus flex size-8 shrink-0 items-center justify-center rounded-row text-fg-secondary outline-none hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2 [&_svg]:size-4"
-    >
-      {children}
-    </button>
   );
 }
 
@@ -242,10 +223,10 @@ export function TableRowElement({ children, ...props }: PlateElementProps) {
     type: element.type,
     canDropNode: ({ dragEntry, dropEntry }) =>
       PathApi.equals(PathApi.parent(dragEntry[1]), PathApi.parent(dropEntry[1])),
-    onDropHandler: (_, { dragItem }) => {
-      const draggedElement = (dragItem as { element?: TElement }).element;
-      if (draggedElement) editor.tf.select(draggedElement);
-    },
+    // onDropHandler: (_, { dragItem }) => {
+    //   const draggedElement = (dragItem as { element?: TElement }).element;
+    //   if (draggedElement) editor.tf.select(draggedElement);
+    // },
   });
   const { dropLine } = useDropLine();
 
@@ -263,14 +244,26 @@ export function TableRowElement({ children, ...props }: PlateElementProps) {
           '[&>td]:border-b-2! [&>td]:border-b-action-accent! [&>th]:border-b-2! [&>th]:border-b-action-accent!'
       )}
     >
-      <RowDragHandleContext.Provider
-        value={{
-          handleRef: draggable.handleRef,
-          selectRow: () => editor.tf.select(element),
-        }}
-      >
-        {children}
-      </RowDragHandleContext.Provider>
+      {!readOnly && (
+        <td
+          className="w-2 min-w-2 max-w-2 select-none p-0"
+          contentEditable={false}
+        >
+          <button
+            ref={draggable.handleRef}
+            type="button"
+            aria-label="Drag table row"
+            title="Drag table row"
+            data-plate-prevent-deselect
+            contentEditable={false}
+            onClick={() => editor.tf.select(element)}
+            className="focus-visible:ring-focus absolute top-1/2 left-0 z-40 flex size-5 -translate-y-1/2 cursor-grab items-center justify-center rounded-row border border-line bg-surface text-fg-muted opacity-0 shadow-sm transition-opacity outline-none group-hover/row:opacity-100 hover:bg-surface-hover-bg hover:text-fg focus-visible:opacity-100 focus-visible:ring-2 active:cursor-grabbing"
+          >
+            <GripVertical className="size-3.5" />
+          </button>
+        </td>
+      )}
+      {children}
     </PlateElement>
   );
 }
@@ -281,9 +274,7 @@ export function TableCellElement({
 }: PlateElementProps & { isHeader?: boolean }) {
   const { api } = useEditorPlugin(TablePlugin);
   const readOnly = useReadOnly();
-  const rowDragHandle = useContext(RowDragHandleContext);
   const element = props.element as TTableCellElement;
-  const { col } = useCellIndices();
   const { colIndex, colSpan, minHeight, rowIndex } = useTableCellElement();
   const { rightProps } = useTableCellElementResizable({
     colIndex,
@@ -307,20 +298,6 @@ export function TableCellElement({
         'relative p-0 data-[table-cell-selected=true]:bg-tint-accent-1'
       )}
     >
-      {!readOnly && col === 0 && rowDragHandle && (
-        <button
-          ref={rowDragHandle.handleRef}
-          type="button"
-          aria-label="Drag table row"
-          title="Drag table row"
-          data-plate-prevent-deselect
-          contentEditable={false}
-          onClick={rowDragHandle.selectRow}
-          className="focus-visible:ring-focus absolute top-1/2 left-0 z-40 flex size-5 -translate-y-1/2 cursor-grab items-center justify-center rounded-row border border-line bg-surface text-fg-muted opacity-0 shadow-sm transition-opacity outline-none group-hover/row:opacity-100 hover:bg-surface-hover-bg hover:text-fg focus-visible:opacity-100 focus-visible:ring-2 active:cursor-grabbing"
-        >
-          <GripVertical className="size-3.5" />
-        </button>
-      )}
       <div
         className="box-border min-h-12 px-3 py-2"
         style={{ minHeight: Math.max(DEFAULT_ROW_HEIGHT, minHeight ?? 0) }}

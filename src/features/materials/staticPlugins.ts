@@ -53,7 +53,8 @@ import { noteMarkdownPlugin } from '@/features/notes/markdown';
 type AnyPlugin = any;
 
 const lowlight = createLowlight(common);
-const listTargets = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock, KEYS.img];
+// Keep preview behavior aligned with the editor: code blocks are not list items.
+const listTargets = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.img];
 
 /** Persisted custom study-block node types (quiz / flashcards / mermaid trees). */
 const CUSTOM_BLOCK_TYPES = [
@@ -113,7 +114,7 @@ const StaticListKit: AnyPlugin[] = [
     },
     render: {
       belowNodes: ((props: AnyPlugin) => {
-        if (!props.element.listStyleType) return;
+        if (!listTargets.includes(props.element.type) || !props.element.listStyleType) return;
 
         if (props.element.listStyleType === KEYS.listTodo) {
           return (nextProps: AnyPlugin) => {

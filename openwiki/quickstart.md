@@ -1,141 +1,91 @@
 ---
-type: Quickstart
-title: Evo Notes Quickstart
-description: Entry point for the Evo Notes code wiki. Covers project overview, local development setup, architecture summary, and links to all documentation sections.
-tags: [quickstart, overview]
+type: Reference
+title: Evo Notes — Quickstart
+description: Entry point for the evo-notes code wiki. Summarizes the project, tech stack, development commands, and links to all documentation sections.
+tags: [quickstart, overview, navigation]
 ---
 
-# Evo Notes — Quickstart
+# Evo Notes — Code Wiki
 
-Evo Notes is a study workspace application that combines note-taking, AI-powered document parsing, spaced repetition, quizzes, flashcards, and collaborative editing. It is a full-stack monorepo with a React/TypeScript frontend, a Go HTTP gateway, a Python RAG pipeline, and GPU-based document parsing via Modal.
+Evo Notes is a multi-service study platform: workspaces containing documents (notes, quizzes, flashcards, mindmaps, diagrams), AI-powered content generation, and a RAG pipeline for document-grounded chat. Users upload source files, the pipeline parses them into a knowledge graph, and the editor surfaces AI chat, completion, and generation tools built on that knowledge.
 
-## What This Wiki Covers
-
-| Section | What's Inside |
-|---------|--------------|
-| [Architecture Overview](architecture/overview.md) | System topology, request flow, service boundaries |
-| [Data Model](architecture/data-model.md) | Core entities, relationships, enums, material envelope, sharing model |
-| [Backend API & Auth](backend/api-and-auth.md) | HTTP API surface, auth modes, sharing/access control, billing, OAuth integrations |
-| [Frontend Editor & UI](frontend/editor-and-ui.md) | React app bootstrap, routing, Plate.js editor, collaboration, AI chat, state management |
-| [RAG Pipeline](pipeline/rag-pipeline.md) | LightRAG, document parsing backends, embedding/LLM models, ingest worker |
-| [Deployment & Operations](operations/deployment.md) | Docker stack, env vars, B2/Redis/Postgres, reconcile cron |
-| [Testing & E2E](testing/e2e.md) | Playwright e2e framework, test users, unit tests |
-
-## Quick Start
-
-### Prerequisites
-
-- **Node.js** + **pnpm** (frontend)
-- **Go 1.25** (gateway)
-- **Python 3.11+** + **uv** (pipeline)
-- **Docker** (recommended for full stack with Postgres + Redis)
-
-### 1. Full Stack via Docker
-
-```bash
-docker compose -f deploy/docker-compose.yml up --build
-# Gateway: http://localhost:8080
-# Frontend: pnpm dev (separately, or use VITE_USE_MSW=false to hit the real gateway)
-```
-
-Services in the compose stack: Postgres 16 (pgvector + Apache AGE), Redis 7, Go gateway, Python ingest worker, Python retrieval service. See [Deployment & Operations](operations/deployment.md) for details.
-
-### 2. Frontend-Only (MSW Mocks)
-
-```bash
-cp .env.example .env.local   # VITE_USE_MSW=true is default
-pnpm install
-pnpm dev                     # http://localhost:5173
-```
-
-MSW (Mock Service Worker) intercepts all `/api` calls and returns mock data, so no backend is needed for UI development.
-
-### 3. Frontend + Real Gateway
-
-```bash
-# Start the Go gateway (see server/README.md)
-cd server && go run ./cmd/api   # http://localhost:8080
-
-# Point the frontend at it
-VITE_USE_MSW=false pnpm dev
-```
-
-Vite proxies `/api` → `http://localhost:8080` (see `vite.config.ts`).
-
-### 4. Code Generation (OpenAPI → TypeScript)
-
-The Go gateway serves as the OpenAPI spec source of truth. The frontend uses orval to generate TypeScript API types, hooks, and Zod validators from the spec.
-
-```bash
-pnpm gen:openapi    # Generate openapi.yaml from Go server
-pnpm gen:api        # Generate TS types/hooks/validators via orval
-pnpm gen:api:msw    # Both in sequence
-```
-
-Generated files live in `src/api/gen/`. See [Frontend Editor & UI](frontend/editor-and-ui.md).
-
-## Key Concepts
-
-- **Workspace** — The top-level organizational unit. Owns files, materials, chapters. Can be private, link-shared, or public.
-- **Material** — A universal document envelope (migration `0010_unify_materials.sql` consolidated quizzes, flashcards, mindmaps, diagrams into one table). Content is a Plate.js JSON document.
-- **File/Source** — Uploaded source documents (PDF, DOCX, etc.) parsed through the RAG pipeline for AI chat and generation.
-- **Sharing Model** — Multi-layer access: owner, explicit workspace members (role-based), and shared non-members (link/public with share role). See [Backend API & Auth](backend/api-and-auth.md).
-- **Plate Editor** — Rich text editor (Plate.js v53) with collaboration features: suggestions, discussions, comments. See [Frontend Editor & UI](frontend/editor-and-ui.md).
-- **LightRAG** — Per-workspace RAG with pgvector embeddings and Apache AGE graph storage. See [RAG Pipeline](pipeline/rag-pipeline.md).
-
-## Tech Stack Summary
+## Tech Stack at a Glance
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 19, Vite 6, TanStack Router/Query, Plate.js, Tailwind CSS 4, Zustand, Clerk Auth |
-| Gateway | Go 1.25, chi v5, Huma v2 (OpenAPI-first), pgx/v5, Backblaze B2 |
-| Pipeline | Python 3.11, LightRAG, FastAPI, asyncpg/psycopg, boto3 |
-| Parsing | Modal GPU (MineRU), MinerU Lite API, Cloudflare Worker relay |
-| Infra | PostgreSQL 16 (pgvector + Apache AGE), Redis 7, Backblaze B2 |
-| Billing | Stripe (subscription tiers: free, pro, team) |
-| Testing | Vitest (unit), Playwright (e2e) |
+| **Frontend** | React 19, TypeScript, TanStack Router & Query, Plate.js (rich text), Vite, Tailwind CSS, Radix UI, Zustand |
+| **Backend** | Go (chi + huma), Postgres 16 with pgvector + Apache AGE, Backblaze B2 (S3-compatible blob), Redis |
+| **Pipeline** | Python 3.11, FastAPI, LightRAG (HKU v1.5), Modal (GPU document parsing), Whisper STT |
+| **Auth** | Clerk (JWT); dev/E2E bypass modes |
+| **Billing** | Stripe (checkout, portal, webhook reconciliation) |
+| **API Codegen** | Go → `openapi.yaml` (huma) → orval → TypeScript types + Zod validators |
+| **i18n** | Paraglide (en, zh) |
+| **Testing** | Vitest (frontend), `go test` (backend), Playwright (e2e), VCR cassettes (pipeline) |
 
-## Architecture Diagram
+## Repository Layout
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌───────────────┐
-│  Frontend   │────▶│  Go Gateway  │────▶│  Postgres 16  │
-│  (Vite+React)│     │  (server)    │     │ +pgvector+AGE │
-└─────────────┘     └──────┬───────┘     └───────┬───────┘
-                           │                     │
-                    ┌──────┴──────┐       ┌───────┴───────┐
-                    │  Redis 7    │       │  LightRAG     │
-                    │ (progress)  │       │  tables       │
-                    └──────┬──────┘       └───────────────┘
-                           │
-           ┌───────────────┼───────────────┐
-           │               │               │
-    ┌──────▼──────┐ ┌─────▼──────┐ ┌─────▼──────┐
-    │ Ingest      │ │ Retrieval  │ │  Backblaze │
-    │ Worker      │ │ FastAPI    │ │  B2 (blob) │
-    └──────┬──────┘ └────────────┘ └────────────┘
-           │
-    ┌──────▼──────────────────────────────┐
-    │  Parsing Backends:                   │
-    │  ├─ Modal GPU MineRU (advanced)      │
-    │  ├─ MinerU Lite free API (normal)    │
-    │  │  └─ via Cloudflare Worker relay   │
-    │  └─ Direct RAW insert (txt/md)       │
-    └──────────────────────────────────────┘
+/server          Go HTTP gateway (chi + huma, Postgres, B2, Redis, Stripe, Clerk)
+/src             React frontend (routing, features, Plate editor, design system, mocks)
+/pipeline        Python RAG service (LightRAG, ingest worker, retrieval API, Modal parser)
+/modal           Modal serverless GPU app (MineRU document parsing)
+/cloudflare      Cloudflare Worker (B2 → MinerU OSS relay)
+/deploy          Docker Compose (dev + e2e stacks), Postgres+pgvector+AGE image
+/e2e             Playwright e2e tests with isolated Docker compose
+/openapi.yaml    OpenAPI 3.0.3 spec (generated from Go server)
 ```
 
-See [Architecture Overview](architecture/overview.md) for detailed request/data flow.
+## Development Commands
+
+```bash
+# Frontend
+pnpm install
+pnpm dev              # Vite dev server (MSW mocks on by default)
+
+# Backend (needs Postgres — use Docker Compose below)
+cd server && go run ./cmd/api
+
+# Full local stack (Postgres + Redis + Go server + pipeline)
+cd deploy && docker compose up
+
+# API code generation
+pnpm gen:api:msw      # Go → openapi.yaml → orval TS types + Zod validators
+pnpm gen:api:watch    # Watch mode (pairs with `air` in server/)
+
+# Tests
+pnpm test             # Vitest frontend unit tests
+pnpm e2e               # Playwright e2e (auto-starts Docker compose)
+cd server && go test ./internal/...  # Go backend tests
+cd pipeline && pytest  # Python pipeline tests (offline + cassette)
+```
+
+### Key Environment Variables
+
+- `VITE_USE_MSW` — `true` (default) uses MSW mocks; `false` proxies `/api` to the Go server
+- `DATABASE_URL` — Postgres connection string
+- `PIPELINE_URL` — Python retrieval service URL (unset → pipeline features disabled)
+- `CLERK_SECRET_KEY` / `AUTH_DISABLED` — Clerk JWT validation or dev bypass
+- See `server/.env.example`, `pipeline/.env.example`, `deploy/.env.example` for full reference
+
+## Documentation Sections
+
+- [Architecture Overview](architecture/overview.md) — system topology, data flow, service responsibilities
+- [Backend: API & Store](backend/api-and-store.md) — Go gateway, HTTP handlers, data model, auth, blob storage, material document validation
+- [Frontend: Editor & UI](frontend/editor-and-ui.md) — React app architecture, Plate.js editor, routing, API layer, design system
+- [Frontend: Plate.js Editor Deep Dive](frontend/plate-editor.md) — Plate/Slate architecture and the repo's interactive/static editor, persistence, collaboration, AI, media, and extension flows
+- [Pipeline: RAG](pipeline/rag-pipeline.md) — LightRAG, ingest worker, retrieval API, Modal GPU parsing, Cloudflare relay
+- [Operations: Deployment](operations/deployment.md) — Docker Compose, env vars, Postgres image, CI/CD
+- [Testing](testing/e2e-and-unit.md) — Vitest, Go tests, Playwright e2e, pipeline VCR cassettes
+
+## How the Services Connect
+
+The frontend talks exclusively to the Go gateway at `/api`. The gateway handles all CRUD against Postgres, presigned B2 uploads/downloads, Clerk auth, and Stripe webhooks. For AI features (chat, completion, generation, transcription), the gateway proxies requests to the Python retrieval service. The retrieval service queries LightRAG (which stores embeddings in pgvector and knowledge graph in Apache AGE within the same Postgres instance) and streams responses back over SSE. Document ingestion runs in a separate Python worker process that polls a Postgres job queue, fetches source files from B2, parses them on Modal GPU, and inserts them into LightRAG. Progress is published to Redis and fanned out to the browser via SSE.
+
+See [Architecture Overview](architecture/overview.md) for the full topology diagram.
 
 ## Backlog
 
-| Area | Source Anchor | Reason Deferred |
-|------|--------------|----------------|
-| Input validation & sanitization | `todo` line 3 | Low priority per maintainer notes |
-| Error handling improvements | `todo` line 4 | Low priority per maintainer notes |
-| Pagination | `todo` line 6 | Not yet implemented |
-| Soft-delete for files | `todo` line 20 | Not yet implemented |
-| Rate limiting & analytics | `todo` line 11 | Not yet implemented |
-| Excalidraw canvas feature | `src/routes/Canvas.tsx` | Minimal exploration, not a primary domain |
-| Schedule (calendar) feature | `src/features/schedule/` | Secondary feature, not deeply documented |
-| Tasks feature | `src/routes/Tasks.tsx` | Secondary feature, not deeply documented |
-| Thinking space | `src/routes/Thinking.tsx` | Minimal exploration, not a primary domain |
+- **Detailed API endpoint reference** (60+ endpoints) — The `openapi.yaml` spec is the canonical source; a human-readable endpoint catalog is deferred.
+- **Billing/Stripe deep dive** — Customer sync, checkout, portal, webhook reconciliation, and the `cmd/reconcile` cron are noted but not fully documented.
+- **OAuth integration details** (Google Drive / OneDrive import) — Token management and file listing flows are noted but deferred.
+- **Thinking space** (Excalidraw canvas) — Feature-flagged, minimal coverage.

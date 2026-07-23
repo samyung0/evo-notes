@@ -12,15 +12,14 @@ import {
 import { Check, ExternalLink, Pencil, Unlink, X } from 'lucide-react';
 import { useEditorPlugin, useEditorRef, usePluginOption } from 'platejs/react';
 import { cn } from '@/lib/cn';
-
-const actionClass =
-  'inline-flex h-8 items-center gap-1.5 rounded-row px-2 text-sm text-fg outline-none hover:bg-surface-hover-bg focus-visible:ring-2 focus-visible:ring-focus [&_svg]:size-4';
+import { FloatingActionButton } from './nodeComponents';
 
 export function LinkFloatingToolbar() {
   const editor = useEditorRef();
-  const { api } = useEditorPlugin(LinkPlugin);
+  const { api, setOption } = useEditorPlugin(LinkPlugin);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const url = String(usePluginOption(LinkPlugin, 'url') ?? '');
+  const text = String(usePluginOption(LinkPlugin, 'text') ?? '');
   const floatingOptions = useMemo<UseVirtualFloatingOptions>(
     () => ({
       middleware: [
@@ -48,7 +47,7 @@ export function LinkFloatingToolbar() {
       <form
         ref={ref}
         style={props.style}
-        className="z-50 w-80 rounded-card border border-line bg-surface p-2 shadow-pop"
+        className="z-50 flex w-80 flex-col gap-2 rounded-card border border-line bg-surface p-2 shadow-pop"
         onSubmit={(event) => {
           event.preventDefault();
           setAttemptedSubmit(true);
@@ -57,7 +56,8 @@ export function LinkFloatingToolbar() {
           setAttemptedSubmit(false);
         }}
       >
-        <div className="flex items-center gap-1">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-fg-muted">Link URL</span>
           <FloatingLinkUrlInput
             aria-label="Link URL"
             aria-invalid={invalid}
@@ -68,19 +68,24 @@ export function LinkFloatingToolbar() {
             )}
             placeholder="https://example.com"
           />
-          <button type="submit" className={actionClass} aria-label="Save link" title="Save link">
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-fg-muted">Displayed text</span>
+          <input
+            aria-label="Displayed text"
+            className="focus:ring-focus h-8 min-w-0 rounded-input border border-line bg-surface px-2 text-sm outline-none focus:border-line-strong focus:ring-2"
+            placeholder="Use the URL as text"
+            value={text}
+            onChange={(event) => setOption('text', event.target.value)}
+          />
+        </label>
+        <div className="flex items-center justify-end gap-0.5">
+          <FloatingActionButton label="Save link" type="submit">
             <Check />
-          </button>
-          <button
-            type="button"
-            className={actionClass}
-            aria-label="Cancel link editing"
-            title="Cancel"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={cancelEdit}
-          >
+          </FloatingActionButton>
+          <FloatingActionButton label="Cancel link editing" onClick={cancelEdit}>
             <X />
-          </button>
+          </FloatingActionButton>
         </div>
         {invalid && (
           <p role="alert" className="mt-1.5 text-xs text-solid-error">
@@ -95,29 +100,21 @@ export function LinkFloatingToolbar() {
     <div
       ref={ref}
       style={props.style}
-      className="z-50 flex items-center gap-0.5 rounded-card border border-line bg-surface p-1 shadow-pop"
+      role="toolbar"
+      aria-label="Link actions"
+      className="z-50 flex w-auto max-w-[90vw] min-w-14 items-center justify-center gap-0.5 overflow-x-auto rounded-card border border-line bg-surface p-1 shadow-pop"
     >
-      <button
-        type="button"
-        className={actionClass}
-        {...editButtonProps}
-        onMouseDown={(event) => event.preventDefault()}
-      >
+      <FloatingActionButton label="Edit link" {...editButtonProps}>
         <Pencil />
-        Edit
-      </button>
-      <LinkOpenButton
-        className={actionClass}
-        rel="noopener noreferrer"
-        title="Open link in a new tab"
-      >
-        <ExternalLink />
-        Open
-      </LinkOpenButton>
-      <button type="button" className={actionClass} {...unlinkButtonProps}>
+      </FloatingActionButton>
+      <FloatingActionButton asChild label="Open link in a new tab">
+        <LinkOpenButton rel="noopener noreferrer">
+          <ExternalLink />
+        </LinkOpenButton>
+      </FloatingActionButton>
+      <FloatingActionButton label="Remove link" {...unlinkButtonProps}>
         <Unlink />
-        Remove
-      </button>
+      </FloatingActionButton>
     </div>
   );
 }

@@ -1,3 +1,3 @@
 # Files
 
-- [RAG Pipeline](rag-pipeline.md) - Python RAG pipeline for Evo Notes. Covers LightRAG per-workspace isolation, document parsing backends (Modal GPU MineRU, MinerU Lite, direct insert), embedding/LLM model providers, ingest worker flow, and B2 blob storage.
+- [Pipeline: RAG](rag-pipeline.md) - Python RAG pipeline for evo-notes — LightRAG factory, ingest worker, retrieval FastAPI service, Modal GPU document parsing, MinerU Lite cloud, Cloudflare relay, workspace clone, and Plate AI adapter.

@@ -29,17 +29,24 @@ low priority:
 
 high PRIORITIES:
 
-1. fix the suggestion mode
-2. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
-3. add layout adjust in editor to make the document smaller or larger in width
-4. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
-5. set loading state for submit buttons (esp dialogs)
-6. remove all the <Text> components
-7. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
-8. add icons for common file format
-9. export to diff files
-10. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
-11. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
+5. the ai plugin popover should be at the same position as the command dropdown (when typing slash), it should default show below cursor and move to above if theres not enough space
+6. fix the suggestion mode
+7. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
+8. add layout adjust in editor to make the document smaller or larger in width
+9. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
+10. set loading state for submit buttons (esp dialogs)
+11. remove all the <Text> components
+12. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
+13. add icons for common file format
+14. export to diff files
+15. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
+16. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
+
+subscription todo
+
+1. free user gets 7 days of content version histories (materials.revision), after that it gets auto deleted, premium users get 30 days
+2. free user gets 1GB free storage space (includes all files, plate json, assets uploaded through plate), prob need some reconciliation jobs by calculating using blackblaze api (? does this incur bucket usages) vs backend recorded storage usages
+3. token usages (reconciliation from telementry?)
 
 rag system caution
 chapter scoped query/filtering is only soft steered using prompt, underlying reason why hard filtering during query is quite impossible is because after ingestion, an entity can be pointed to by multiple documents

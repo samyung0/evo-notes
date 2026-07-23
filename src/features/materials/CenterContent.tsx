@@ -33,10 +33,7 @@ import {
 } from './modePolicy';
 import type { OpenItem } from './openItem';
 import { type MaterialKind, UserColor } from '@/api/types';
-import {
-  noteEditorStatusLabel,
-  type NoteEditorStatus,
-} from '@/features/notes/editorMode';
+import { noteEditorStatusLabel, type NoteEditorStatus } from '@/features/notes/editorMode';
 import { cn } from '@/lib/cn';
 
 /* Interactive Plate is the heaviest chunk in this route. View and study modes
@@ -419,7 +416,7 @@ function useHeader(item: OpenItem): {
 
 export function FileLoading() {
   return (
-    <div className="flex h-full flex-1 flex-col items-center justify-center gap-3">
+    <div className="t-subtitle flex h-full flex-1 flex-col items-center justify-center gap-3">
       <Spinner />
       <p>Loading preview...</p>
     </div>
@@ -428,7 +425,7 @@ export function FileLoading() {
 
 export function FileError() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
+    <div className="t-subtitle flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
       <p className="mt-3">Unable to load file. Please refresh and try again.</p>
     </div>
   );
@@ -436,7 +433,7 @@ export function FileError() {
 
 export function FileEmpty() {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
+    <div className="t-subtitle flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
       <p className="mt-3">The file is empty or corrupted. Please reupload and try again.</p>
     </div>
   );

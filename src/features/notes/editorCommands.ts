@@ -3,6 +3,7 @@ import type { WidgetGroupId } from './noteEditorPrefs';
 import type { NoteBlockDialogsApi } from './blocks/dialogContext';
 import { customBlockNode } from './blocks/shared';
 import { insertMediaPlaceholder } from './MediaNodes';
+import { toggleEditorBlock } from './editorTransforms';
 import { insertEditorNode, type NoteEditorInstance } from './insertEditorNode';
 
 export { insertEditorNode, type NoteEditorInstance } from './insertEditorNode';
@@ -29,7 +30,7 @@ function blockCommand(id: string, label: string, type: string, keywords: string[
     keywords,
     run: (editor: NoteEditorInstance) => {
       editor.tf.focus();
-      editor.tf.toggleBlock(type);
+      toggleEditorBlock(editor, type);
     },
   } satisfies EditorCommand;
 }

@@ -46,9 +46,21 @@ func hErr(err error) error {
 	return huma.Error500InternalServerError(err.Error())
 }
 
+const materialRequestMaxBytes = 3 << 20
+
 // reg is a thin wrapper over huma.Register that sets the common operation
 // fields; type params are inferred from the handler.
 func reg[I, O any](api huma.API, method, path, id, tag, summary string, status int, h func(context.Context, *I) (*O, error)) {
+	regWithMaxBody(api, method, path, id, tag, summary, status, 0, h)
+}
+
+func regWithMaxBody[I, O any](
+	api huma.API,
+	method, path, id, tag, summary string,
+	status int,
+	maxBodyBytes int64,
+	h func(context.Context, *I) (*O, error),
+) {
 	huma.Register(api, huma.Operation{
 		OperationID:   id,
 		Method:        method,
@@ -56,6 +68,7 @@ func reg[I, O any](api huma.API, method, path, id, tag, summary string, status i
 		Summary:       summary,
 		Tags:          []string{tag},
 		DefaultStatus: status,
+		MaxBodyBytes:  maxBodyBytes,
 	}, h)
 }
 

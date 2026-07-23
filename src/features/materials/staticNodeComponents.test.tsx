@@ -84,8 +84,25 @@ describe('static study-block renderers', () => {
     expect(html).toContain('Check this first');
     expect(html).toContain('TypeScript');
     expect(html).toContain('const');
+    expect(html).toContain('hljs-keyword');
     expect(html).toContain(' ready = ');
     expect(html).toContain('true');
+  });
+
+  it('does not render code blocks with persisted list metadata as list items', () => {
+    const html = renderMaterial([
+      {
+        type: 'code_block',
+        listStyleType: 'disc',
+        indent: 1,
+        children: [{ type: 'code_line', children: [{ text: 'const ready = true;' }] }],
+      },
+    ]);
+
+    expect(html).not.toContain('role="listitem"');
+    expect(html).not.toContain('<ul');
+    expect(html).not.toContain('<ol');
+    expect(html).toContain('const ready');
   });
 
   it('preserves persisted column ratios in previews', () => {

@@ -1,3 +1,3 @@
 # Files
 
-- [Testing & E2E](e2e.md) - Testing strategy for Evo Notes. Covers Playwright e2e framework, test users and roles, workspace sharing/access tests, and Vitest unit tests.
+- [Testing](e2e-and-unit.md) - Testing strategy for evo-notes — Vitest frontend unit tests, Go backend tests, Playwright e2e with isolated Docker compose, and pipeline VCR cassette tests.

@@ -1,42 +1,4 @@
 import {
-  useCallback,
-  useEffect,
-  useState,
-  type CSSProperties,
-  type FocusEvent,
-  type KeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-  type MutableRefObject,
-  type Ref,
-} from 'react';
-import { useDraggable, useDropLine } from '@platejs/dnd';
-import { setColumns } from '@platejs/layout';
-import { useLink } from '@platejs/link/react';
-import { useTocElementState } from '@platejs/toc/react';
-import {
-  Check,
-  CircleAlert,
-  CircleCheck,
-  CircleX,
-  Clipboard,
-  Columns2,
-  Columns3,
-  GripHorizontal,
-  Info,
-  PanelLeft,
-  PanelRight,
-  Trash2,
-} from 'lucide-react';
-import { NodeApi, PathApi, type TLinkElement } from 'platejs';
-import {
-  PlateElement,
-  PlateLeaf,
-  type PlateElementProps,
-  type PlateLeafProps,
-  useEditorRef,
-  useReadOnly,
-} from 'platejs/react';
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -45,6 +7,36 @@ import {
 } from '@/components/ui/Select';
 import { Katex } from '@/features/materials/Katex';
 import { cn } from '@/lib/cn';
+import { isOrderedList } from '@platejs/list';
+import { useLink } from '@platejs/link/react';
+import { useTocElementState } from '@platejs/toc/react';
+import {
+  Check,
+  CircleAlert,
+  CircleCheck,
+  CircleX,
+  Clipboard,
+  GripVertical,
+  Info,
+} from 'lucide-react';
+import { KEYS, NodeApi, type TLinkElement } from 'platejs';
+import {
+  PlateElement,
+  PlateLeaf,
+  useEditorRef,
+  useReadOnly,
+  type PlateElementProps,
+  type PlateLeafProps,
+} from 'platejs/react';
+import {
+  useEffect,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
+import { Slot } from 'radix-ui';
+import { Column, ColumnGroup } from './ColumnNodes';
 import { MediaAssetElement } from './MediaNodes';
 import { MentionInputElement } from './MentionInput';
 import {
@@ -53,8 +45,6 @@ import {
   CALLOUT_CLASS,
   CODE_BLOCK_CLASS,
   CODE_MARK_CLASS,
-  COLUMN_CLASS,
-  COLUMN_GROUP_CLASS,
   EQUATION_BLOCK_CLASS,
   HEADING_CLASS,
   HIGHLIGHT_MARK_CLASS,
@@ -77,10 +67,8 @@ import {
   CALLOUT_VARIANTS,
   CALLOUT_VARIANT_CLASS,
   CODE_BLOCK_LANGUAGES,
-  COLUMN_LAYOUTS,
   getCodeBlockLanguageLabel,
   normalizeCalloutVariant,
-  shouldInsertCodeLine,
   type CalloutVariant,
 } from './richBlockConfig';
 import {
@@ -91,6 +79,38 @@ import {
 } from './TableNodes';
 
 /* ------------------------------------------------------------- block elements */
+
+export function FloatingActionButton({
+  children,
+  label,
+  onClick,
+  className,
+  asChild = false,
+  ...rest
+}: React.ComponentProps<'button'> & {
+  label: string;
+  asChild?: boolean;
+}) {
+  const Component = asChild ? Slot.Root : 'button';
+
+  return (
+    <Component
+      type={asChild ? undefined : 'button'}
+      aria-label={label}
+      title={label}
+      data-plate-prevent-deselect
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={onClick}
+      className={cn(
+        'z-10 flex size-8 shrink-0 items-center justify-center rounded-row text-fg-muted outline-none hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2 focus-visible:ring-action active:cursor-grabbing [&_svg]:size-4',
+        className
+      )}
+      {...rest}
+    >
+      {children}
+    </Component>
+  );
+}
 
 function heading(tag: keyof HTMLElementTagNameMap, key: string) {
   return function Heading(props: PlateElementProps) {
@@ -103,8 +123,18 @@ function heading(tag: keyof HTMLElementTagNameMap, key: string) {
 }
 
 function Paragraph(props: PlateElementProps) {
+  const element = props.element as { listStyleType?: string };
+  const isNumberedList =
+    element.listStyleType !== undefined &&
+    element.listStyleType !== KEYS.listTodo &&
+    isOrderedList(props.element);
+
   return (
-    <PlateElement {...props} as="p" className={PARAGRAPH_CLASS}>
+    <PlateElement
+      {...props}
+      as="p"
+      className={cn(PARAGRAPH_CLASS, isNumberedList && 'before:left-6')}
+    >
       {props.children}
     </PlateElement>
   );
@@ -133,34 +163,13 @@ function CodeBlock(props: PlateElementProps) {
   const editor = useEditorRef();
   const readOnly = useReadOnly();
   const [copied, setCopied] = useState(false);
-  const language = String((props.element as { lang?: string }).lang || 'plaintext');
+  const language = String((props.element as { lang?: string }).lang || 'auto');
 
   useEffect(() => {
     if (!copied) return;
     const timeout = window.setTimeout(() => setCopied(false), 2000);
     return () => window.clearTimeout(timeout);
   }, [copied]);
-
-  const attributes = {
-    ...props.attributes,
-    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
-      if (
-        !shouldInsertCodeLine({
-          altKey: event.altKey,
-          ctrlKey: event.ctrlKey,
-          isComposing: event.nativeEvent.isComposing,
-          key: event.key,
-          metaKey: event.metaKey,
-        })
-      ) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      editor.tf.insertBreak();
-    },
-  } as PlateElementProps['attributes'];
 
   const copy = async () => {
     try {
@@ -172,16 +181,10 @@ function CodeBlock(props: PlateElementProps) {
   };
 
   return (
-    <PlateElement
-      {...props}
-      as="pre"
-      attributes={attributes}
-      className={CODE_BLOCK_CLASS}
-      data-language={language}
-    >
+    <PlateElement {...props} as="pre" className={CODE_BLOCK_CLASS} data-language={language}>
       <div
         contentEditable={false}
-        className="absolute top-1.5 right-1.5 z-10 flex h-7 items-center gap-1 rounded-row border border-line bg-surface/95 p-0.5 font-sans shadow-sm"
+        className="absolute top-1 right-1 z-10 flex h-7 items-center gap-0.5 font-sans"
       >
         {readOnly ? (
           <span className="px-2 text-[11px] text-fg-muted">
@@ -197,10 +200,11 @@ function CodeBlock(props: PlateElementProps) {
           >
             <SelectTrigger
               aria-label="Code language"
-              className="h-6 w-auto min-w-24 gap-1 bg-transparent px-2 py-0 text-[11px]"
+              className="h-full w-auto translate-y-px bg-transparent py-0 pr-1.5 pl-2 font-semibold text-fg-muted hover:text-fg"
               size="sm"
               variant="noOutline"
               data-plate-prevent-deselect
+              showDownIcon={false}
             >
               <SelectValue />
             </SelectTrigger>
@@ -218,7 +222,7 @@ function CodeBlock(props: PlateElementProps) {
           aria-label={copied ? 'Code copied' : 'Copy code'}
           title={copied ? 'Copied' : 'Copy code'}
           data-plate-prevent-deselect
-          className="flex size-6 items-center justify-center rounded-row text-fg-muted hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2 focus-visible:ring-action"
+          className="flex size-6 items-center justify-center rounded-md bg-transparent text-fg-muted hover:bg-line/50 hover:text-fg focus-visible:ring-2 focus-visible:ring-action"
           onClick={() => void copy()}
         >
           {copied ? <Check className="size-3.5" /> : <Clipboard className="size-3.5" />}
@@ -352,130 +356,6 @@ function Callout(props: PlateElementProps) {
             </SelectContent>
           </Select>
         </div>
-      )}
-    </PlateElement>
-  );
-}
-
-/* columns */
-function ColumnGroup(props: PlateElementProps) {
-  const editor = useEditorRef();
-  const readOnly = useReadOnly();
-
-  const changeLayout = (widths: string[]) => {
-    setColumns(editor, { at: props.element, widths });
-  };
-
-  const remove = () => {
-    const at = editor.api.findPath(props.element);
-    if (at) editor.tf.removeNodes({ at });
-  };
-
-  return (
-    <PlateElement {...props} className={COLUMN_GROUP_CLASS}>
-      {props.children}
-      {!readOnly && (
-        <div
-          contentEditable={false}
-          className="pointer-events-none absolute top-0 right-0 z-10 flex items-center gap-0.5 rounded-row border border-line bg-surface p-0.5 opacity-0 shadow-sm transition-opacity group-focus-within/columns:pointer-events-auto group-focus-within/columns:opacity-100 group-hover/columns:pointer-events-auto group-hover/columns:opacity-100"
-        >
-          {COLUMN_LAYOUTS.map((layout) => {
-            const LayoutIcon =
-              layout.value === 'equal-3'
-                ? Columns3
-                : layout.value === 'left-wide'
-                  ? PanelRight
-                  : layout.value === 'right-wide'
-                    ? PanelLeft
-                    : Columns2;
-            return (
-              <button
-                key={layout.value}
-                type="button"
-                aria-label={layout.label}
-                title={layout.label}
-                data-plate-prevent-deselect
-                className="flex size-7 items-center justify-center rounded-row text-fg-muted hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2 focus-visible:ring-action"
-                onClick={() => changeLayout(layout.widths)}
-              >
-                <LayoutIcon className="size-4" />
-              </button>
-            );
-          })}
-          <div className="mx-0.5 h-4 w-px bg-divider" />
-          <button
-            type="button"
-            aria-label="Delete columns"
-            title="Delete columns"
-            data-plate-prevent-deselect
-            className="flex size-7 items-center justify-center rounded-row text-fg-muted hover:bg-tint-error hover:text-tint-error-fg focus-visible:ring-2 focus-visible:ring-action"
-            onClick={remove}
-          >
-            <Trash2 className="size-4" />
-          </button>
-        </div>
-      )}
-    </PlateElement>
-  );
-}
-
-function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (typeof ref === 'function') {
-    ref(value);
-  } else if (ref) {
-    (ref as MutableRefObject<T | null>).current = value;
-  }
-}
-
-function Column(props: PlateElementProps) {
-  const readOnly = useReadOnly();
-  const width = (props.element as { width?: string }).width;
-  const { isDragging, nodeRef, previewRef, handleRef } = useDraggable({
-    element: props.element,
-    orientation: 'horizontal',
-    type: 'column',
-    canDropNode: ({ dragEntry, dropEntry }) =>
-      PathApi.equals(PathApi.parent(dragEntry[1]), PathApi.parent(dropEntry[1])),
-  });
-  const { dropLine } = useDropLine({ orientation: 'horizontal' });
-  const composedRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      assignRef(props.ref, node);
-      assignRef(nodeRef, node);
-      assignRef(previewRef, node);
-    },
-    [nodeRef, previewRef, props.ref]
-  );
-
-  return (
-    <PlateElement
-      {...props}
-      ref={composedRef}
-      className={cn(COLUMN_CLASS, isDragging && 'opacity-45')}
-      style={width ? ({ '--column-width': width } as CSSProperties) : undefined}
-    >
-      {!readOnly && (
-        <button
-          ref={handleRef}
-          type="button"
-          contentEditable={false}
-          data-plate-prevent-deselect
-          aria-label="Drag to reorder column"
-          title="Drag to reorder column"
-          className="absolute top-1 left-1/2 z-10 flex h-5 -translate-x-1/2 cursor-grab items-center justify-center rounded-row px-1.5 text-fg-muted opacity-0 group-hover/column:opacity-100 hover:bg-surface-hover-bg hover:text-fg active:cursor-grabbing"
-        >
-          <GripHorizontal className="size-4" />
-        </button>
-      )}
-      {props.children}
-      {dropLine && (
-        <div
-          contentEditable={false}
-          className={cn(
-            'absolute inset-y-0 z-20 w-0.5 bg-action-accent',
-            dropLine === 'left' ? '-left-1' : '-right-1'
-          )}
-        />
       )}
     </PlateElement>
   );
@@ -620,8 +500,17 @@ function mark(tag: keyof HTMLElementTagNameMap, className?: string) {
 
 const Code = mark('code', CODE_MARK_CLASS);
 const Highlight = mark('mark', HIGHLIGHT_MARK_CLASS);
-const CodeSyntax = mark('span');
 const Kbd = mark('kbd', KBD_MARK_CLASS);
+
+function CodeSyntax(props: PlateLeafProps) {
+  const tokenClassName = props.leaf.className as string | undefined;
+
+  return (
+    <PlateLeaf {...props} as="span" className={tokenClassName}>
+      {props.children}
+    </PlateLeaf>
+  );
+}
 
 /* ------------------------------------------------------------- components map */
 

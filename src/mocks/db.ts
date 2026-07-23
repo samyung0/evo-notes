@@ -35,11 +35,26 @@ import {
   quizElementToBlock,
   quizNode,
   type FlashcardsElement,
+  type MaterialValue,
   type QuizElement,
 } from '@/features/materials/document';
 import { isDue, isKnown, newSrsState, reviewSrs } from '@/lib/srs';
+import {
+  buildLargePerfDocument,
+  buildSmallPerfDocument,
+  PERF_LARGE_NOTE,
+  PERF_SMALL_NOTE,
+} from './perfSeed';
 
 export const uid = (p = 'id') => `${p}_${Math.random().toString(36).slice(2, 9)}`;
+
+export function materialContentBytes(content: Material['content']): number {
+  return new TextEncoder().encode(JSON.stringify(content)).byteLength;
+}
+
+export function refreshMaterialContentBytes(material: Material): void {
+  material.contentBytes = materialContentBytes(material.content);
+}
 
 /** Wrap bare strings as {value} rows (matches useFieldArray-friendly shapes). */
 const wv = (...ss: string[]) => ss.map((value) => ({ value }));
@@ -1128,6 +1143,32 @@ seedDecks.forEach((d, i) => {
     createdAt: days(5 + i),
   });
 });
+/* ---------------- perf harness fixtures (e2e/perf) ---------------- */
+if (import.meta.env.VITE_PERF_SEED === 'true') {
+  for (const [note, content] of [
+    [PERF_LARGE_NOTE, buildLargePerfDocument()],
+    [PERF_SMALL_NOTE, buildSmallPerfDocument()],
+  ] as const) {
+    materials.push({
+      id: note.id,
+      workspaceId: 'ws_bio',
+      workspaceName: 'Biology 101',
+      role: 'owner',
+      capabilities: ownerCapabilities,
+      kind: 'note',
+      title: note.title,
+      content: createMaterialDocument(content.value as MaterialValue),
+      chapterId: null,
+      scopeChapters: [],
+      scopeFileIds: [],
+      privacy: 'private',
+      createdAt: days(1),
+      revision: 1,
+    });
+  }
+}
+
+for (const material of materials) refreshMaterialContentBytes(material);
 
 /** Derive the typed Quiz view from a quiz material (questions from the fence). */
 export function quizFromMaterial(mt: Material): Quiz {

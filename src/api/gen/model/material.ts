@@ -18,6 +18,8 @@ export interface Material {
   chapterId: string | null;
   color?: UserColor;
   content: Envelope;
+  /** UTF-8 byte length of persisted content JSON */
+  contentBytes: number;
   createdAt: string;
   id: string;
   isOwner: boolean;

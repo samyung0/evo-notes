@@ -836,6 +836,7 @@ export const GetMaterialResponse = zod.object({
     schemaVersion: zod.number(),
     value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
   }),
+  contentBytes: zod.number().describe('UTF-8 byte length of persisted content JSON'),
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   isOwner: zod.boolean(),
@@ -886,34 +887,10 @@ export const UpdateMaterialBody = zod.object({
 
 export const UpdateMaterialResponse = zod.object({
   $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
-  capabilities: zod.object({
-    canComment: zod.boolean(),
-    canEdit: zod.boolean(),
-    canManageMembers: zod.boolean(),
-    canView: zod.boolean(),
-  }),
-  chapterId: zod.string().nullable(),
-  color: zod
-    .enum(['green', 'purple', 'blue', 'amber', 'coral', 'graphite', 'transparent'])
-    .optional(),
-  content: zod.object({
-    schemaVersion: zod.number(),
-    value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
-  }),
-  createdAt: zod.iso.datetime({ offset: true }),
+  contentBytes: zod.number().describe('UTF-8 byte length of persisted content JSON'),
   id: zod.string(),
-  isOwner: zod.boolean(),
-  kind: zod.string(),
-  position: zod.number(),
-  privacy: zod.enum(['private', 'public', 'link']),
   revision: zod.number(),
-  role: zod.enum(['owner', 'editor', 'commenter', 'viewer']).optional(),
-  scopeChapters: zod.array(zod.string()),
-  scopeFileIds: zod.array(zod.string()),
-  title: zod.string(),
   updatedAt: zod.iso.datetime({ offset: true }),
-  workspaceId: zod.string(),
-  workspaceName: zod.string(),
 });
 
 /**
@@ -939,6 +916,7 @@ export const CloneMaterialResponse = zod.object({
     schemaVersion: zod.number(),
     value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
   }),
+  contentBytes: zod.number().describe('UTF-8 byte length of persisted content JSON'),
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   isOwner: zod.boolean(),
@@ -1914,6 +1892,7 @@ export const CreateMaterialResponse = zod.object({
     schemaVersion: zod.number(),
     value: zod.array(zod.record(zod.string(), zod.unknown())).nullable(),
   }),
+  contentBytes: zod.number().describe('UTF-8 byte length of persisted content JSON'),
   createdAt: zod.iso.datetime({ offset: true }),
   id: zod.string(),
   isOwner: zod.boolean(),

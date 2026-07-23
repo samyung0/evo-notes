@@ -59,11 +59,6 @@ export function FileListItem({
   return (
     <div className="flex flex-col">
       <div
-        draggable={!processing && !readOnly}
-        onDragStart={(e) => {
-          e.dataTransfer.setData('application/x-evo-file', file.id);
-          e.dataTransfer.effectAllowed = 'move';
-        }}
         className={cn(
           'group relative flex items-center rounded-row pr-8 hover:bg-surface-hover-bg',
           active && 'bg-surface-hover-bg'

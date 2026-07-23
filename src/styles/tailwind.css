@@ -260,3 +260,76 @@
     cursor: pointer;
   }
 }
+
+@layer components {
+  /* lowlight emits highlight.js token classes on code-syntax leaves. */
+  .note-editor pre .hljs-comment,
+  .note-editor pre .hljs-code,
+  .note-editor pre .hljs-formula {
+    color: var(--text-muted);
+  }
+
+  .note-editor pre .hljs-comment {
+    font-style: italic;
+  }
+
+  .note-editor pre .hljs-keyword,
+  .note-editor pre .hljs-doctag,
+  .note-editor pre .hljs-template-tag,
+  .note-editor pre .hljs-template-variable,
+  .note-editor pre .hljs-type,
+  .note-editor pre .hljs-variable.language_ {
+    color: var(--tint-error-fg);
+  }
+
+  .note-editor pre .hljs-string,
+  .note-editor pre .hljs-regexp {
+    color: var(--tint-info-fg);
+  }
+
+  .note-editor pre .hljs-number,
+  .note-editor pre .hljs-literal,
+  .note-editor pre .hljs-attr,
+  .note-editor pre .hljs-attribute,
+  .note-editor pre .hljs-meta,
+  .note-editor pre .hljs-operator,
+  .note-editor pre .hljs-selector-attr,
+  .note-editor pre .hljs-selector-class,
+  .note-editor pre .hljs-selector-id,
+  .note-editor pre .hljs-variable {
+    color: var(--text-link);
+  }
+
+  .note-editor pre .hljs-title,
+  .note-editor pre .hljs-name,
+  .note-editor pre .hljs-quote,
+  .note-editor pre .hljs-selector-tag,
+  .note-editor pre .hljs-selector-pseudo {
+    color: var(--tint-success-fg);
+  }
+
+  .note-editor pre .hljs-built_in,
+  .note-editor pre .hljs-symbol {
+    color: var(--tint-warning-fg);
+  }
+
+  .note-editor pre .hljs-section,
+  .note-editor pre .hljs-strong {
+    color: var(--text-link);
+    font-weight: 700;
+  }
+
+  .note-editor pre .hljs-emphasis {
+    font-style: italic;
+  }
+
+  .note-editor pre .hljs-addition {
+    color: var(--tint-success-fg);
+    background-color: var(--tint-success-bg);
+  }
+
+  .note-editor pre .hljs-deletion {
+    color: var(--tint-error-fg);
+    background-color: var(--tint-error-bg);
+  }
+}

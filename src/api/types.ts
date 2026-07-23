@@ -248,6 +248,8 @@ export interface Material {
   title: string;
   /** Versioned Universal Plate document. */
   content: import('@/features/materials/document').MaterialDocument;
+  /** UTF-8 byte length of the persisted content JSON returned by the backend. */
+  contentBytes?: number;
   /** Chapter this material is filed under (membership). null = unfiled.
    * Orthogonal to scopeChapters (provenance of the generated content). */
   chapterId: string | null;

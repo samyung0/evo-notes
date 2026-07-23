@@ -43,6 +43,7 @@ import type {
   MaterialRef,
   MaterialRevision,
   MaterialSuggestion,
+  MaterialUpdateResult,
   Message,
   Notification,
   PublicDeck,
@@ -1921,7 +1922,7 @@ export const getMaterial = async (
 };
 
 export type updateMaterialResponse200 = {
-  data: Material;
+  data: MaterialUpdateResult;
   status: 200;
 };
 

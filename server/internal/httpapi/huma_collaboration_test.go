@@ -34,6 +34,7 @@ func TestCollaborationContractsAreRegistered(t *testing.T) {
 		"capabilities:",
 		"originalFragment:",
 		"proposedFragment:",
+		"contentBytes:",
 	} {
 		if !strings.Contains(text, expected) {
 			t.Errorf("OpenAPI contract missing %q", expected)
@@ -98,6 +99,30 @@ func TestMaterialResponseIncludesDecodedContent(t *testing.T) {
 	content, ok := body["content"].(map[string]any)
 	if !ok || content["schemaVersion"] != float64(1) {
 		t.Fatalf("material response omitted decoded content: %s", encoded)
+	}
+	contentBytes, ok := body["contentBytes"].(float64)
+	if !ok || int(contentBytes) != len(raw) {
+		t.Fatalf("material response contentBytes = %v, want %d: %s", body["contentBytes"], len(raw), encoded)
+	}
+}
+
+func TestMaterialUpdateResultDoesNotEchoContent(t *testing.T) {
+	encoded, err := json.Marshal(apimodel.MaterialUpdateResult{
+		ID: "mat_1", Revision: 2, ContentBytes: 123,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(encoded, &body); err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := body["content"]; exists {
+		t.Fatalf("update acknowledgement echoed document content: %s", encoded)
+	}
+	if body["id"] != "mat_1" || body["revision"] != float64(2) ||
+		body["contentBytes"] != float64(123) {
+		t.Fatalf("unexpected update acknowledgement: %s", encoded)
 	}
 }
 

@@ -1,199 +1,140 @@
 ---
 type: Frontend
-title: Frontend Editor & UI
-description: React frontend architecture for Evo Notes. Covers app bootstrap, routing, API hooks, Plate.js editor, real-time collaboration, material access modes, AI chat, state management, and MSW mocking.
-tags: [frontend, react, editor, platejs, ui]
+title: "Frontend: Editor & UI"
+description: React frontend for evo-notes — provider stack, TanStack Router, API layer (orval + hand-written client + TanStack Query hooks), Plate.js editor system, materials rendering, feature domains, design system, and MSW mocks.
+tags: [frontend, react, plate-editor, routing, api, design-system]
 ---
 
-# Frontend Editor & UI
+# Frontend: Editor & UI
 
-The frontend is a React 19 SPA built with Vite. It uses TanStack Router for routing, TanStack Query for server state, Plate.js v53 for the rich text editor, and Zustand for local UI state. MSW provides full API mocking for development.
+React 19 SPA built with TanStack Router, TanStack Query, Plate.js (rich text editor), Vite, Tailwind CSS, and Radix UI. The frontend consumes the Go [backend](../backend/api-and-store.md) API exclusively through `/api`.
 
-## App Bootstrap
+## App Entrypoint & Providers
 
-**Source**: `src/main.tsx`
+**`src/main.tsx`**
 
-The provider stack (outermost → innermost):
-
-1. **ClerkProvider** — Clerk auth (skipped when `VITE_USE_MSW=true`)
-2. **QueryClientProvider** — TanStack Query (server state)
-3. **RouterProvider** — TanStack Router (route tree)
-4. **MSW** — Mock Service Worker, enabled by default in dev, intercepts all `/api` calls
-
-When MSW is on, the app works fully standalone with mock data. When off, Vite proxies `/api` → `VITE_API_URL` (default `http://localhost:8080`).
+Provider stack (outer → inner): `ThemeProvider` → `AppAuthProvider` (Clerk or MSW pass-through) → `QueryClientProvider` (TanStack Query) → `RouterProvider` (TanStack Router). MSW mocks are enabled by default in dev (`VITE_USE_MSW`); disabling hits the Go gateway proxied at `/api`.
 
 ## Routing
 
-**Source**: `src/router.tsx`
+**`src/router.tsx`** — Code-based routing (not file-based) with `createRootRouteWithContext<RouterContext>`.
 
-Uses TanStack Router with file-less config. Routes are lazy-loaded with React Query prefetch loaders. Key routes:
+- **Auth guard**: `AuthGate` wraps `AppShell` in the `auth-shell` layout route. When Clerk is active, signed-out users redirect to `/sign-in`. MSW mode bypasses auth.
+- **Preloading**: `defaultPreload: 'intent'`, each route has a `loader` that primes React Query cache via `qc.prefetchQuery()` before the lazy component mounts.
+- **Public share routes**: `/share/workspaces/$workspaceId`, `/share/quizzes/$quizId`, `/share/decks/$deckId` — bypass auth.
+- **Feature-flagged routes**: `/thinking`, `/explore` — conditionally included via `src/lib/features.ts`.
 
-| Route | Component | Purpose |
-|-------|-----------|---------|
-| `/` | `Dashboard` | Home dashboard |
-| `/workspaces` | `Workspaces` | Workspace list |
-| `/workspaces/{id}` | `WorkspaceOpen` | Main workspace view (files, materials, editor, chat) |
-| `/share/workspaces/{id}` | `WorkspaceOpen` (shared variant) | Public/link-shared workspace view |
-| `/flashcards` | `Flashcards` | Spaced repetition |
-| `/quizzes` | `Quizzes` | Quiz list |
-| `/quiz/{id}/attempt` | `QuizAttempt` | Quiz runner |
-| `/deck/{id}/study` | `DeckStudy` | Flashcard study |
-| `/schedule` | `Schedule` | Calendar |
-| `/explore` | `Explore` | Public content feed |
+### Key Route Components (`src/routes/`)
+`WorkspaceOpen.tsx` (29KB — the main workspace view), `Dashboard`, `Quizzes`, `QuizAttempt`, `QuizEdit`, `Schedule`, `Flashcards`, `DeckStudy`, `Files`, `Workspaces`, `Explore`, `Thinking`, `Settings`, `Profile`, `Subscription`.
 
-## API Client & Hooks
+## API Layer (`src/api/`)
 
-**Source**: `src/api/client.ts`, `src/api/hooks.ts`, `orval.config.ts`
+### HTTP Client — `client.ts`
+Thin `fetch` wrapper with base URL `/api`. Methods: `get`, `post`, `patch`, `put`, `del` (JSON), `upload` (multipart), `putFile` (XHR direct-to-storage with progress + abort). `ApiError` carries `status`/`statusText` for branching. Centralized TanStack Query key registry (`qk`).
 
-The API contract is code-generated from the Go server's OpenAPI spec:
+### Query Hooks — `hooks.ts` (~1000+ lines)
+~60+ `useQuery`/`useMutation` hooks covering all domains. Optimistic mutations (`useMoveFile`, `useReorderContent`) patch cache on mutate, rollback on error, reconcile on settle.
 
-1. `pnpm gen:openapi` — Go server emits `openapi.yaml`
-2. `pnpm gen:api` — orval generates TypeScript types, Zod validators, and TanStack Query hooks into `src/api/gen/`
+### Types — `types.ts`
+Re-exports generated wire contracts from `src/api/gen/model/` with thin UI overrides. `Material` interface adds `capabilities`, `role`, `revision`. `Question` is a discriminated union (choice/boolean/text/matching/ordering) with `CognitiveLevel`.
 
-The hand-written `src/api/client.ts` is a thin fetch wrapper. `src/api/hooks.ts` provides domain-specific query/mutation hooks. `src/api/types.ts` re-exports and extends generated types.
+### SSE Streaming — `completeStream.ts` & `chatStream.ts`
+Use `fetch` + `ReadableStream` reader (not `EventSource`, since POST + abort needed). Parse `data: {json}\n\n` SSE events manually. Chat events: `start` → `citations` → `token*` → `done`. Completion events: `token*` → `done` / `error`.
 
-Generated files should not be hand-edited — they are overwritten on regeneration.
+### Plate AI Transport — `plateAiTransport.ts`
+Wraps AI SDK `DefaultChatTransport` for Plate's `useChat` integration. Strips sensitive fields (`apiKey`, `model`, `provider`) from request bodies — all AI calls go through the Go gateway → pipeline.
 
-## Auth Flow
+### Editor Assets — `editorAssets.ts`
+Three-phase upload: `reserveEditorAsset` → `uploadReservedEditorAsset` (direct PUT to B2) → `completeEditorAssetUpload`. `resolveEditorAsset(assetId)` returns short-lived URL at render time. Plate documents persist `assetId`, never the URL.
 
-**Source**: `src/components/app/AuthProvider.tsx`
+### Generated Code — `src/api/gen/` (orval)
+- `model/` — ~100+ TypeScript interfaces from `openapi.yaml`
+- `validators.ts` — Zod validators for request/response bodies (used by form dialogs)
+- `endpoints.ts` — Thin fetch functions (intentionally unused; `client.ts` + `hooks.ts` are source of truth)
 
-- Uses `@clerk/react` for authentication
-- On identity change (sign-in/sign-out), the query cache is cleared and the router reloads to ensure stale data is purged
-- When MSW is enabled, Clerk is bypassed (mock identity)
-- Auth tokens flow to the Go gateway as Bearer tokens
+**Codegen workflow**: `pnpm gen:api:msw` (one-shot: Go → openapi.yaml → orval) or `air` + `pnpm gen:api:watch` (live).
 
-## Plate.js Editor
+## Plate.js Editor System (`src/features/notes/`)
 
-**Source**: `src/features/notes/NoteEditor.tsx`, `src/features/notes/plugins.ts`, `src/features/notes/editorCommands.ts`
+The editor is built on [Plate.js](https://platejs.org) (v53), a Slate-based framework. It supports two modes: interactive (full editable editor with collaboration + AI) and static (read-only `PlateStatic` rendering for previews).
 
-The editor is built on **Plate.js v53** with ~30+ plugins. Key components:
+See [Plate.js Editor Deep Dive](plate-editor.md) for the full Plate/Slate mental model, provider and plugin lifecycle, persisted document boundary, editable/static parity, revision-based collaboration, AI transport, media, serialization, and extension checklist.
 
-- **NoteEditor** — Main editor component, orchestrates plugins, value, and onChange
-- **NoteToolbar** — Formatting toolbar (responsive, see `responsiveToolbar.ts`)
-- **FloatingToolbar** / **LinkFloatingToolbar** — Context-aware floating toolbars
-- **SlashInput** — Slash command combobox
-- **MentionInput** — @-mention combobox
-- **plugins.ts** — Plugin registration (basic nodes, lists, tables, media, code blocks, math, etc.)
-- **editorCommands.ts** — Programmatic editor operations (insert nodes, toggle marks)
-- **nodeComponents.tsx** — Custom node renderers
-- **nodeStyles.ts** — Node-level styling
-- **documentAdapters.ts** — Markdown/serialization adapters
+### NoteEditor — `NoteEditor.tsx`
+Component hierarchy: `NoteEditor` (loads material, checks mode/capabilities) → `CollaborativeNoteEditor` (loads members, discussions; creates `EditorRuntimeProvider` context) → `NoteEditorCore` (builds Plate editor, manages save state).
 
-### Editor Modes
+- **Autosave**: 5-second debounce. Tracks `saveState` (`saved | pending | saving | error`). Uses `expectedRevision` for optimistic concurrency — on conflict (409), sets error state.
+- **Suggestion mode**: Edits become suggestions (not direct saves) — go through the collaboration workflow.
+- **Discussion marks**: Applied to text nodes at each discussion's anchor on mount.
 
-**Source**: `src/features/notes/editorMode.ts`, `src/features/notes/insertEditorNode.ts`
+### Plugins — `plugins.ts`
+`buildPlugins()` assembles the full registry:
+- **Base nodes**: Paragraph, H1-H6, Blockquote, HR, Bold, Italic, Underline, Code, Strikethrough, Highlight, IndentList, Link, CodeBlock (~35 languages), Table, TOC
+- **Media**: Image, Video, Audio, File, Placeholder
+- **Rich blocks**: Callout, Columns, Equations (inline + block, `$`/`$$` markdown), Mentions, FontColor/Size/Family, TextAlign
+- **Collaboration**: discussionPlugin, commentPlugin (mod+shift+m), suggestionPlugin
+- **AI**: AIChatPlugin, AIPlugin, CopilotPlugin (conditional on `allowExternalAssets`)
+- **Custom blocks**: Quiz, Flashcards, Mermaid diagram elements (in `blocks/`)
+- **Slash command**: SlashPlugin + SlashInputPlugin (disabled in code blocks)
+- **Autoformat**: Text substitution (`->` → `→`, smart quotes, fractions)
+- **DnD**: Block drag-and-drop with file drop support (HTML5Backend)
+- **Save**: mod+s triggers flush
 
-The editor supports different modes based on the material's access capabilities. The mode determines which editing actions are available (full edit, suggestion-only, view-only).
+### Collaboration — `Collaboration.tsx`
+`CollaborationProvider` manages base/current document snapshots, revision tracking, and suggestion dirty state. It uses Plate's comment/suggestion rendering but persists discussions and suggestions through the application API; this is revision-based optimistic concurrency, not realtime CRDT editing. `SuggestionLeaf` renders `<ins>`/`<del>` with tinted backgrounds. Hooks: `useCreateMaterialDiscussion`, `useCreateMaterialSuggestion`, `useUpdateMaterialSuggestionStatus`.
 
-### AI Integration in Editor
+### Blocks Subdirectory — `blocks/`
+Custom Plate plugins and components for embedded study blocks: `QuizElementPlugin`, `FlashcardsElementPlugin`, `MermaidElementPlugin`. Dialog editors (`QuizDialog`, `FlashcardsDialog`) for configuring blocks from the slash menu.
 
-**Source**: `src/features/notes/ai/PlateAi.tsx`, `src/features/notes/ai/AiMenu.tsx`
+### AI — `ai/`
+- `PlateAi.tsx` — `buildAiPlugins()` wires AI SDK `useChat` to Plate. AI tools: `comment`, `edit`, `generate`.
+- `AiMenu.tsx` — Floating menu: Continue writing, Improve writing, Fix grammar, Make shorter/longer, Simplify.
+- `VoiceButton.tsx` + `useVoiceInput.ts` — Voice-to-text for AI prompts.
 
-- AI menu accessible via slash command or toolbar
-- Streaming completions via `/api/workspaces/{id}/complete/stream` (SSE)
-- Voice input via Whisper transcription (`useVoiceInput.ts`)
+## Materials System (`src/features/materials/`)
 
-## Collaboration
+### Document Model — `document.ts`
+Versioned `MaterialDocument` (`schemaVersion: 1`) wrapping `MaterialValue` (array of `MaterialElement`). Custom element types for quiz questions, flashcard faces, and mermaid diagrams. Validation functions enforce structural integrity (IDs, question types, cognitive levels, flashcard face ordering). Conversion functions bridge markdown fence blocks ↔ Plate element trees.
 
-**Source**: `src/features/notes/Collaboration.tsx`, `src/features/materials/modePolicy.ts`
+### Mode Policy — `modePolicy.ts`
+`MaterialMode = 'view' | 'study' | 'edit' | 'suggestion'`. `materialModePolicy(kind, capabilities)` returns available modes and default based on kind and access capabilities. Quizzes/flashcards default to `study`; notes default to `edit`/`suggestion` based on role.
 
-Three collaboration primitives built on the backend collaboration API:
+### CenterContent — `CenterContent.tsx`
+The workspace center pane dispatcher:
+- Renders `Header` (icon, title, material mode selector, editor status)
+- `MaterialBody` — resolves mode via policy → `MaterialPreview` (view), `MaterialStudyView` (study), or lazy-loaded `NoteEditor` (edit/suggestion, Suspense-wrapped)
+- `FileBody` — delegates to `FileViewer`
 
-1. **Suggestions** — Proposed content changes with accept/reject/withdraw lifecycle. Anchored to material revisions.
-2. **Discussions** — Threaded discussions anchored to specific editor blocks.
-3. **Comments** — Rich-text comments within discussions.
+### Static Rendering — `staticNodeComponents.tsx` + `staticPlugins.ts`
+Hook-free `SlateElement`/`SlateLeaf` components for `PlateStatic` (no editor store, no transforms). Shares CSS classes with editable components via `nodeStyles.ts`. Used for previews and public share views.
 
-### Material Access Modes (modePolicy)
+## Other Feature Domains
 
-**Source**: `src/features/materials/modePolicy.ts`
+| Feature | Key Files | Summary |
+|---------|-----------|---------|
+| **Workspace** | `src/features/workspace/` | RAG chat panel, AI generation tiles, source upload/import, chapter move |
+| **Files** | `src/features/files/` | File viewer dispatcher: PDF (react-pdf), Image (pan/zoom), Spreadsheet (SheetJS, ≤500×50), Docx (docx-preview) |
+| **Quizzes** | `src/features/quizzes/` | `QuestionRunner` (7 question types, review mode with tints), `QuizForm` (react-hook-form + useFieldArray), `grade.ts` (Levenshtein fuzzy matching) |
+| **Schedule** | `src/features/schedule/` | Week/day time grid, month view, dashboard strip, event/label dialogs |
+| **Workspaces** | `src/features/workspaces/` | Create/edit form dialogs using react-hook-form + generated Zod validators |
 
-The `modePolicy` module resolves the user's effective capabilities (from the API response's `Capabilities` field) into UI policy decisions:
+## Design System (`src/components/ui/`)
 
-- **Can edit** → full editing mode
-- **Can comment** → suggestion mode (propose changes, can't directly edit)
-- **View only** → read-only rendering
+35+ components exported via `index.ts`. Built on **Radix UI** primitives + **class-variance-authority** (cva) for variants + **Tailwind CSS** for styling. Key components: `Button` (8 variants, 3 sizes, `asChild` slot), `Icon` (self-contained SVG set, ~40+ icons), `Dialog`, `Select`, `Popover`, `DropdownMenu`, `Tabs`, `ColorPicker`, `TagSelect`, `Sonner` (toasts), `feedback.tsx` (Skeleton, Spinner, EmptyState).
 
-This policy is also tested in `src/features/materials/modePolicy.test.ts`.
+## App Shell (`src/components/app/`)
 
-### Static Rendering
+- **`AppShell.tsx`** — Flex layout: Sidebar (hidden on workspace-open routes) + main Outlet + GlobalDialogs
+- **`AuthProvider.tsx`** — Clerk integration: `AppAuthProvider`, `AuthTokenBridge` (injects `getToken` into API), `AuthGate`
+- **`Sidebar.tsx`** — Navigation with feature-flagged items, `preload="intent"` links
+- **`GlobalDialogs.tsx`** — Centralized dialog renderer driven by Zustand `useDialogs` store
+- **`TopInsetBar.tsx`** — Top bar with global search dialog
+- **`ShareDialog.tsx`** — Workspace sharing (privacy, role, link)
+- **`WorkspaceMemberManager.tsx`** — Member invite/role management
 
-**Source**: `src/features/materials/staticNodeComponents.tsx`, `src/features/materials/staticPlugins.ts`
+## Mocks (MSW) — `src/mocks/`
 
-For read-only contexts (shared workspaces, previews), the editor uses "static" node components and plugins that don't include editing/dnd functionality. This is used in `StudyBlockViews.tsx` for rendering study materials.
+- **`db.ts`** (32K) — In-memory mock database seeded with dummy data for all domains. SRS state via `ts-fsrs`.
+- **`handlers.ts`** (66K) — MSW handlers for all API endpoints. Simulates latency. Full CRUD for every domain.
 
-## AI Chat
-
-**Source**: `src/features/workspace/ChatPanel.tsx`, `src/features/workspace/useChatStream.ts`
-
-- Conversations persisted via `/api/workspaces/{id}/chat` (sync) and `/api/workspaces/{id}/chat/stream` (SSE)
-- Uses `streamdown` for markdown rendering of streamed responses
-- Citations rendered with source references
-- Material generation via `/api/workspaces/{id}/generate`
-
-## State Management
-
-Three layers:
-
-1. **TanStack Query** — Server state (workspaces, materials, files, etc.). Prefetched in route loaders.
-2. **Zustand** — Local UI state (`src/stores/dialogs.ts`, `src/stores/defaultValues.ts`)
-3. **Plate.js** — Editor state (internal to the editor instance)
-
-## UI Component Library
-
-**Source**: `src/components/ui/`
-
-Custom component library built on Radix UI primitives and CVA (class-variance-authority):
-
-- `Button`, `IconButton`, `Input`, `TextArea`, `Select`, `Checkbox`
-- `Dialog`, `Drawer`, `Popover`, `DropdownMenu`
-- `Card`, `Badge`, `TagSelect`, `WorkspaceCard`
-- `Icon` (lucide-react), `ColorPicker`, `UserColorChooser`
-- `Resizable` (react-resizable-panels)
-- `Sonner` (toasts)
-- `ProgressBar`, `SegmentedControl`, `Tabs`, `HoverActions`
-
-## i18n
-
-**Source**: `src/i18n/`, `messages/en.json`, `messages/zh.json`
-
-Uses Paraglide (compile-time i18n). Messages defined in `messages/{lang}.json`. Translations compiled via `@inlang/paraglide-js`. Some text may be missed (see `todo` line 9).
-
-## MSW Mocking
-
-**Source**: `src/mocks/handlers.ts`, `src/mocks/db.ts`
-
-- MSW enabled by default in development (`VITE_USE_MSW=true`)
-- `src/mocks/db.ts` — In-memory mock database
-- `src/mocks/handlers.ts` — Mock API handlers mirroring the Go gateway's contract
-- The mock DB and handlers should stay in sync with the real API contract (which is the OpenAPI spec)
-
-## Workspace Management UI
-
-**Source**: `src/features/workspaces/WorkspaceFormCreateDialog.tsx`, `src/features/workspaces/WorkspaceFormEditDialog.tsx`, `src/components/app/ShareDialog.tsx`, `src/components/app/WorkspaceMemberManager.tsx`
-
-- Create/edit workspace dialogs (react-hook-form + zod)
-- Share dialog — manage privacy (private/link/public) and share role
-- Workspace member manager — list, invite, update, remove members
-
-## Source References
-
-| Component | Source File |
-|-----------|-------------|
-| App entry | `src/main.tsx` |
-| Routing | `src/router.tsx` |
-| API client | `src/api/client.ts` |
-| API hooks | `src/api/hooks.ts` |
-| Generated types | `src/api/gen/` |
-| Orval config | `orval.config.ts` |
-| Vite config | `vite.config.ts` |
-| Auth provider | `src/components/app/AuthProvider.tsx` |
-| App shell | `src/components/app/AppShell.tsx` |
-| Editor | `src/features/notes/NoteEditor.tsx` |
-| Plugins | `src/features/notes/plugins.ts` |
-| Collaboration | `src/features/notes/Collaboration.tsx` |
-| Mode policy | `src/features/materials/modePolicy.ts` |
-| Chat | `src/features/workspace/ChatPanel.tsx` |
-| Mock handlers | `src/mocks/handlers.ts` |
-| Mock DB | `src/mocks/db.ts` |
-| UI components | `src/components/ui/` |
+Enabled by default in dev (`VITE_USE_MSW=true`). Set `VITE_USE_MSW=false` to proxy to the real Go server.

@@ -1,4 +1,3 @@
 # Files
 
-- [Data Model & Entities](data-model.md) - Core data entities, relationships, enums, and the universal material envelope for Evo Notes. Covers the Postgres schema, sharing/access model, and migration history.
-- [Architecture Overview](overview.md) - System architecture for Evo Notes. Covers the full stack topology, service boundaries, request/data flow, and key design decisions.
+- [Architecture Overview](overview.md) - System topology for evo-notes — how the frontend, Go gateway, Python RAG pipeline, Modal GPU parser, Postgres, Redis, B2, Clerk, and Stripe connect and exchange data.

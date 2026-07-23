@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { Panel } from '@/components/app/layout';
 import { TopInsetBar } from '@/components/app/TopInsetBar';
@@ -108,11 +108,6 @@ function MaterialListItem({
   ];
   return (
     <div
-      draggable={!readOnly && !generating}
-      onDragStart={(e) => {
-        e.dataTransfer.setData('application/x-evo-material', matRef.id);
-        e.dataTransfer.effectAllowed = 'move';
-      }}
       className={cn(
         'group relative flex items-center rounded-row hover:bg-surface-hover-bg',
         generating ? 'pr-1' : 'pr-8',
@@ -202,12 +197,13 @@ export default function WorkspaceOpen() {
   const [generating, setGenerating] = useState<GenerateMode | null>(null);
   const [mode, setMode] = useState('chat');
   const [openChapters, setOpenChapters] = useState<Record<string, boolean>>({});
-  // Drop-target highlight while dragging workspace content.
+  // Drop-target line while dragging workspace content.
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [insertTarget, setInsertTarget] = useState<{
     key: string;
     edge: 'before' | 'after';
   } | null>(null);
+  const draggedItemRef = useRef<ContentOrderItem | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 
   const pair = userColorPair(ws?.color);
@@ -246,15 +242,27 @@ export default function WorkspaceOpen() {
     });
   }
 
-  // Native drag-and-drop: rows expose their content type and id. A row drop
-  // inserts before/after that row; a chapter/background drop appends.
+  // Native drag-and-drop: rows expose their content type and id. Drops on a
+  // content row insert before/after that row; the Others bucket appends.
   const DND_TYPES = ['application/x-evo-material', 'application/x-evo-file'];
+  function hasDraggedContent(e: React.DragEvent) {
+    return (
+      draggedItemRef.current !== null ||
+      DND_TYPES.some((type) => Array.from(e.dataTransfer.types).includes(type))
+    );
+  }
   function draggedContent(e: React.DragEvent): ContentOrderItem | null {
+    if (draggedItemRef.current) return draggedItemRef.current;
     const materialId = e.dataTransfer.getData('application/x-evo-material');
     if (materialId) return { id: materialId, type: 'material' };
     const fileId = e.dataTransfer.getData('application/x-evo-file');
     if (fileId) return { id: fileId, type: 'file' };
     return null;
+  }
+  function clearDragState() {
+    draggedItemRef.current = null;
+    setDropTarget(null);
+    setInsertTarget(null);
   }
   function moveContent(dragged: ContentOrderItem, chapterId: string | null, targetIndex: number) {
     const items = contentFor(chapterId)
@@ -267,19 +275,19 @@ export default function WorkspaceOpen() {
   function onItemDrop(chapterId: string | null, e: React.DragEvent) {
     if (readOnly) return;
     e.preventDefault();
-    setDropTarget(null);
-    setInsertTarget(null);
     const dragged = draggedContent(e);
+    clearDragState();
     if (dragged) moveContent(dragged, chapterId, contentFor(chapterId).length);
   }
   function dropZone(key: string, chapterId: string | null) {
     if (readOnly) return {};
     return {
       onDragOver: (e: React.DragEvent) => {
-        if (DND_TYPES.some((t) => e.dataTransfer.types.includes(t))) {
+        if (hasDraggedContent(e)) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
           if (dropTarget !== key) setDropTarget(key);
+          setInsertTarget(null);
         }
       },
       onDragLeave: (e: React.DragEvent) => {
@@ -294,7 +302,7 @@ export default function WorkspaceOpen() {
     if (readOnly) return {};
     return {
       onDragOver: (e: React.DragEvent) => {
-        if (!DND_TYPES.some((type) => e.dataTransfer.types.includes(type))) return;
+        if (!hasDraggedContent(e)) return;
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
@@ -309,7 +317,7 @@ export default function WorkspaceOpen() {
         e.preventDefault();
         e.stopPropagation();
         const dragged = draggedContent(e);
-        setInsertTarget(null);
+        clearDragState();
         if (dragged) {
           if (dragged.id === item.id && dragged.type === item.type) return;
           const destination = contentFor(chapterId).filter(
@@ -323,6 +331,24 @@ export default function WorkspaceOpen() {
           const insertionIndex =
             targetIndex < 0 ? destination.length : targetIndex + (edge === 'after' ? 1 : 0);
           moveContent(dragged, chapterId, insertionIndex);
+        }
+      },
+    };
+  }
+  function contentListDropZone() {
+    if (readOnly) return {};
+    return {
+      onDragOverCapture: (e: React.DragEvent) => {
+        if (!hasDraggedContent(e)) return;
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-workspace-content-row]')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      },
+      onDropCapture: (e: React.DragEvent) => {
+        const target = e.target as HTMLElement;
+        if (hasDraggedContent(e) && target.closest('[data-workspace-content-row]')) {
+          e.preventDefault();
         }
       },
     };
@@ -361,20 +387,30 @@ export default function WorkspaceOpen() {
   }
   function renderContentItem(item: WorkspaceContentItem, chapterId: string | null) {
     const key = `${item.type}:${item.id}`;
+    const draggable =
+      !readOnly && !(item.type === 'file' && item.data.status === 'processing');
     return (
       <div
         key={key}
         {...contentDropZone(item, chapterId)}
-        onDragEnd={() => {
-          setDropTarget(null);
-          setInsertTarget(null);
+        draggable={draggable}
+        onDragStart={(e) => {
+          const dragged: ContentOrderItem = { id: item.id, type: item.type };
+          draggedItemRef.current = dragged;
+          e.dataTransfer.setData(
+            item.type === 'file' ? 'application/x-evo-file' : 'application/x-evo-material',
+            item.id
+          );
+          e.dataTransfer.effectAllowed = 'move';
         }}
+        onDragEnd={clearDragState}
+        data-workspace-content-row
         className="relative"
       >
         {insertTarget?.key === key && (
           <div
             className={cn(
-              'bg-accent pointer-events-none absolute right-1 left-1 z-10 h-0.5 rounded-full',
+              'pointer-events-none absolute right-1 left-1 z-10 h-0 border-t-2 border-line-strong',
               insertTarget.edge === 'before' ? 'top-0' : 'bottom-0'
             )}
           />
@@ -565,12 +601,7 @@ export default function WorkspaceOpen() {
                       return (
                         <div
                           key={ch.id}
-                          {...dropZone(ch.id, ch.id)}
-                          className={cn(
-                            'rounded-row',
-                            dropTarget === ch.id &&
-                              'ring-accent bg-action-accent/40 ring-2 ring-inset'
-                          )}
+                          className="rounded-row"
                         >
                           <div className="group relative flex items-center rounded-row py-1.5 pr-8 hover:bg-surface-hover-bg">
                             <button
@@ -622,7 +653,7 @@ export default function WorkspaceOpen() {
                             )}
                           </div>
                           {expanded && (
-                            <div className="flex flex-col pl-4">
+                            <div {...contentListDropZone()} className="flex flex-col pl-4">
                               {contentFor(ch.id).map((item) => renderContentItem(item, ch.id))}
                               {contentFor(ch.id).length === 0 && (
                                 <div className="px-1.5 py-1 text-xs text-fg-muted">Empty</div>
@@ -637,13 +668,16 @@ export default function WorkspaceOpen() {
                   {(unfiled.length > 0 || unfiledMaterials.length > 0 || generating) && (
                     <div
                       {...dropZone('unfiled-files', null)}
-                      className={cn(
-                        'rounded-row',
-                        dropTarget === 'unfiled-files' &&
-                          'ring-accent bg-action-accent/40 ring-2 ring-inset'
-                      )}
+                      className="rounded-row"
                     >
-                      <div className="t-label px-1.5 py-1.5 text-fg-muted">Others</div>
+                      <div
+                        className={cn(
+                          't-label px-1.5 py-1.5 text-fg-muted',
+                          dropTarget === 'unfiled-files' && 'border-b-2 border-line-strong'
+                        )}
+                      >
+                        Others
+                      </div>
                       <div>
                         {contentFor(null).map((item) => renderContentItem(item, null))}
                         {generating && (

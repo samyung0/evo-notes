@@ -657,6 +657,7 @@ export const handlers = [
       createdAt: new Date().toISOString(),
       revision: 1,
     };
+    db.refreshMaterialContentBytes(mt);
     db.materials.unshift(mt);
     return HttpResponse.json(mt, { status: 201 });
   }),
@@ -685,13 +686,22 @@ export const handlers = [
       return HttpResponse.json({ message: 'material revision is stale' }, { status: 409 });
     }
     if (body.title != null) mt.title = body.title;
-    if (body.content != null) mt.content = body.content;
+    if (body.content != null) {
+      mt.content = body.content;
+      db.refreshMaterialContentBytes(mt);
+    }
     if (body.title != null || body.content != null) mt.revision = (mt.revision ?? 1) + 1;
     // Empty-string sentinel unfiles; a real id files it; omitted leaves it.
     if (body.chapterId != null) mt.chapterId = body.chapterId === '' ? null : body.chapterId;
     if (body.scopeChapters != null) mt.scopeChapters = body.scopeChapters;
     if (body.scopeFileIds != null) mt.scopeFileIds = body.scopeFileIds;
-    return HttpResponse.json(mt);
+    mt.updatedAt = new Date().toISOString();
+    return HttpResponse.json({
+      id: mt.id,
+      revision: mt.revision,
+      contentBytes: mt.contentBytes,
+      updatedAt: mt.updatedAt,
+    });
   }),
   http.delete('/api/materials/:id', async ({ params }) => {
     const i = db.materials.findIndex((x) => x.id === params.id);
@@ -802,6 +812,7 @@ export const handlers = [
         return HttpResponse.json({ message: 'material revision is stale' }, { status: 409 });
       }
       material.content = body.finalizedContent;
+      db.refreshMaterialContentBytes(material);
       material.revision = (material.revision ?? 1) + 1;
     }
     suggestion.status = body.status;
@@ -1168,6 +1179,7 @@ export const handlers = [
         privacy: 'private',
         createdAt: new Date().toISOString(),
       };
+      db.refreshMaterialContentBytes(material);
       db.materials.unshift(material);
       for (const c of cardContents)
         db.cardStats[c.id] = { materialId: id, srs: newSrsState(), known: false };
@@ -1201,6 +1213,7 @@ export const handlers = [
         privacy: 'private',
         createdAt: new Date().toISOString(),
       };
+      db.refreshMaterialContentBytes(material);
       db.materials.unshift(material);
       return HttpResponse.json({ kind: opts.kind, material });
     }
@@ -1286,6 +1299,7 @@ export const handlers = [
       privacy: 'private',
       createdAt: new Date().toISOString(),
     };
+    db.refreshMaterialContentBytes(quizMat);
     db.materials.unshift(quizMat);
     return HttpResponse.json({ kind: 'quiz', quiz: db.quizFromMaterial(quizMat) });
   }),
@@ -1313,6 +1327,7 @@ export const handlers = [
       privacy: body.privacy ?? 'private',
       createdAt: new Date().toISOString(),
     };
+    db.refreshMaterialContentBytes(material);
     db.materials.unshift(material);
     return HttpResponse.json(db.quizFromMaterial(material), { status: 201 });
   }),
@@ -1363,6 +1378,7 @@ export const handlers = [
     mt.title = name;
     mt.scopeChapters = chapters;
     mt.content = quizDocument(questions, timeLimitMin, mt.id);
+    db.refreshMaterialContentBytes(mt);
     return HttpResponse.json(db.quizFromMaterial(mt));
   }),
   http.delete('/api/quizzes/:id', async ({ params }) => {
@@ -1393,6 +1409,7 @@ export const handlers = [
       createdAt: new Date().toISOString(),
       isOwner: true,
     };
+    db.refreshMaterialContentBytes(material);
     db.materials.unshift(material);
     return HttpResponse.json(db.quizFromMaterial(material), { status: 201 });
   }),
@@ -1479,6 +1496,7 @@ export const handlers = [
       privacy: 'private',
       createdAt: new Date().toISOString(),
     };
+    db.refreshMaterialContentBytes(material);
     db.materials.unshift(material);
     return HttpResponse.json(db.deckFromMaterial(material), { status: 201 });
   }),
@@ -1548,6 +1566,7 @@ export const handlers = [
     const cards = materialCards(mt);
     cards.push({ id, front: body.front ?? '', back: body.back ?? '' });
     mt.content = flashcardsDocument(cards, mt.id);
+    db.refreshMaterialContentBytes(mt);
     db.cardStats[id] = { materialId: mt.id, srs: newSrsState(), known: false };
     return HttpResponse.json(db.cardsFromMaterial(mt).find((c) => c.id === id)!, { status: 201 });
   }),
@@ -1566,6 +1585,7 @@ export const handlers = [
         if (body.front !== undefined) card.front = body.front;
         if (body.back !== undefined) card.back = body.back;
         mt.content = flashcardsDocument(cards, mt.id);
+        db.refreshMaterialContentBytes(mt);
       }
     }
     if (body.srs !== undefined) stat.srs = body.srs;
@@ -1582,6 +1602,7 @@ export const handlers = [
     if (!mt) return new HttpResponse(null, { status: 404 });
     const kept = materialCards(mt).filter((c) => c.id !== params.id);
     mt.content = flashcardsDocument(kept, mt.id);
+    db.refreshMaterialContentBytes(mt);
     delete db.cardStats[String(params.id)];
     return new HttpResponse(null, { status: 204 });
   }),

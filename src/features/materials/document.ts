@@ -15,6 +15,17 @@ import {
 
 export const MATERIAL_SCHEMA_VERSION = 1 as const;
 
+export const MATERIAL_DOCUMENT_LIMITS = {
+  maxNodes: 10000,
+  maxDepth: 64,
+  maxContentBytes: 2 * 1024 * 1024,
+} as const;
+
+export interface MaterialDocumentMetrics {
+  nodeCount: number;
+  maxDepth: number;
+}
+
 export interface MaterialText {
   text: string;
   [mark: string]: unknown;
@@ -139,25 +150,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function hasTextDescendant(node: MaterialNode): boolean {
-  if ('text' in node) return typeof node.text === 'string';
-  return node.children.some(hasTextDescendant);
-}
-
 function isTextNode(value: unknown): value is MaterialText {
   return isRecord(value) && typeof value.text === 'string' && !('children' in value);
 }
 
+/** Shallow shape check only. Deep validation lives in `isMaterialNode`, which
+ * owns the recursion so every node is visited exactly once. (A previous
+ * version recursed here *and* in `isMaterialNode`, making validation cost grow
+ * exponentially with nesting depth.) The "every element contains a text
+ * descendant" invariant is implied by recursion: children must be non-empty
+ * and each valid child is either a text leaf or an element that (inductively)
+ * contains one. */
 function isElementNode(value: unknown): value is MaterialElement {
-  if (
-    !isRecord(value) ||
-    typeof value.type !== 'string' ||
-    !Array.isArray(value.children) ||
-    value.children.length === 0
-  ) {
-    return false;
-  }
-  return value.children.every(isMaterialNode) && hasTextDescendant(value as MaterialElement);
+  return (
+    isRecord(value) &&
+    typeof value.type === 'string' &&
+    Array.isArray(value.children) &&
+    value.children.length > 0
+  );
 }
 
 function hasId(value: MaterialElement): boolean {
@@ -237,9 +247,9 @@ function validateMediaElement(element: MaterialElement): boolean {
 export function isMaterialNode(value: unknown): value is MaterialNode {
   if (isTextNode(value)) return true;
   if (!isElementNode(value)) return false;
+  if (!value.children.every(isMaterialNode)) return false;
   if (!validateMediaElement(value)) return false;
-  if (CUSTOM_TYPES.has(value.type) && !validateCustomElement(value)) return false;
-  return value.children.every(isMaterialNode);
+  return !CUSTOM_TYPES.has(value.type) || validateCustomElement(value);
 }
 
 export function isMaterialDocument(value: unknown): value is MaterialDocument {
@@ -252,7 +262,7 @@ export function isMaterialDocument(value: unknown): value is MaterialDocument {
   );
 }
 
-export function parseMaterialDocument(input: unknown): MaterialDocument | null {
+function parseMaterialDocumentInput(input: unknown): MaterialDocument | null {
   let candidate = input;
   if (typeof input === 'string') {
     try {
@@ -264,10 +274,47 @@ export function parseMaterialDocument(input: unknown): MaterialDocument | null {
   return isMaterialDocument(candidate) ? candidate : null;
 }
 
+export function parseMaterialDocumentWithMetrics(
+  input: unknown
+): { document: MaterialDocument; metrics: MaterialDocumentMetrics } | null {
+  const candidate = parseMaterialDocumentInput(input);
+  if (!candidate) return null;
+  const normalized = normalizeMaterialValueWithMetrics(candidate.value);
+  return {
+    document: {
+      ...candidate,
+      value: normalized.value,
+    },
+    metrics: normalized.metrics,
+  };
+}
+
+export function parseMaterialDocument(input: unknown): MaterialDocument | null {
+  const candidate = parseMaterialDocumentInput(input);
+  if (!candidate) return null;
+  return {
+    ...candidate,
+    value: normalizeMaterialValue(candidate.value),
+  };
+}
+
 export function assertMaterialDocument(input: unknown): MaterialDocument {
   const document = parseMaterialDocument(input);
   if (!document) throw new Error('Invalid or unsupported material document');
   return document;
+}
+
+export function createMaterialDocumentWithMetrics(value: MaterialValue): {
+  document: MaterialDocument;
+  metrics: MaterialDocumentMetrics;
+} {
+  const normalized = normalizeMaterialValueWithMetrics(value);
+  const document: MaterialDocument = {
+    schemaVersion: MATERIAL_SCHEMA_VERSION,
+    value: normalized.value,
+  };
+  if (!isMaterialDocument(document)) throw new Error('Invalid or unsupported material document');
+  return { document, metrics: normalized.metrics };
 }
 
 export function createMaterialDocument(value: MaterialValue): MaterialDocument {
@@ -275,21 +322,67 @@ export function createMaterialDocument(value: MaterialValue): MaterialDocument {
     schemaVersion: MATERIAL_SCHEMA_VERSION,
     value: normalizeMaterialValue(value),
   };
-  return assertMaterialDocument(document);
+  if (!isMaterialDocument(document)) throw new Error('Invalid or unsupported material document');
+  return document;
 }
 
-/** Ensure every Plate element has a stable id for drag/drop, comments and
- * suggestions. Existing ids are preserved exactly. */
-export function normalizeMaterialValue(value: MaterialValue): MaterialValue {
-  const normalizeNode = (node: MaterialNode): MaterialNode => {
+/** Ensure every Plate element has a stable id. Existing ids are preserved
+ * exactly. Every node is copied on purpose: Slate mutates `editor.children`
+ * in place, so parsed snapshots and save payloads must never alias live
+ * editor (or query-cache) node objects. */
+function normalizeMaterialValueInternal(
+  value: MaterialValue,
+  metrics?: MaterialDocumentMetrics
+): MaterialValue {
+  const normalizeNode = (node: MaterialNode, depth: number): MaterialNode => {
+    if (metrics) {
+      metrics.nodeCount += 1;
+      metrics.maxDepth = Math.max(metrics.maxDepth, depth);
+    }
+
     if ('text' in node) return { ...node };
+
     return {
       ...node,
       id: typeof node.id === 'string' && node.id ? node.id : uid('block'),
-      children: node.children.map(normalizeNode),
+      children: node.children.map((child) => normalizeNode(child, depth + 1)),
     };
   };
-  return value.map((node) => normalizeNode(node) as MaterialElement);
+
+  return value.map((node) => normalizeNode(node, 0) as MaterialElement);
+}
+
+export function normalizeMaterialValueWithMetrics(value: MaterialValue): {
+  value: MaterialValue;
+  metrics: MaterialDocumentMetrics;
+} {
+  const metrics: MaterialDocumentMetrics = {
+    nodeCount: 0,
+    maxDepth: 0,
+  };
+  return {
+    value: normalizeMaterialValueInternal(value, metrics),
+    metrics,
+  };
+}
+
+export function normalizeMaterialValue(value: MaterialValue): MaterialValue {
+  return normalizeMaterialValueInternal(value);
+}
+
+/** Read-only node count and depth. Unlike the normalize walk this allocates
+ * nothing, so it is cheap enough to run against live editor content on a
+ * throttled cadence for the document-stats footer. */
+export function countMaterialMetrics(value: MaterialValue): MaterialDocumentMetrics {
+  const metrics: MaterialDocumentMetrics = { nodeCount: 0, maxDepth: 0 };
+  const visit = (node: MaterialNode, depth: number) => {
+    metrics.nodeCount += 1;
+    if (depth > metrics.maxDepth) metrics.maxDepth = depth;
+    if ('text' in node) return;
+    for (const child of node.children) visit(child, depth + 1);
+  };
+  for (const node of value) visit(node, 0);
+  return metrics;
 }
 
 export function emptyMaterialDocument(): MaterialDocument {
@@ -528,5 +621,5 @@ export function flashcardsElementToCards(element: FlashcardsElement): FlashcardC
 }
 
 export function isCustomMaterialElement(value: unknown): value is CustomMaterialElement {
-  return isElementNode(value) && CUSTOM_TYPES.has(value.type) && validateCustomElement(value);
+  return isElementNode(value) && CUSTOM_TYPES.has(value.type) && isMaterialNode(value);
 }

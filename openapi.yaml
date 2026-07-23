@@ -977,6 +977,10 @@ components:
           $ref: "#/components/schemas/UserColor"
         content:
           $ref: "#/components/schemas/Envelope"
+        contentBytes:
+          description: UTF-8 byte length of persisted content JSON
+          format: int64
+          type: integer
         createdAt:
           format: date-time
           type: string
@@ -1020,6 +1024,7 @@ components:
         - kind
         - title
         - content
+        - contentBytes
         - chapterId
         - position
         - scopeChapters
@@ -1137,6 +1142,33 @@ components:
         - proposedFragment
         - status
         - createdAt
+        - updatedAt
+      type: object
+    MaterialUpdateResult:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/MaterialUpdateResult.json
+          format: uri
+          readOnly: true
+          type: string
+        contentBytes:
+          description: UTF-8 byte length of persisted content JSON
+          format: int64
+          type: integer
+        id:
+          type: string
+        revision:
+          format: int64
+          type: integer
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+        - id
+        - revision
+        - contentBytes
         - updatedAt
       type: object
     Message:
@@ -3128,7 +3160,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Material"
+                $ref: "#/components/schemas/MaterialUpdateResult"
           description: OK
         default:
           content:

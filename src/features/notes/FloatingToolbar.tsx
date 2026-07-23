@@ -14,6 +14,7 @@ import {
   Underline,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { openAiMenu } from './ai/aiMenuState';
 import { useCollaborationActions } from './Collaboration';
 import { useEditorRuntime } from './EditorRuntime';
 
@@ -57,10 +58,7 @@ export function FloatingToolbar() {
         aria-label="Selection actions"
         className="absolute z-50 flex max-w-[90vw] items-center gap-0.5 overflow-x-auto rounded-card border border-line bg-surface p-1 shadow-pop"
       >
-        <FloatingButton
-          label="AI commands"
-          onClick={() => editor.getApi(AIChatPlugin).aiChat.show()}
-        >
+        <FloatingButton label="AI commands" onClick={() => openAiMenu(editor)}>
           <Sparkles /> <span className="pr-1 text-xs">Ask AI</span>
         </FloatingButton>
         <Separator />
