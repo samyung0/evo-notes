@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getCommentKey } from '@platejs/comment';
+import { BaseSuggestionPlugin } from '@platejs/suggestion';
 import { KEYS, TextApi } from 'platejs';
 import {
   Plate,
@@ -67,7 +68,7 @@ function DocumentStatsFooter({
 
   return (
     <div
-      className="mx-auto flex w-full max-w-3xl gap-3 px-10 pb-4 text-xs text-fg-muted max-sm:px-5"
+      className="mx-auto mb-20 flex w-full max-w-3xl gap-3 px-10 pb-4 text-xs text-fg-muted max-sm:px-5"
       aria-label="Document statistics"
     >
       <span
@@ -100,7 +101,14 @@ function DocumentStatsFooter({
   );
 }
 
-function NoteEditorContent() {
+function NoteEditorContent({
+  metrics,
+  contentBytes,
+}: {
+  metrics: MaterialDocumentMetrics;
+  contentBytes: number | null;
+}) {
+  const shouldShowStats = shouldShowDocumentStats(metrics, contentBytes);
   const showEditorPlaceholder = useEditorSelector((editor) => {
     const firstNode = editor.children[0];
 
@@ -118,10 +126,13 @@ function NoteEditorContent() {
   return (
     // The relative container registers the ref used by cursor-overlay
     // positioning (selection highlight while the AI menu input has focus).
-    <PlateContainer className="relative">
+    // The slate-selection-area rules style BlockSelectionPlugin's marquee
+    // rectangle when dragging from the editor margin.
+    <PlateContainer className="relative [&_.slate-selection-area]:z-50 [&_.slate-selection-area]:border [&_.slate-selection-area]:border-action-accent/25 [&_.slate-selection-area]:bg-action-accent/15">
       <PlateContent
         className={cn(
-          'note-editor mx-auto min-h-75 max-w-3xl px-10 pt-4 pb-16 text-base outline-none **:data-slate-placeholder:translate-y-1 **:data-slate-placeholder:text-sm **:data-slate-placeholder:leading-loose **:data-slate-placeholder:text-placeholder **:data-slate-placeholder:opacity-100! max-sm:px-5'
+          'note-editor mx-auto min-h-75 max-w-3xl px-10 pt-4 pb-36 text-base outline-none **:data-slate-placeholder:translate-y-1 **:data-slate-placeholder:text-sm **:data-slate-placeholder:leading-loose **:data-slate-placeholder:text-placeholder **:data-slate-placeholder:opacity-100! max-sm:px-5',
+          shouldShowStats && 'pb-16'
         )}
         placeholder={showEditorPlaceholder ? NOTE_PLACEHOLDER : undefined}
       />
@@ -135,12 +146,14 @@ export function NoteEditor({
   allowExternalAssets = false,
   onSuggestionDirtyChange,
   onEditorStatusChange,
+  collaborationActionsHost,
 }: {
   materialId: string;
   mode: NoteEditorMode;
   allowExternalAssets?: boolean;
   onSuggestionDirtyChange?: (dirty: boolean) => void;
   onEditorStatusChange?: (status: NoteEditorStatus | null) => void;
+  collaborationActionsHost?: HTMLElement | null;
 }) {
   const { data: material, isLoading } = useMaterial(materialId);
 
@@ -175,6 +188,7 @@ export function NoteEditor({
       allowExternalAssets={allowExternalAssets}
       onSuggestionDirtyChange={onSuggestionDirtyChange}
       onEditorStatusChange={onEditorStatusChange}
+      collaborationActionsHost={collaborationActionsHost}
     />
   );
 }
@@ -185,12 +199,14 @@ function CollaborativeNoteEditor({
   allowExternalAssets,
   onSuggestionDirtyChange,
   onEditorStatusChange,
+  collaborationActionsHost,
 }: {
   material: Material;
   mode: NoteEditorMode;
   allowExternalAssets: boolean;
   onSuggestionDirtyChange?: (dirty: boolean) => void;
   onEditorStatusChange?: (status: NoteEditorStatus | null) => void;
+  collaborationActionsHost?: HTMLElement | null;
 }) {
   const me = useMe();
   const role: WorkspaceRole | null = material.role ?? (material.isOwner ? 'owner' : null);
@@ -235,6 +251,7 @@ function CollaborativeNoteEditor({
         currentUserId={me.data?.id ?? null}
         onSuggestionDirtyChange={onSuggestionDirtyChange}
         onEditorStatusChange={onEditorStatusChange}
+        collaborationActionsHost={collaborationActionsHost}
       />
     </EditorRuntimeProvider>
   );
@@ -249,6 +266,7 @@ function NoteEditorCore({
   currentUserId,
   onSuggestionDirtyChange,
   onEditorStatusChange,
+  collaborationActionsHost,
 }: {
   material: Material;
   mode: NoteEditorMode;
@@ -258,6 +276,7 @@ function NoteEditorCore({
   currentUserId: string | null;
   onSuggestionDirtyChange?: (dirty: boolean) => void;
   onEditorStatusChange?: (status: NoteEditorStatus | null) => void;
+  collaborationActionsHost?: HTMLElement | null;
 }) {
   const update = useUpdateMaterial(material.workspaceId);
   const mutateRef = useRef(update.mutate);
@@ -283,19 +302,16 @@ function NoteEditorCore({
       current.nodeCount === next.nodeCount && current.maxDepth === next.maxDepth ? current : next
     );
   }, []);
-  const currentDocument = useMemo(
-    () => {
-      // `currentDocument` is only used to reset a dirty suggestion onto a
-      // newer server revision. Direct-edit saves already update baseSnapshot
-      // from the immutable request snapshot, so parsing the query-cache copy
-      // after every successful save would be a redundant full-tree walk.
-      if (mode !== 'suggestion' || (material.revision ?? 1) === baseSnapshot.revision) {
-        return baseSnapshot.document;
-      }
-      return parseMaterialDocument(material.content) ?? baseSnapshot.document;
-    },
-    [baseSnapshot.document, baseSnapshot.revision, material.content, material.revision, mode]
-  );
+  const currentDocument = useMemo(() => {
+    // `currentDocument` is only used to reset a dirty suggestion onto a
+    // newer server revision. Direct-edit saves already update baseSnapshot
+    // from the immutable request snapshot, so parsing the query-cache copy
+    // after every successful save would be a redundant full-tree walk.
+    if (mode !== 'suggestion' || (material.revision ?? 1) === baseSnapshot.revision) {
+      return baseSnapshot.document;
+    }
+    return parseMaterialDocument(material.content) ?? baseSnapshot.document;
+  }, [baseSnapshot.document, baseSnapshot.revision, material.content, material.revision, mode]);
   const initialDocument = baseSnapshot.document;
   const setSuggestionDraftDirty = useCallback(
     (dirty: boolean) => {
@@ -357,7 +373,11 @@ function NoteEditorCore({
       const normalized = normalizeMaterialValueWithMetrics(value);
       updateDocumentMetrics(normalized.metrics);
       applyingDiscussionMarks.current = true;
-      editor.tf.setValue(structuredClone(normalized.value));
+      // withoutSuggestions: replacing the value while isSuggesting is on would
+      // otherwise be recorded as "delete whole document + re-insert" marks.
+      editor.getApi(BaseSuggestionPlugin).suggestion.withoutSuggestions(() => {
+        editor.tf.setValue(structuredClone(normalized.value));
+      });
       queueMicrotask(() => {
         applyingDiscussionMarks.current = false;
       });
@@ -552,6 +572,7 @@ function NoteEditorCore({
             suggestionDirty={suggestionDirty}
             onSuggestionReset={() => setSuggestionDraftDirty(false)}
             replaceEditorDocument={replaceEditorDocument}
+            actionsPortalHost={collaborationActionsHost}
             onBaseDocumentChange={(document, revision) => {
               // Documents on this path came from parse/create helpers and are
               // already normalized; a read-only count is enough.
@@ -564,9 +585,11 @@ function NoteEditorCore({
             <NoteToolbar
               right={mode === 'edit' && allowExternalAssets ? <VoiceButton /> : undefined}
             />
-            <div className="mb-20 min-h-0 flex-1 overflow-auto">
-              <NoteEditorContent />
-              <DocumentStatsFooter metrics={documentMetrics} contentBytes={savedContentBytes} />
+            <div className="min-h-0 flex-1 overflow-auto">
+              <div className="mx-auto min-h-full w-full max-w-7xl">
+                <NoteEditorContent metrics={documentMetrics} contentBytes={savedContentBytes} />
+                <DocumentStatsFooter metrics={documentMetrics} contentBytes={savedContentBytes} />
+              </div>
             </div>
             <FloatingToolbar />
             {allowExternalAssets && <AiMenu />}

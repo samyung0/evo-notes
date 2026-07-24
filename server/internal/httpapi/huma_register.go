@@ -84,6 +84,7 @@ func registerRoutes(api huma.API, a *api) {
 	a.registerTags(api)
 	a.registerChat(api)
 	a.registerContent(api)
+	a.registerSourceUploads(api)
 	a.registerMaterials(api)
 	a.registerQuizzes(api)
 	a.registerFlashcards(api)

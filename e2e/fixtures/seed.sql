@@ -72,7 +72,7 @@ INSERT INTO materials (
   (
     'qz_e2e_private', 'u_owner', 'ws_e2e_private', 'E2E Private Workspace', 'quiz',
     'E2E Private Quiz',
-    '{"schemaVersion":1,"value":[{"type":"h1","children":[{"text":"E2E Private Quiz"}]},{"type":"quiz","id":"qz_e2e_private:quiz","children":[{"type":"quiz_question","id":"q_priv_1","questionType":"boolean","level":"recall","correctBoolean":true,"children":[{"type":"quiz_prompt","children":[{"text":"Private quiz prompt?"}]}]}]}]}'::jsonb,
+    '{"schemaVersion":1,"value":[{"type":"h1","children":[{"text":"E2E Private Quiz"}]},{"type":"quiz","id":"qz_e2e_private:quiz","timeLimitMin":15,"children":[{"type":"quiz_question","id":"q_priv_1","questionType":"boolean","level":"recall","correctBoolean":true,"children":[{"type":"quiz_prompt","children":[{"text":"Private quiz prompt?"}]}]}]}]}'::jsonb,
     'ch_e2e_private', '{Private chapter}', '{}', 'private', 'green', now(), now(), 1, 'u_owner'
   ),
   (

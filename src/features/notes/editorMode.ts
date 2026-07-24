@@ -6,12 +6,11 @@ export type NoteEditorSaveState = 'saved' | 'pending' | 'saving' | 'error';
 
 /** Transient chrome status for the note editor (header, not toolbar). */
 export type NoteEditorStatus =
-  | { mode: 'edit'; saveState: NoteEditorSaveState }
-  | { mode: 'suggestion'; dirty: boolean };
+  { mode: 'edit'; saveState: NoteEditorSaveState } | { mode: 'suggestion'; dirty: boolean };
 
 export function noteEditorStatusLabel(status: NoteEditorStatus | null | undefined): string | null {
   if (!status) return null;
-  if (status.mode === 'suggestion') return status.dirty ? 'Suggestion draft' : 'Suggesting';
+  if (status.mode === 'suggestion') return status.dirty ? 'Unsaved' : 'Saved';
   switch (status.saveState) {
     case 'saved':
       return 'Saved';

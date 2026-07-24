@@ -56,6 +56,7 @@ import type {
   SaveCanvasReq,
   SearchParams,
   SearchResult,
+  SourceUploadPolicy,
   Tag,
   Task,
   URLResp,
@@ -2722,6 +2723,48 @@ export const search = async (
 
   const data: searchResponse['data'] = body ? JSON.parse(body) : {};
   return { data, status: res.status, headers: res.headers } as searchResponse;
+};
+
+export type getSourceUploadPolicyResponse200 = {
+  data: SourceUploadPolicy;
+  status: 200;
+};
+
+export type getSourceUploadPolicyResponseDefault = {
+  data: ErrorModel;
+  status: Exclude<HTTPStatusCodes, 200>;
+};
+
+export type getSourceUploadPolicyResponseSuccess = getSourceUploadPolicyResponse200 & {
+  headers: Headers;
+};
+export type getSourceUploadPolicyResponseError = getSourceUploadPolicyResponseDefault & {
+  headers: Headers;
+};
+
+export type getSourceUploadPolicyResponse =
+  | getSourceUploadPolicyResponseSuccess
+  | getSourceUploadPolicyResponseError;
+
+export const getGetSourceUploadPolicyUrl = () => {
+  return `/api/source-upload-policy`;
+};
+
+/**
+ * @summary Get source upload policy
+ */
+export const getSourceUploadPolicy = async (
+  options?: RequestInit
+): Promise<getSourceUploadPolicyResponse> => {
+  const res = await fetch(getGetSourceUploadPolicyUrl(), {
+    ...options,
+    method: 'GET',
+  });
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: getSourceUploadPolicyResponse['data'] = body ? JSON.parse(body) : {};
+  return { data, status: res.status, headers: res.headers } as getSourceUploadPolicyResponse;
 };
 
 export type listTagsResponse200 = {

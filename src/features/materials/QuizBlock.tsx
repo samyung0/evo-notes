@@ -1,41 +1,96 @@
-import { useMemo } from 'react';
-import { Text } from '@/components/ui';
-import { QuestionRunner } from '@/features/quizzes/QuestionRunner';
-import { emptyAnswer } from '@/features/quizzes/grade';
-import { parseQuizFenceBody } from './blocks';
+import type { ReactNode } from 'react';
+import type { CognitiveLevel, QuestionType } from '@/api/types';
+import { Badge, Icon } from '@/components/ui';
+import { cn } from '@/lib/cn';
+import { LEVEL_LABEL, LEVEL_TONE } from '@/lib/levels';
+import {
+  QUIZ_REVIEW_OPTION_CLASS,
+  QUIZ_REVIEW_OPTION_CORRECT_CLASS,
+  QUIZ_REVIEW_OPTION_NEUTRAL_CLASS,
+  QUIZ_REVIEW_PROMPT_CLASS,
+} from '@/features/notes/nodeStyles';
 
-/** Read-only renderer for a ```quiz fenced block (YAML payload). */
-export function QuizBlock({ body }: { body: string }) {
-  const { questions, timeLimitMin } = useMemo(() => parseQuizFenceBody(body), [body]);
+export type QuizOptionRole = 'accepted-answer' | 'matching-pair' | 'ordering-item';
 
-  if (!questions.length) {
-    return (
-      <pre className="my-3 overflow-auto rounded-card border border-line bg-surface-hover-bg p-3 text-xs">
-        <code className="font-mono text-fg-muted">Empty quiz block</code>
-      </pre>
-    );
-  }
+export function QuizQuestionHeader({
+  questionNumber,
+  questionType,
+  level,
+}: {
+  questionNumber?: number;
+  questionType: QuestionType;
+  level: CognitiveLevel;
+}) {
+  return (
+    <>
+      <div contentEditable={false} className="mb-3 flex items-center gap-2">
+        <Badge tone={LEVEL_TONE[level]} className="-translate-y-px" size="sm">
+          {LEVEL_LABEL[level]}
+        </Badge>
+        <div className={cn(QUIZ_REVIEW_PROMPT_CLASS, 'mb-0')}>{questionNumber}.</div>
+      </div>
+    </>
+  );
+}
+
+export function quizOptionClassName(correct: boolean, role?: QuizOptionRole): string {
+  return cn(
+    'col-span-2',
+    QUIZ_REVIEW_OPTION_CLASS,
+    correct || role === 'accepted-answer'
+      ? QUIZ_REVIEW_OPTION_CORRECT_CLASS
+      : QUIZ_REVIEW_OPTION_NEUTRAL_CLASS
+  );
+}
+
+export function QuizOptionView({
+  children,
+  correct,
+  role,
+  optionNumber,
+  explanation,
+}: {
+  children: ReactNode;
+  correct: boolean;
+  role?: QuizOptionRole;
+  optionNumber?: number;
+  explanation?: string;
+}) {
+  const highlighted = correct || role === 'accepted-answer';
+  const orderedItem = role === 'ordering-item';
+  const matchingPair = role === 'matching-pair';
 
   return (
-    <div className="my-4 flex flex-col gap-4">
-      {timeLimitMin != null && (
-        <Text variant="meta" tone="muted">
-          Time limit: {timeLimitMin} min
-        </Text>
-      )}
-      {questions.map((q, i) => (
-        <div key={q.id} className="rounded-card border border-line bg-surface p-4">
-          <Text variant="meta" tone="muted" className="mb-2">
-            Question {i + 1}
-          </Text>
-          <QuestionRunner question={q} answer={emptyAnswer(q)} onChange={() => {}} review />
-          {q.explanation && (
-            <Text variant="meta" tone="muted" className="mt-3 border-t border-divider pt-3">
-              {q.explanation}
-            </Text>
+    <>
+      <span className="flex items-center gap-3">
+        <span
+          contentEditable={false}
+          className={cn(
+            'flex h-5 w-5 shrink-0 items-center justify-center rounded-pill border',
+            highlighted
+              ? 'border-solid-success bg-solid-success text-white'
+              : orderedItem
+                ? 'border-0 bg-surface-hover-bg text-xs font-bold text-fg-secondary'
+                : matchingPair
+                  ? 'border-line-strong text-fg-muted'
+                  : 'border-line-strong'
           )}
-        </div>
-      ))}
-    </div>
+        >
+          {highlighted ? (
+            <Icon name="check" size={13} strokeWidth={2.5} />
+          ) : orderedItem ? (
+            optionNumber
+          ) : matchingPair ? (
+            '↔'
+          ) : null}
+        </span>
+        <span className="min-w-0 wrap-break-word">{children}</span>
+      </span>
+      {explanation && (
+        <span contentEditable={false} className="pl-8 text-xs text-fg-muted">
+          {explanation}
+        </span>
+      )}
+    </>
   );
 }

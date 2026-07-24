@@ -9,7 +9,7 @@ import {
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input, InputTitle } from '@/components/ui/Input';
-import { userToast } from '@/components/ui/Sonner';
+import { userToast } from '@/components/ui/userToast';
 import {
   Select,
   SelectContent,
@@ -42,14 +42,13 @@ export function WorkspaceMemberManager({ workspaceId }: { workspaceId: string })
       setIdentifier('');
       userToast({
         title: 'Invitation submitted',
-        description: 'If an account matches, they’ll receive an invitation.',
-        button: { label: 'Dismiss', onClick: () => {} },
+        description: "If an account matches, they'll receive an invitation.",
       });
     } catch {
       userToast({
         title: 'Could not send invitation',
         description: 'Something went wrong. Please try again.',
-        button: { label: 'Dismiss', onClick: () => {} },
+        variant: 'error',
       });
     }
   }

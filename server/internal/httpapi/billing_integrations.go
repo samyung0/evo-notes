@@ -62,6 +62,12 @@ func (a *api) importSources(w http.ResponseWriter, r *http.Request) {
 			a.fail(w, err)
 			return
 		}
+		kind := integrations.KindFromName(name)
+		mode := defaultParseMode(name, kind)
+		if err := validateParseMode(mode, name, kind, int64(len(data))); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
+			return
+		}
 		if a.blob == nil {
 			a.fail(w, fmt.Errorf("blob store not configured"))
 			return
@@ -71,13 +77,12 @@ func (a *api) importSources(w http.ResponseWriter, r *http.Request) {
 			a.fail(w, err)
 			return
 		}
-		kind := integrations.KindFromName(name)
 		var f store.File
-		if mode := defaultParseMode(name, kind); mode == parseModeNone {
+		if mode == parseModeNone {
 			// Formats no parser supports (video/audio/…) land ready, view-only.
-			f, err = a.s.CreateSourceReady(r.Context(), wsID, name, kind, body.ChapterID, len(data)/1024, blobPath)
+			f, err = a.s.CreateSourceReady(r.Context(), wsID, name, kind, body.ChapterID, "", len(data)/1024, blobPath)
 		} else {
-			f, _, err = a.s.CreateSourceWithJob(r.Context(), wsID, name, kind, body.ChapterID, len(data)/1024, blobPath, a.parser, a.engine, mode)
+			f, _, err = a.s.CreateSourceWithJob(r.Context(), wsID, name, kind, body.ChapterID, "", len(data)/1024, blobPath, a.parser, a.engine, mode)
 		}
 		if err != nil {
 			a.fail(w, err)

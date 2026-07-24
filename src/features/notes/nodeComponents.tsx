@@ -102,7 +102,7 @@ export function FloatingActionButton({
       onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       className={cn(
-        'z-10 flex size-8 shrink-0 items-center justify-center rounded-row text-fg-muted outline-none hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2 focus-visible:ring-action active:cursor-grabbing [&_svg]:size-4',
+        'z-10 flex size-8 shrink-0 items-center justify-center rounded-row text-fg-secondary outline-none hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2 focus-visible:ring-action active:cursor-grabbing [&_svg]:size-4',
         className
       )}
       {...rest}
@@ -202,7 +202,7 @@ function CodeBlock(props: PlateElementProps) {
               aria-label="Code language"
               className="h-full w-auto translate-y-px bg-transparent py-0 pr-1.5 pl-2 font-semibold text-fg-muted hover:text-fg"
               size="sm"
-              variant="noOutline"
+              variant="ghost"
               data-plate-prevent-deselect
               showDownIcon={false}
             >
@@ -342,7 +342,7 @@ function Callout(props: PlateElementProps) {
               aria-label="Callout style"
               className="h-7 w-24 bg-transparent px-2 py-0 text-xs"
               size="sm"
-              variant="noOutline"
+              variant="ghost"
               data-plate-prevent-deselect
             >
               <SelectValue />

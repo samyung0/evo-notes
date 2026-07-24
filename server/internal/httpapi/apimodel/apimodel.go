@@ -80,6 +80,29 @@ type (
 	MaterialRef        = store.MaterialRef
 )
 
+// SourceUploadPolicy describes the server-owned file allowlist and parser
+// limits consumed by the upload dialog.
+type SourceUploadKindPolicy struct {
+	Kind       store.FileKind `json:"kind"`
+	Extensions []string       `json:"extensions" nullable:"false"`
+	Text       bool           `json:"text"`
+}
+
+type SourceUploadParseModePolicy struct {
+	Mode       string   `json:"mode" enum:"advanced,normal,none"`
+	Extensions []string `json:"extensions" nullable:"false"`
+	MaxBytes   int64    `json:"maxBytes"`
+	MaxPages   int      `json:"maxPages,omitempty"`
+}
+
+type SourceUploadPolicy struct {
+	Kinds            []SourceUploadKindPolicy      `json:"kinds" nullable:"false"`
+	ParseModes       []SourceUploadParseModePolicy `json:"parseModes" nullable:"false"`
+	Accept           string                        `json:"accept"`
+	MaxBytes         int64                         `json:"maxBytes"`
+	AllowNoExtension bool                          `json:"allowNoExtension"`
+}
+
 type Material struct {
 	ID            string                   `json:"id"`
 	WorkspaceID   string                   `json:"workspaceId"`

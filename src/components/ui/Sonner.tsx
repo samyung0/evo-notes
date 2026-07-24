@@ -1,47 +1,94 @@
 import { toast as sonnerToast } from 'sonner';
+import { Card } from './Card';
+import { IconButton } from './IconButton';
+import { Button } from './Button';
+import { cva, VariantProps } from 'class-variance-authority';
+import { Icon } from './Icon';
+import { cn } from '@/lib/cn';
 
-function userToast(toast: Omit<ToastProps, 'id'>) {
-  return sonnerToast.custom((id) => (
-    <Toast id={id} title={toast.title} description={toast.description} button={toast.button} />
-  ));
-}
+const sonnerCardVariants = cva(
+  'items-top pointer-events-auto relative z-9999 w-full min-w-64 flex-row p-4 shadow-card md:max-w-91',
+  {
+    variants: {
+      variant: {
+        default: '',
+        error: 'border-tint-error bg-tint-error text-tint-error-fg md:max-w-96',
+        warning: 'border-tint-warning bg-tint-warning text-tint-warning-fg md:max-w-96',
+        success: 'border-tint-success bg-tint-success text-tint-success-fg md:max-w-96',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+    },
+  }
+);
 
 function Toast(props: ToastProps) {
-  const { title, description, button, id } = props;
-
+  const { title, description, button, id, showCloseButton = true, variant = 'default' } = props;
   return (
-    <div className="flex w-full items-center rounded-lg bg-white p-4 shadow-lg ring-1 ring-black/5 md:max-w-91">
-      <div className="flex flex-1 items-center">
+    <Card radius="row" border="solid" className={cn(sonnerCardVariants({ variant }))}>
+      {showCloseButton && (
+        <IconButton
+          icon="x"
+          variant="outline"
+          className="absolute -top-2 -left-2 rounded-md p-1 [&>svg]:size-3"
+          size="xs"
+          onClick={() => {
+            sonnerToast.dismiss(id);
+          }}
+        >
+          <span className="sr-only">Close</span>
+        </IconButton>
+      )}
+      <div className="items-top flex flex-1 gap-1.5">
+        {variant === 'error' && (
+          <Icon name="error" strokeWidth={2} className="mr-2 size-5 -translate-y-px" />
+        )}
+        {variant === 'warning' && (
+          <Icon name="warning" strokeWidth={2} className="mr-2 size-5 -translate-y-px" />
+        )}
+        {variant === 'success' && (
+          <Icon name="check" strokeWidth={2} className="mr-2 size-5 -translate-y-px" />
+        )}
         <div className="w-full">
-          <p className="text-sm font-medium text-gray-900">{title}</p>
-          <p className="mt-1 text-sm text-gray-500">{description}</p>
+          <p
+            className={cn(
+              'flex items-start font-medium',
+              (variant === 'warning' || variant === 'error') && 'font-bold'
+            )}
+          >
+            <span>{title}</span>
+          </p>
+          <p className="mt-1 text-fg-muted">{description}</p>
         </div>
       </div>
       {button && (
-        <div className="ml-5 shrink-0 rounded-md text-sm font-medium text-indigo-600 hover:text-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-hidden">
-          <button
-            className="rounded bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-600 hover:bg-indigo-100"
+        <div className="ml-5 shrink-0">
+          <Button
+            size="sm"
+            className="translate-y-1 rounded-md px-2.5 py-1"
             onClick={() => {
               button.onClick();
               sonnerToast.dismiss(id);
             }}
           >
             {button.label}
-          </button>
+          </Button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
-interface ToastProps {
+interface ToastProps extends VariantProps<typeof sonnerCardVariants> {
   id: string | number;
   title: string;
   description?: string;
+  showCloseButton?: boolean;
   button?: {
     label: string;
     onClick: () => void;
   };
 }
 
-export { userToast, type ToastProps };
+export { Toast, type ToastProps };

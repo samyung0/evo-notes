@@ -47,6 +47,9 @@ process.env.E2E_AUTH_SECRET = e2eSecret;
 
 export default defineConfig({
   testDir: path.join(root, 'e2e'),
+  // The editor feature matrix runs against MSW (no Docker) with its own
+  // config: e2e/editor/playwright.editor.config.ts (pnpm e2e:editor).
+  testIgnore: ['**/editor/**'],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

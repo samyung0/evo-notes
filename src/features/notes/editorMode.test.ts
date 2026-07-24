@@ -37,7 +37,7 @@ describe('noteEditorStatusLabel', () => {
     expect(noteEditorStatusLabel({ mode: 'edit', saveState: 'error' })).toBe(
       'Save conflict or failure'
     );
-    expect(noteEditorStatusLabel({ mode: 'suggestion', dirty: false })).toBe('Suggesting');
-    expect(noteEditorStatusLabel({ mode: 'suggestion', dirty: true })).toBe('Suggestion draft');
+    expect(noteEditorStatusLabel({ mode: 'suggestion', dirty: false })).toBe('Saved');
+    expect(noteEditorStatusLabel({ mode: 'suggestion', dirty: true })).toBe('Unsaved');
   });
 });

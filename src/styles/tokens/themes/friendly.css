@@ -89,7 +89,7 @@
   --text-muted: #6b6b6b;
   --text-placeholder: #6b6b6b;
   --text-link: #5b4aa8;
-  --text-link-hover: #7866cf;
+  --text-link-hover: rgb(59, 47, 121);
 
   /* Borders & lines */
   --border-default: #e6e6e6;

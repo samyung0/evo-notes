@@ -1,7 +1,7 @@
 ---
 type: Frontend
-title: "Frontend: Plate.js Editor Deep Dive"
-description: "How Plate.js v53 works and how evo-notes composes it into an editable, persistent, collaborative, AI-enabled material editor with a separate static renderer."
+title: 'Frontend: Plate.js Editor Deep Dive'
+description: 'How Plate.js v53 works and how evo-notes composes it into an editable, persistent, collaborative, AI-enabled material editor with a separate static renderer.'
 tags: [frontend, plate, slate, rich-text, collaboration, ai, serialization]
 ---
 
@@ -247,6 +247,22 @@ inside `<Plate>`. It owns the UI and API workflows for:
 
 The `NoteToolbar`, `FloatingToolbar`, and `AiMenu` are also children of
 `Plate`, allowing them to read selection and plugin state directly.
+
+### Shared insertion command catalog
+
+`src/features/notes/editorCommands.ts` is the shared insertion catalog for the
+slash menu and the responsive `All blocks` popover. Each command carries its
+group (`basic`, `lists`, `media`, `advanced`, or `inline`), Lucide icon,
+optional shortcut display, optional widget preference, and a runner that
+reuses the existing Plate transforms.
+
+The catalog includes headings `h1` through `h6`, lists (including task lists),
+media placeholders, tables, callouts, all four column layouts, equations,
+TOC, study/diagram blocks, mentions, and inline equations. Preferences filter
+command surfaces but never unload the corresponding parser or renderer plugin.
+The popover renders grouped rows with icons on the left and shortcuts on the
+right; direct toolbar groups remain quick-access duplicates and may be hidden
+by responsive layout.
 
 ## Plugin registry: what is always present
 
@@ -606,10 +622,20 @@ discussion.anchor
     )
 ```
 
-Stale anchors are caught and ignored for decoration; the discussion remains
-available in the thread list. Creating a new discussion saves the selected
-text, block ID, anchor, and rich comment content to the API, then applies the
-returned discussion ID as a comment mark.
+Stale anchors are caught and ignored for decoration. Discussion and
+suggestion cards render in a **per-block popover**: `BlockDiscussion`
+(`render.aboveNodes` of the discussion plugin) matches records to each
+top-level block by `blockId` (falling back to the anchor's top-level path
+index) and renders a "Show N collaboration items" trigger next to the block.
+There is currently **no unanchored surface**: a suggestion or discussion whose
+anchor has neither a usable `blockId` nor a selection path (e.g. an
+API-created suggestion with only `{ scope: 'document' }`) is invisible in the
+UI. (An earlier right-side `CommentRail` that had an unanchored stack was
+removed; the sharing e2e specs and older docs referencing a
+`Comment threads` complementary region are stale.)
+Creating a new discussion saves the selected text, block ID, anchor, and rich
+comment content to the API, then applies the returned discussion ID as a
+decoration-only comment mark inside `withoutSaving`.
 
 ### Suggestions
 
@@ -624,9 +650,18 @@ Suggestion mode changes the meaning of an editor change:
 Submitting a draft sends:
 
 - the base revision;
-- the current selection anchor;
+- a durable block/selection anchor;
 - the complete original base fragment;
 - the complete proposed fragment.
+
+`buildSubmittedSuggestionAnchor` does not blindly persist the live caret.
+After an Enter keypress, Plate marks the preceding paragraph with an inserted
+line break and leaves the caret in a newly inserted block. The editor resets
+to the base document after submission, so that new block immediately
+disappears; anchoring the card to it made the saved suggestion invisible.
+Submission now finds the nearest changed top-level block whose stable ID also
+exists in the base document and anchors to that survivor. Legacy
+selection-only anchors recover the same ID from the saved original fragment.
 
 The server can then review a suggestion against the revision from which it was
 created. Accept/reject is finalized by
@@ -639,6 +674,72 @@ created. Accept/reject is finalized by
 `reviewSuggestionAtomically` checks the current revision before accepting,
 updates the suggestion status with the expected base revision, and replaces
 the local editor document only after the API succeeds.
+
+Suggestion cards derive per-line **Add/Delete change items** with
+`suggestionChangeItems` (`suggestions.ts`): it walks suggestion metadata in the
+proposed fragment, merges adjacent marked text runs, reports fully suggested
+blocks once, and explicitly labels inserted/removed line breaks. This matches
+the Plate demo card format instead of dumping raw fragments.
+
+### Submitted suggestions in every material mode
+
+The collaboration API stores each pending suggestion as an independent
+base/proposed document snapshot. Those snapshots cannot safely be merged into
+the live Slate value: two proposals may conflict, and putting unresolved
+suggestion nodes into edit mode would let normal autosave persist them as
+accepted content. Instead, pending proposals render as non-editable,
+always-visible Add/Delete annotations adjacent to their anchored block:
+
+- interactive edit and suggestion modes render
+  `SubmittedSuggestionChanges` from `BlockDiscussionContent`;
+- static view mode adds `StaticSuggestionAnnotationPlugin` to
+  `MaterialPreview`, using a React context to match suggestions without loading
+  the interactive Plate editor. It maps the anchor's top-level path onto the
+  preview's normalized value before falling back to `blockId`: older persisted
+  documents may have no IDs, so interactive and static parsing can otherwise
+  generate different IDs for the same block;
+- the detailed card and Accept/Reject actions remain in the block's
+  collaboration popover;
+- accepted/rejected/withdrawn proposals remain in collaboration history but
+  stop rendering as pending inline changes (accepted content is already in the
+  material).
+
+All material viewers can fetch the same suggestion list through material
+read access, so pending changes remain visible when switching among View,
+Edit, and Suggestion. Keep these annotations outside the editable Slate value
+and `contentEditable={false}`; otherwise clicking or autosaving in edit mode
+can mutate/persist review-only data.
+
+### `withoutSuggestions` pitfalls (fixed Jul 2026)
+
+While suggesting mode is on, **every** editor transform is recorded as a
+suggestion — including programmatic ones the user never made. Two concrete
+bugs came from this:
+
+- **Phantom trailing line:** `TrailingBlockPlugin` inserts an empty paragraph
+  whenever the last block isn't one. In suggesting mode that insert got
+  `insert` suggestion marks, so every draft showed an appended line the user
+  didn't type. Fix: `suggestionSafeTrailingBlockPlugin`
+  (`collaborationPlugins.ts`) overrides the plugin's `insert` option to run
+  inside `editor.getApi(BaseSuggestionPlugin).suggestion.withoutSuggestions`.
+- **Whole-file delete/re-add diff:** `replaceEditorDocument` in
+  `NoteEditor.tsx` calls `editor.tf.setValue` when server content replaces
+  local content (e.g. after submitting a draft). Unwrapped, the replacement
+  itself was recorded as "delete everything, insert everything". The
+  `setValue` is now wrapped in `withoutSuggestions` too.
+
+Note the API lives on `editor.getApi(BaseSuggestionPlugin)` — getting the API
+via the locally configured `suggestionPlugin` object does not type-expose
+`suggestion.withoutSuggestions`.
+
+**Block wrapper vs. tables/columns:** the suggestion plugin's
+`render.belowNodes` line-break wrapper (`SuggestionLineBreak` in
+`Collaboration.tsx`) used to wrap children of every suggested block in a
+`<div>`. Inside `table`/`tr`/`td`/`th` that inserts an invalid element between
+table parts and collapses cell widths; inside a `columnGroup` it destroyed the
+flex row so columns collapsed. It is now element-type-aware: table-family
+elements render children with no wrapper, `columnGroup` keeps the wrapper but
+with `flex size-full gap-2`.
 
 ### The single-configuration-slot pitfall
 
@@ -849,21 +950,64 @@ displays the current member label. Member directory loading is therefore a
 runtime dependency, not a reason to duplicate user profile data in every
 mention node.
 
+**Dropdown clipping pitfall (fixed Jul 2026):** both combobox dropdowns must
+render through `FloatingPortal` (floating-ui), not inline under the input
+node. The inline version was clipped/hidden when the input sat inside a
+heading or any ancestor with overflow/transform, so "@ inside a heading"
+appeared to do nothing. `MentionInput.tsx` now portals its listbox the same
+way `SlashInput.tsx` does.
+
 ### Block selection and drag/drop
 
-`BlockSelectionPlugin` provides block-level context operations. The custom
-`BlockContextMenu` adds duplicate, delete, convert, indent, and outdent.
-`DndPlugin` is configured with:
+The interaction layer was ported from `plate-playground-template` in Jul 2026
+(`BlockInteractions.tsx` + `BlockSelection.tsx`) after the earlier simplified
+version left right-click selection, handle-click selection, and the selection
+overlay non-functional. The moving parts:
 
-- an injected `DndProvider` using `HTML5Backend`;
-- `BlockDraggable` wrappers for root blocks;
-- drop-line feedback;
-- file drop handling that routes to media placeholders.
+- `BlockSelectionPlugin` itself injects a `slate-selectable` class and a
+  right-click `onContextMenu` handler into every selectable block via
+  `inject.nodeProps` (`useBlockSelectable`). Right-click selection therefore
+  works at the plugin level once `enableContextMenu: true` is set — what was
+  missing was the **visual** layer: a `render.belowRootNodes` component
+  (`BlockSelectionBelowRootNodes`) that renders an absolute overlay inside
+  each selected block. Plate injects `position: relative` on selectable block
+  elements, so the overlay anchors per block.
+- The overlay must be a `<span>` (styled block), not a `<div>`: it renders
+  inside the block element itself, which can be a `<p>` where nested `<div>`
+  is invalid HTML.
+- `BlockDraggable` wraps root blocks **and** blocks nested in columns (path
+  length 3) and table cells (path length 4). The drag handle's `onMouseDown`
+  sets the block selection (expanding list items with
+  `expandListItemsWithChildren`) and builds a stacked multi-block drag
+  preview; `onClick` calls `blockSelection.focus()`.
+- `BlockContextMenu` is a Radix `ContextMenu` (`src/components/ui/ContextMenu.tsx`)
+  whose items operate on the block selection transforms (`duplicate`,
+  `removeNodes`, `setIndent`, `setNodes({ align })`, turn-into via
+  `toggleEditorBlock` per selected path).
+- The `.slate-selection-area` marquee rectangle is styled through arbitrary
+  variants on `PlateContainer` in `NoteEditor.tsx`.
+- `CursorOverlayPlugin` is registered unconditionally: the AI plugin set
+  brings its own variant (hides during streaming); non-AI editors get
+  `EditorCursorOverlay` from `BlockSelection.tsx`.
+
+**Deselect-on-mousedown pitfall (Jul 2026):** the plugin registers an
+editor-level `onMouseDown` that clears the block selection on any left click.
+Its escape hatch checks `event.target.dataset.platePreventDeselect`
+**directly on the event target — no `closest()`** — and in the published
+`@platejs/selection` 53.1.6 dist one of the two dataset keys is even mangled
+by minification. A click that lands on an SVG icon inside a
+`data-plate-prevent-deselect` button therefore still deselects. The reliable
+fixes used in `DragHandle`: call `event.stopPropagation()` in the handle's
+`onMouseDown` (the plugin handler sits on the editable root, so stopping
+propagation is deterministic) and give icons `pointer-events-none`.
 
 Nested table rows/cells and columns have their own drag behavior and are
-excluded from the root block wrapper. The block draggable also uses
-`MemoizedChildren` so the extra gutter/handle does not unnecessarily disturb
-the editable subtree.
+excluded from the root block wrapper (`UNDRAGGABLE_KEYS`). The block draggable
+uses `MemoizedChildren` so the extra gutter/handle does not disturb the
+editable subtree. `isSelectable` excludes `column`, `code_line`, and `td` so
+text selection keeps working inside nested structures, while their top-level
+ancestors remain block-selectable; the template's progressive `mod+a`
+(select block text → select all blocks) is enabled (no `disableSelectAll`).
 
 ## Markdown, JSON, and DOCX boundaries
 
@@ -960,6 +1104,17 @@ options configuration must not replace the structural renderer/injection
 configuration. Also ensure `currentUserId` is available or the stable fallback
 is supplied before the first suggestion keystroke.
 
+### Clear formatting appears to do nothing
+
+`editor.tf.removeMarks()` with no arguments only clears marks at a collapsed
+cursor; over an expanded selection it is a no-op. Formatting must be cleared
+with an explicit key list — `clearEditorFormatting` in
+[`editorTransforms.ts`](../../src/features/notes/editorTransforms.ts) passes
+`CLEARABLE_MARK_KEYS` (bold/italic/underline/strikethrough/code/sub/super,
+highlight, kbd, colors, font size/family/weight, line height). Route any
+"clear formatting" UI through that helper instead of calling `removeMarks`
+directly.
+
 ### A discussion mark causes a save or a stale anchor crashes rendering
 
 Discussion anchors are revision-relative. Mark application is guarded and
@@ -1018,6 +1173,12 @@ The most relevant tests are:
   — static rendering parity and safe link handling;
 - [`plateAiTransport.test.ts`](../../src/api/plateAiTransport.test.ts)
   — AI endpoint scoping and request sanitization.
+
+Browser-level editor behavior (block selection, context menu, drag/drop,
+mention/slash dropdowns, table/column insertion, suggestion mode) is covered
+by the MSW-based Playwright matrix in `e2e/editor/` — run it with
+`pnpm e2e:editor`; see the [testing page](../testing/e2e-and-unit.md) for the
+spec breakdown.
 
 Run the frontend checks with:
 

@@ -29,18 +29,54 @@ low priority:
 
 high PRIORITIES:
 
-5. the ai plugin popover should be at the same position as the command dropdown (when typing slash), it should default show below cursor and move to above if theres not enough space
-6. fix the suggestion mode
-7. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
-8. add layout adjust in editor to make the document smaller or larger in width
-9. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
-10. set loading state for submit buttons (esp dialogs)
-11. remove all the <Text> components
-12. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
-13. add icons for common file format
-14. export to diff files
-15. copy action on quizzes/flashcards/other materials (copy the underlying markdown)
-16. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5)
+3. unify quizblock and questionrunner (with questionrunner as default)? (need to consider the impact of how user can edit them when rendered using questionrunner styles) we have two different rendering paths, remove question type ordering-item
+4. materials action menu should have same functions as normal files (file property should in addition show nodes and depths (is this saved in db?)), materials like quiz/flashcards may have additional customizations (e.g. time limit when attempting etc), put these additional customizations into an option called settings which pops up a dialog
+5. in centercontent header, add in a full screen button and the action menu (with same functions found in filelistitem)
+6. how to adjust blockselection colors?
+7. fix block selection, per plate playground:
+   Block Selection
+   There are multiple ways to select entire blocks:
+   Click and drag from the editor margin to select multiple blocks
+   Click a block drag handle
+   Right-click a block
+   Click the triple dot button in the top-right corner (e.g. media blocks) (PENDING TODO: hover controls are to be implemented)
+   Advanced selection techniques:
+   Hold Shift while dragging to select non-contiguous blocks
+   Drag near the editor edges to auto-scroll while selecting
+   issues:
+   useBlockSelected in DraggableBlock seems to retun false always (i.e. clicking on the drag handle doesnt select the block),
+   DraggableBlock and right clicking blocks right now has a custom bg color rather than using plate block selection
+   selecting text seems to use browser default selection rather than plate block selection
+8. if copy and pasting markdown, render it directly rather than inside a code block (? what determines if a code block gets inserted or not?)
+9. handle file loading errors (not unable to fetch from backend, thats handled, but onload error from urls, both in centercontent and in plate editor)
+10. combine image/videos/audio/files into just a single upload (plus insert via url, make it a dropdown with a chevron down icon like how file import/export does it), (if upload, backend gen presigned url to upload to blackblaze, then store the link to the file, in all cases the file should never pass through backend to prevent attacks/reduce bandwidth), after getting the direct file url it displays in plate editor and parse into image/video/audio base on file format
+11. fix the suggestion mode
+12. in editor we need to use custom tooltips rather than title=xxx, include shortcut as well
+13. add layout adjust in editor to make the document smaller or larger in width
+14. theme configuration (use dialog) put in topsetbar avatar dropdown instead of nav
+15. set loading state for submit buttons (esp dialogs)
+16. remove all the <Text> components
+17. enable ordering of doucments within chapters with drag and drop (right now it just drops in the chapter)
+18. add icons for common file format
+19. enrich the global searches (in the topinsetbar)
+    - workspace names & chapters
+    - files and materials names
+    - calendar event names
+    - tasks title
+    - Remove: thinking space (not worked on yet)
+20. make the onsuccess invalidate queries async await so awaiting a mutateAsync awaits both the mutate call AND the refetch query call, this is good for UI since loading states spans data mutation + refetch, refetch is where user actually sees the display changes, if loading state exits early, there is a gap between user seeing action finishes and UI updates
+21. when calling backend, we should always use react hook form paired with zod schema validations (auto generated), the submit button should be disabled when submitDisabled is true (const submitDisabled =
+    !form.formState.isDirty || !form.formState.isValid || form.formState.isSubmitting;) when error happens inside handleSubmit, a userToast must always show. editing existing resources or creating resources shouldnt need to show toast unless there is minimal to no UI change to let user know the action is successful (e.g. inviting members to workspace, or updaing privacy inside the shareDialog (very minimal select value changes))
+22. enable website mcp for the LLM so users can ask (summarize file page x to xx or how to answer quiz A question 5), curate list of tools available to workspace chat llm/website convo llm (two different set of tools & context provided since workspace can provide more informations)
+23. modularize ai models, let user choose what cloud/local models they want to use for different scenarios:
+    exhaustive list:
+
+- file parsing
+- workspace chat with llm
+- workspace generate
+- editor ask AI (TODO: verify if this works at all)
+- editor voice transcribe (TODO: verify if transcribe works at all)
+- website realtime convo llm (TODO: not implemented yet)
 
 subscription todo
 

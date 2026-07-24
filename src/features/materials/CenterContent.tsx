@@ -14,7 +14,7 @@ import {
   SelectValue,
   Spinner,
 } from '@/components/ui';
-import { useDeck, useFile, useMaterial, useQuiz } from '@/api/hooks';
+import { useDeck, useFile, useMaterial, useMaterialSuggestions, useQuiz } from '@/api/hooks';
 import { FileViewer } from '@/features/files/FileViewer';
 import {
   clampImageZoom,
@@ -24,7 +24,6 @@ import {
   isImageFile,
 } from '@/features/files/fileUtils';
 import { MaterialPreview } from './MaterialPreview';
-import type { MaterialDocument } from './document';
 import {
   isInteractiveMaterialMode,
   materialModePolicy,
@@ -36,15 +35,15 @@ import { type MaterialKind, UserColor } from '@/api/types';
 import { noteEditorStatusLabel, type NoteEditorStatus } from '@/features/notes/editorMode';
 import { cn } from '@/lib/cn';
 
-/* Interactive Plate is the heaviest chunk in this route. View and study modes
- * deliberately never load it. */
+/* Interactive Plate is the heaviest chunk in this route. View mode
+ * deliberately never loads it. */
 const NoteEditor = lazy(() =>
   import('@/features/notes/NoteEditor').then((m) => ({ default: m.NoteEditor }))
 );
 
 /** The center pane. Dispatches on the currently-open item — a source file or a
  * study material — and renders a consistent header plus the item body. Quiz and
- * flashcards materials get action-rich previews; mindmaps/diagrams render inline.
+ * flashcards materials get view actions in the header; mindmaps/diagrams render inline.
  * User-authored notes take over the whole pane with the editable Plate editor. */
 export function CenterContent({
   item,
@@ -61,6 +60,9 @@ export function CenterContent({
   const [materialMode, setMaterialMode] = useState<MaterialMode | null>(null);
   const [suggestionDirty, setSuggestionDirty] = useState(false);
   const [editorStatus, setEditorStatus] = useState<NoteEditorStatus | null>(null);
+  const [collaborationActionsHost, setCollaborationActionsHost] = useState<HTMLDivElement | null>(
+    null
+  );
   const updateSuggestionDirty = useCallback(
     (dirty: boolean) => {
       setSuggestionDirty(dirty);
@@ -100,6 +102,7 @@ export function CenterContent({
         materialMode={materialMode}
         onMaterialModeChange={changeMaterialMode}
         editorStatus={editorStatus}
+        collaborationActionsRef={setCollaborationActionsHost}
       />
       <div className="relative min-h-0 flex-1 overflow-auto">
         {item.kind === 'material' && (
@@ -110,6 +113,7 @@ export function CenterContent({
             allowExternalAssets={!readOnly}
             onSuggestionDirtyChange={updateSuggestionDirty}
             onEditorStatusChange={setEditorStatus}
+            collaborationActionsHost={collaborationActionsHost}
           />
         )}
         {item.kind === 'file' && (
@@ -127,14 +131,12 @@ export function CenterContent({
 
 const MATERIALMODE_ICON: Record<MaterialMode, IconName> = {
   view: 'eye',
-  study: 'quiz',
   edit: 'write',
-  suggestion: 'write',
+  suggestion: 'rubber',
 };
 
 const MATERIALMODE_LABEL: Record<MaterialMode, string> = {
   view: 'View',
-  study: 'Study',
   edit: 'Edit',
   suggestion: 'Suggestion',
 };
@@ -145,14 +147,17 @@ function MaterialBody({
   allowExternalAssets,
   onSuggestionDirtyChange,
   onEditorStatusChange,
+  collaborationActionsHost,
 }: {
   materialId: string;
   mode: MaterialMode | null;
   allowExternalAssets: boolean;
   onSuggestionDirtyChange: (dirty: boolean) => void;
   onEditorStatusChange: (status: NoteEditorStatus | null) => void;
+  collaborationActionsHost: HTMLDivElement | null;
 }) {
   const { data: material, isLoading, isError } = useMaterial(materialId);
+  const suggestions = useMaterialSuggestions(material?.kind === 'note' ? materialId : '');
   if (isLoading) {
     return <FileLoading />;
   }
@@ -166,15 +171,12 @@ function MaterialBody({
     <div className="h-full min-h-0">
       {activeMode === 'view' && (
         <div className="h-full min-h-0 overflow-auto">
-          <MaterialPreview content={material.content} className="mx-auto max-w-175" />
+          <MaterialPreview
+            content={material.content}
+            suggestions={suggestions.data ?? []}
+            className="mx-auto max-w-175"
+          />
         </div>
-      )}
-      {activeMode === 'study' && (
-        <MaterialStudyView
-          materialId={materialId}
-          kind={material.kind}
-          content={material.content}
-        />
       )}
       {isInteractiveMaterialMode(activeMode) && (
         <Suspense fallback={<FileLoading />}>
@@ -185,29 +187,10 @@ function MaterialBody({
             allowExternalAssets={allowExternalAssets}
             onSuggestionDirtyChange={onSuggestionDirtyChange}
             onEditorStatusChange={onEditorStatusChange}
+            collaborationActionsHost={collaborationActionsHost}
           />
         </Suspense>
       )}
-    </div>
-  );
-}
-
-function MaterialStudyView({
-  materialId,
-  kind,
-  content,
-}: {
-  materialId: string;
-  kind: MaterialKind;
-  content: string | MaterialDocument;
-}) {
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      {kind === 'quiz' && <QuizPreviewActions quizId={materialId} />}
-      {kind === 'flashcards' && <DeckPreviewActions deckId={materialId} />}
-      <div className="min-h-0 flex-1 overflow-auto">
-        <MaterialPreview content={content} className="mx-auto max-w-175" />
-      </div>
     </div>
   );
 }
@@ -216,18 +199,21 @@ function QuizPreviewActions({ quizId }: { quizId: string }) {
   const quiz = useQuiz(quizId);
   const navigate = useNavigate();
   const summary = quiz.data
-    ? `${quiz.data.questions.length} questions`
+    ? `${quiz.data.questions.length} question${quiz.data.questions.length === 1 ? '' : 's'}${
+        quiz.data.timeLimitMin == null ? '' : ` · Time limit: ${quiz.data.timeLimitMin} min`
+      }`
     : quiz.isLoading
       ? 'Loading quiz details…'
       : 'Quiz';
 
   return (
-    <div className="flex items-center gap-3 border-b border-divider px-6 py-3">
-      <span className="t-meta min-w-0 flex-1 truncate text-fg-muted">{summary}</span>
+    <div role="toolbar" aria-label="Quiz actions" className="flex min-w-0 items-center gap-3">
+      <span className="t-meta min-w-0 truncate text-fg-muted">{summary}</span>
       <Button
         size="sm"
-        variant="accent"
+        variant="ghost-hover"
         iconRight="arrowRight"
+        className="text-sm font-medium"
         onClick={() => navigate({ to: '/quizzes/$quizId/attempt', params: { quizId } })}
       >
         Start quiz
@@ -240,17 +226,17 @@ function DeckPreviewActions({ deckId }: { deckId: string }) {
   const deck = useDeck(deckId);
   const navigate = useNavigate();
   const summary = deck.data
-    ? `${deck.data.cardCount} cards · ${deck.data.knownPct}% known`
+    ? `${deck.data.cardCount} card${deck.data.cardCount === 1 ? '' : 's'} · ${deck.data.knownPct}% known`
     : deck.isLoading
       ? 'Loading deck details…'
       : 'Flashcards';
 
   return (
-    <div className="flex items-center gap-3 border-b border-divider px-6 py-3">
-      <span className="t-meta min-w-0 flex-1 truncate text-fg-muted">{summary}</span>
+    <div role="toolbar" aria-label="Flashcard actions" className="flex min-w-0 items-center gap-3">
+      <span className="t-meta min-w-0 truncate text-fg-muted">{summary}</span>
       <Button
         size="sm"
-        variant="accent"
+        variant="ghost-hover"
         iconRight="arrowRight"
         onClick={() => navigate({ to: '/flashcards/$deckId', params: { deckId } })}
       >
@@ -258,6 +244,12 @@ function DeckPreviewActions({ deckId }: { deckId: string }) {
       </Button>
     </div>
   );
+}
+
+function MaterialViewActions({ materialId, kind }: { materialId: string; kind: MaterialKind }) {
+  if (kind === 'quiz') return <QuizPreviewActions quizId={materialId} />;
+  if (kind === 'flashcards') return <DeckPreviewActions deckId={materialId} />;
+  return null;
 }
 
 function EmptyCenter() {
@@ -284,6 +276,7 @@ function Header({
   materialMode,
   onMaterialModeChange,
   editorStatus,
+  collaborationActionsRef,
 }: {
   item: OpenItem;
   imageZoom: number;
@@ -291,9 +284,10 @@ function Header({
   materialMode: MaterialMode | null;
   onMaterialModeChange: (mode: MaterialMode) => void;
   editorStatus: NoteEditorStatus | null;
+  collaborationActionsRef: (node: HTMLDivElement | null) => void;
 }) {
   // TODO: magic wand for summary/AI related stuff, then some tool box? same action menu
-  const { icon, title, showImageZoom, modeOptions, defaultMode } = useHeader(item);
+  const { icon, title, materialKind, showImageZoom, modeOptions, defaultMode } = useHeader(item);
   const activeMode =
     materialMode && modeOptions?.some((option) => option.value === materialMode)
       ? materialMode
@@ -304,6 +298,9 @@ function Header({
       <Icon name={icon} className="size-5.5" />
       <h2 className="t-subtitle min-w-0 flex-1 translate-y-px truncate">{title ?? '--'}</h2>
       <div className="ml-auto flex items-center gap-2">
+        {item.kind === 'material' && activeMode === 'view' && materialKind && (
+          <MaterialViewActions materialId={item.id} kind={materialKind} />
+        )}
         {statusLabel && (
           <span
             className={cn(
@@ -317,12 +314,20 @@ function Header({
             {statusLabel}
           </span>
         )}
+        {activeMode && isInteractiveMaterialMode(activeMode) && (
+          <div
+            ref={collaborationActionsRef}
+            role="toolbar"
+            aria-label="Material collaboration"
+            className="flex items-center gap-1"
+          />
+        )}
         {modeOptions && modeOptions.length > 1 && activeMode && (
           <Select
             value={activeMode}
             onValueChange={(value) => onMaterialModeChange(value as MaterialMode)}
           >
-            <SelectTrigger variant="noOutline">
+            <SelectTrigger variant="ghost-hover">
               <SelectValue></SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -330,7 +335,10 @@ function Header({
                 {modeOptions.map((o) => (
                   <SelectItem size="sm" key={o.value} value={o.value} className="text-sm">
                     <div className="flex items-center gap-2">
-                      <Icon name={MATERIALMODE_ICON[o.value]} className="size-4 -translate-y-px" />
+                      <Icon
+                        name={MATERIALMODE_ICON[o.value]}
+                        className="size-3.75 -translate-y-px"
+                      />
                       <span>{o.label}</span>
                     </div>
                   </SelectItem>
@@ -387,6 +395,7 @@ function materialIcon(kind: MaterialKind): IconName {
 function useHeader(item: OpenItem): {
   icon: IconName;
   title?: string;
+  materialKind?: MaterialKind;
   showImageZoom: boolean;
   modeOptions?: { value: MaterialMode; label: string }[];
   defaultMode?: MaterialMode;
@@ -405,6 +414,7 @@ function useHeader(item: OpenItem): {
   return {
     icon: materialIcon(mt.kind),
     title: mt.title,
+    materialKind: mt.kind,
     showImageZoom: false,
     modeOptions: materialModePolicy(mt.kind, mt.capabilities).modes.map((value) => ({
       value,
@@ -416,7 +426,7 @@ function useHeader(item: OpenItem): {
 
 export function FileLoading() {
   return (
-    <div className="t-subtitle flex h-full flex-1 flex-col items-center justify-center gap-3">
+    <div className="flex h-full flex-1 flex-col items-center justify-center gap-3">
       <Spinner />
       <p>Loading preview...</p>
     </div>
@@ -425,7 +435,7 @@ export function FileLoading() {
 
 export function FileError() {
   return (
-    <div className="t-subtitle flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
+    <div className="flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
       <p className="mt-3">Unable to load file. Please refresh and try again.</p>
     </div>
   );
@@ -433,7 +443,7 @@ export function FileError() {
 
 export function FileEmpty() {
   return (
-    <div className="t-subtitle flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
+    <div className="flex h-full flex-col items-center justify-center gap-3 font-semibold text-solid-error">
       <p className="mt-3">The file is empty or corrupted. Please reupload and try again.</p>
     </div>
   );

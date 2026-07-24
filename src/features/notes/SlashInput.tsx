@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useComboboxInput, useHTMLInputCursorState } from '@platejs/combobox/react';
 import { FloatingPortal, autoUpdate, flip, offset, shift, useFloating } from '@platejs/floating';
+import { MessageSquarePlus } from 'lucide-react';
 import type { PointRef, TComboboxInputElement } from 'platejs';
 import { PlateElement, type PlateElementProps, useEditorRef } from 'platejs/react';
 import { useOptionalNoteBlockDialogs } from './blocks/dialogContext';
-import { commandMatches, EDITOR_COMMANDS } from './editorCommands';
+import { commandMatches, EDITOR_COMMANDS, type EditorCommand } from './editorCommands';
 import { useNoteEditorPrefs } from './noteEditorPrefs';
 import { isEditorCommandAllowed } from './editorMode';
 import { useEditorRuntime } from './EditorRuntime';
+import { useCollaborationActions } from './Collaboration';
 
 export function SlashInputElement(props: PlateElementProps<TComboboxInputElement>) {
   const editor = useEditorRef();
@@ -15,7 +17,8 @@ export function SlashInputElement(props: PlateElementProps<TComboboxInputElement
   // trees that do not see NoteBlockDialogsProvider React context.
   const dialogs = useOptionalNoteBlockDialogs();
   const enabled = useNoteEditorPrefs((state) => state.enabled);
-  const { mode } = useEditorRuntime();
+  const { canComment, mode } = useEditorRuntime();
+  const collaboration = useCollaborationActions();
   const inputRef = useRef<HTMLInputElement>(null);
   const cursorState = useHTMLInputCursorState(inputRef);
   const insertPointRef = useRef<PointRef | null>(null);
@@ -73,16 +76,30 @@ export function SlashInputElement(props: PlateElementProps<TComboboxInputElement
     },
   });
 
-  const commands = useMemo(
-    () =>
-      EDITOR_COMMANDS.filter(
-        (command) =>
-          (!command.widget || enabled[command.widget]) &&
-          isEditorCommandAllowed(mode, command) &&
-          commandMatches(command, query)
-      ),
-    [enabled, mode, query]
-  );
+  const commands = useMemo(() => {
+    const collaborationCommand: EditorCommand | null =
+      canComment && collaboration
+        ? {
+            id: 'comment',
+            label: 'Comment',
+            description: 'Add a comment to the current selection',
+            group: 'inline',
+            icon: MessageSquarePlus,
+            shortcut: 'Ctrl/Cmd+Shift+M',
+            run: () => collaboration.openComment(),
+          }
+        : null;
+    const availableCommands = collaborationCommand
+      ? [...EDITOR_COMMANDS, collaborationCommand]
+      : EDITOR_COMMANDS;
+
+    return availableCommands.filter(
+      (command) =>
+        (!command.widget || enabled[command.widget]) &&
+        isEditorCommandAllowed(mode, command) &&
+        commandMatches(command, query)
+    );
+  }, [canComment, collaboration, enabled, mode, query]);
 
   useEffect(() => {
     setActiveIndex(0);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useComboboxInput, useHTMLInputCursorState } from '@platejs/combobox/react';
+import { FloatingPortal, autoUpdate, flip, offset, shift, useFloating } from '@platejs/floating';
 import { getMentionOnSelectItem } from '@platejs/mention';
 import type { PointRef, TComboboxInputElement } from 'platejs';
 import { PlateElement, type PlateElementProps, useEditorRef } from 'platejs/react';
@@ -19,6 +20,20 @@ export function MentionInputElement(props: PlateElementProps<TComboboxInputEleme
   const cursorState = useHTMLInputCursorState(inputRef);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+
+  // Portal + fixed positioning: an inline dropdown is clipped or mispositioned
+  // by ancestor stacking/overflow contexts (headings, table cells, columns).
+  const { refs, floatingStyles } = useFloating({
+    open: true,
+    placement: 'bottom-start',
+    strategy: 'fixed',
+    whileElementsMounted: autoUpdate,
+    middleware: [
+      offset(4),
+      flip({ fallbackPlacements: ['top-start'], padding: 12 }),
+      shift({ padding: 12 }),
+    ],
+  });
 
   useEffect(() => {
     aliveRef.current = true;
@@ -91,7 +106,14 @@ export function MentionInputElement(props: PlateElementProps<TComboboxInputEleme
 
   return (
     <PlateElement {...props} as="span">
-      <span ref={rootRef} contentEditable={false} className="relative inline-flex">
+      <span
+        ref={(node) => {
+          rootRef.current = node;
+          refs.setReference(node);
+        }}
+        contentEditable={false}
+        className="relative inline-flex"
+      >
         <span className="rounded bg-tint-accent-1 px-1 text-tint-accent-1-fg">@</span>
         <span className="relative min-w-4">
           <span aria-hidden className="invisible whitespace-pre">
@@ -107,7 +129,13 @@ export function MentionInputElement(props: PlateElementProps<TComboboxInputEleme
             className="absolute inset-0 size-full bg-transparent outline-none"
             onBlur={(event) => {
               const next = event.relatedTarget as Node | null;
-              if (next && rootRef.current?.contains(next)) return;
+              // The listbox lives in a portal, so check both containers.
+              if (
+                next &&
+                (rootRef.current?.contains(next) || refs.floating.current?.contains(next))
+              ) {
+                return;
+              }
               // Defer so React Strict Mode's mount→unmount→remount does not treat
               // the transient blur as a real cancel and delete the mention input.
               window.requestAnimationFrame(() => {
@@ -137,10 +165,13 @@ export function MentionInputElement(props: PlateElementProps<TComboboxInputEleme
             }}
           />
         </span>
-        <span
-          role="listbox"
-          className="absolute top-full left-0 z-50 mt-1 block max-h-64 w-64 overflow-auto rounded-card border border-line bg-surface p-1 shadow-pop"
-        >
+        <FloatingPortal>
+          <span
+            ref={refs.setFloating}
+            style={floatingStyles}
+            role="listbox"
+            className="z-50 block max-h-64 w-64 overflow-auto rounded-card border border-line bg-surface p-1 shadow-pop"
+          >
           {isPending && (
             <span className="block px-2 py-3 text-sm text-fg-muted">Loading members…</span>
           )}
@@ -164,10 +195,11 @@ export function MentionInputElement(props: PlateElementProps<TComboboxInputEleme
                 <span className="text-xs text-fg-muted">{member.email}</span>
               </button>
             ))}
-          {!isPending && !isError && !matches.length && (
-            <span className="block px-2 py-3 text-sm text-fg-muted">No members found</span>
-          )}
-        </span>
+            {!isPending && !isError && !matches.length && (
+              <span className="block px-2 py-3 text-sm text-fg-muted">No members found</span>
+            )}
+          </span>
+        </FloatingPortal>
       </span>
       {props.children}
     </PlateElement>

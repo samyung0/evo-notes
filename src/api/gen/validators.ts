@@ -1308,6 +1308,43 @@ export const SearchResponseItem = zod.object({
 export const SearchResponse = zod.array(SearchResponseItem);
 
 /**
+ * @summary Get source upload policy
+ */
+export const GetSourceUploadPolicyResponse = zod.object({
+  $schema: zod.url().optional().describe('A URL to the JSON Schema for this object.'),
+  accept: zod.string(),
+  allowNoExtension: zod.boolean(),
+  kinds: zod.array(
+    zod.object({
+      extensions: zod.array(zod.string()),
+      kind: zod.enum([
+        'pdf',
+        'doc',
+        'md',
+        'image',
+        'txt',
+        'sheet',
+        'slides',
+        'video',
+        'audio',
+        'json',
+        'unknown',
+      ]),
+      text: zod.boolean(),
+    })
+  ),
+  maxBytes: zod.number(),
+  parseModes: zod.array(
+    zod.object({
+      extensions: zod.array(zod.string()),
+      maxBytes: zod.number(),
+      maxPages: zod.number().optional(),
+      mode: zod.enum(['advanced', 'normal', 'none']),
+    })
+  ),
+});
+
+/**
  * @summary List the user's tag catalog for a kind
  */
 export const listTagsQueryKindDefault = `workspace`;

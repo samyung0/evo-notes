@@ -35,7 +35,8 @@ const selectTriggerVariants = cva(
       variant: {
         border: 'rounded-input border border-line',
         underline: 'border-b border-line',
-        noOutline: 'border-none',
+        'ghost-hover': 'rounded-input bg-surface hover:bg-surface-hover-bg',
+        ghost: 'border-none',
       },
     },
     defaultVariants: {
@@ -160,11 +161,11 @@ function SelectItem({
       className={cn(selectItemVariants({ size }), disabled && 'opacity-50', className)}
       {...props}
     >
-      <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
+      <div className="pointer-events-none absolute right-2 flex size-4 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
           <Icon name="check" className="pointer-events-none" />
         </SelectPrimitive.ItemIndicator>
-      </span>
+      </div>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
   );

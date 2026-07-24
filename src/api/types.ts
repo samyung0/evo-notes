@@ -57,6 +57,7 @@ export type {
   Task,
   Notification as AppNotification,
   Canvas as ThinkingCanvas,
+  SourceUploadPolicy,
 } from './gen/model';
 
 /* ---------------- UI-only color extras (not on the wire) ---------------- */

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Input, SimpleDialog, Text } from '@/components/ui';
+import { Button, Input, InputTitle, SimpleDialog, Text } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { userColorPair } from '@/lib/userColor';
 import type { Label } from '@/api/types';
@@ -51,6 +51,8 @@ export function EventFormModal({
   const start = draft?.start ? new Date(draft.start) : defaultStart();
   const end = draft?.end ? new Date(draft.end) : new Date(start.getTime() + 60 * 60 * 1000);
 
+  // TODO: use react-hook-form and zod-resolver, refer to workspaceFormEditDialog, relevant schema should be auto generated already
+
   const [title, setTitle] = useState(draft?.title ?? '');
   const [date, setDate] = useState(toDateValue(start));
   const [startTime, setStartTime] = useState(toTimeValue(start));
@@ -94,9 +96,7 @@ export function EventFormModal({
     >
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
-          <Text variant="label" tone="muted">
-            Title
-          </Text>
+          <InputTitle>Title</InputTitle>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -106,31 +106,23 @@ export function EventFormModal({
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <Text variant="label" tone="muted">
-            Date
-          </Text>
+          <InputTitle>Date</InputTitle>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </label>
 
         <div className="flex gap-3">
           <label className="flex flex-1 flex-col gap-1.5">
-            <Text variant="label" tone="muted">
-              Start
-            </Text>
+            <InputTitle>Start</InputTitle>
             <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
           </label>
           <label className="flex flex-1 flex-col gap-1.5">
-            <Text variant="label" tone="muted">
-              End
-            </Text>
+            <InputTitle>End</InputTitle>
             <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
           </label>
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <Text variant="label" tone="muted">
-            Location
-          </Text>
+          <InputTitle>Location</InputTitle>
           <Input
             value={location}
             onChange={(e) => setLocation(e.target.value)}
@@ -140,9 +132,7 @@ export function EventFormModal({
 
         {labels.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <Text variant="label" tone="muted">
-              Labels
-            </Text>
+            <InputTitle>Labels</InputTitle>
             <div className="flex flex-wrap gap-1.5">
               {labels.map((l) => {
                 const on = labelIds.includes(l.id);

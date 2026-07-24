@@ -98,12 +98,8 @@ export default function Workspaces() {
                 {filterLabel}
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-72 max-h-80 gap-0 p-0">
-              <Card
-                radius="card"
-                border="solid"
-                className="max-h-80 gap-3 overflow-y-auto p-3"
-              >
+            <PopoverContent align="start" className="max-h-80 w-72 gap-0 p-0">
+              <Card radius="card" border="solid" className="max-h-80 gap-3 overflow-y-auto p-3">
                 <section className="flex flex-col gap-2">
                   <h3 className="t-meta text-fg-muted">{m.workspaces_filter_color()}</h3>
                   <UserColorChooser
@@ -159,7 +155,8 @@ export default function Workspaces() {
             </PopoverContent>
           </Popover>
         </Toolbar>
-        <div className="flex items-center gap-2">
+        {/* Leave the dedicated search inside of workspace out, user can use the global search in topinsetbar instead */}
+        {/* <div className="flex items-center gap-2">
           {showSearch ? (
             <Input
               leftIcon="search"
@@ -179,7 +176,7 @@ export default function Workspaces() {
               label="Search workspaces"
             />
           )}
-        </div>
+        </div> */}
       </div>
 
       <div className="min-h-0 w-full flex-1 overflow-auto px-6 pt-3 pb-6">
@@ -193,6 +190,7 @@ export default function Workspaces() {
             <Card
               border="dashed"
               radius="card-lg"
+              interactive
               onClick={() => openWorkspaceCreate()}
               className="min-h-40 cursor-pointer items-center justify-center"
             >

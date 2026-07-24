@@ -46,6 +46,7 @@ function DialogContent({
   showCloseButton = true,
   cardClassName,
   cardScrollContainerClassName,
+  onPointerDownOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
@@ -61,6 +62,14 @@ function DialogContent({
           'fixed top-1/2 left-1/2 z-50 grid w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 px-4 duration-100 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           className
         )}
+        // check github issues for pointer event collisions between dialog and sonner
+        // https://github.com/radix-ui/primitives/issues/2690#issuecomment-1945449832
+        onPointerDownOutside={(e) => {
+          if (e.target instanceof Element && e.target.closest('[data-sonner-toast]')) {
+            e.preventDefault();
+          }
+          onPointerDownOutside?.(e);
+        }}
         {...props}
       >
         <Card
@@ -145,7 +154,9 @@ function SimpleDialog({
   width?: number;
   className?: string;
   showCloseButton?: boolean;
-  onPointerDownOutside?: React.ComponentProps<typeof DialogPrimitive.Content>['onPointerDownOutside'];
+  onPointerDownOutside?: React.ComponentProps<
+    typeof DialogPrimitive.Content
+  >['onPointerDownOutside'];
   onInteractOutside?: React.ComponentProps<typeof DialogPrimitive.Content>['onInteractOutside'];
   onEscapeKeyDown?: React.ComponentProps<typeof DialogPrimitive.Content>['onEscapeKeyDown'];
 }) {
@@ -173,10 +184,12 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
   title: string;
   body?: string;
+  children?: React.ReactNode;
   confirmLabel?: string;
   danger?: boolean;
   isSubmitting?: boolean;
   disabled?: boolean;
+  closeOnConfirm?: boolean;
 }
 
 function ConfirmDialog({
@@ -185,9 +198,11 @@ function ConfirmDialog({
   onConfirm,
   title,
   body,
+  children,
   confirmLabel,
   isSubmitting,
   disabled,
+  closeOnConfirm = true,
   danger = true,
 }: ConfirmDialogProps) {
   return (
@@ -197,7 +212,7 @@ function ConfirmDialog({
       title={title}
       footer={
         <>
-          <Button variant="ghost-hover" onClick={onClose}>
+          <Button variant="ghost-hover" disabled={isSubmitting} onClick={onClose}>
             Cancel
           </Button>
           <Button
@@ -205,7 +220,7 @@ function ConfirmDialog({
             variant={danger ? 'danger' : 'accent'}
             onClick={() => {
               onConfirm();
-              onClose();
+              if (closeOnConfirm) onClose();
             }}
           >
             {!isSubmitting && <span>{confirmLabel ?? m.action_confirm()}</span>}
@@ -219,6 +234,7 @@ function ConfirmDialog({
       }
     >
       {body && <p>{body}</p>}
+      {children}
     </SimpleDialog>
   );
 }

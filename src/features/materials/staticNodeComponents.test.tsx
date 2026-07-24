@@ -188,22 +188,15 @@ describe('static study-block renderers', () => {
 
     const html = renderMaterial([quizNode({ questions, timeLimitMin: 15 }, 'quiz')]);
 
-    expect(html).toContain('Question 1');
-    expect(html).toContain('Question 7');
-    expect(html).toContain('Multiple choice');
-    expect(html).toContain('Multiple response');
-    expect(html).toContain('True or false');
-    expect(html).toContain('Fill in the blank');
-    expect(html).toContain('Short answer');
-    expect(html).toContain('Ordering');
-    expect(html).toContain('Matching');
+    expect(html).toContain('1.');
+    expect(html).toContain('7.');
     expect(html).toContain('This is why.');
     expect(html).toContain('Accepted answer');
     expect(html).toContain('First item');
     expect(html).toContain('Left → Right');
     expect(html).toContain('Pairs are shown in their correct arrangement.');
     expect(html).toContain('border-solid-success');
-    expect(html).toContain('Time limit: 15 min');
+    expect(html).not.toContain('Time limit: 15 min');
   });
 
   it('renders flashcard fronts and backs as side-by-side rows', () => {

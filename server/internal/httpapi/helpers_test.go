@@ -20,7 +20,7 @@ func TestKindFromName(t *testing.T) {
 		"deck.pptx":       "slides",
 		"clip.mp4":        "video",
 		"talk.mp3":        "audio",
-		"noext":           "txt",
+		"noext":           "unknown",
 	}
 	for name, want := range cases {
 		if got := kindFromName(name); got != want {

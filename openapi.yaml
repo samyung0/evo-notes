@@ -1540,6 +1540,77 @@ components:
         - commenter
         - viewer
       type: string
+    SourceUploadKindPolicy:
+      additionalProperties: false
+      properties:
+        extensions:
+          items:
+            type: string
+          type: array
+        kind:
+          $ref: "#/components/schemas/FileKind"
+        text:
+          type: boolean
+      required:
+        - kind
+        - extensions
+        - text
+      type: object
+    SourceUploadParseModePolicy:
+      additionalProperties: false
+      properties:
+        extensions:
+          items:
+            type: string
+          type: array
+        maxBytes:
+          format: int64
+          type: integer
+        maxPages:
+          format: int64
+          type: integer
+        mode:
+          enum:
+            - advanced
+            - normal
+            - none
+          type: string
+      required:
+        - mode
+        - extensions
+        - maxBytes
+      type: object
+    SourceUploadPolicy:
+      additionalProperties: false
+      properties:
+        $schema:
+          description: A URL to the JSON Schema for this object.
+          example: https://example.com/schemas/SourceUploadPolicy.json
+          format: uri
+          readOnly: true
+          type: string
+        accept:
+          type: string
+        allowNoExtension:
+          type: boolean
+        kinds:
+          items:
+            $ref: "#/components/schemas/SourceUploadKindPolicy"
+          type: array
+        maxBytes:
+          format: int64
+          type: integer
+        parseModes:
+          items:
+            $ref: "#/components/schemas/SourceUploadParseModePolicy"
+          type: array
+      required:
+        - kinds
+        - parseModes
+        - accept
+        - maxBytes
+        - allowNoExtension
+      type: object
     SrsState:
       additionalProperties: false
       properties:
@@ -3620,6 +3691,25 @@ paths:
       summary: Global search
       tags:
         - Account
+  /api/source-upload-policy:
+    get:
+      operationId: getSourceUploadPolicy
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceUploadPolicy"
+          description: OK
+        default:
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ErrorModel"
+          description: Error
+      summary: Get source upload policy
+      tags:
+        - Content
   /api/tags:
     get:
       operationId: listTags

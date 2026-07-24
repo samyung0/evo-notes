@@ -13,8 +13,8 @@ import {
   Spinner,
   TagSelect,
   UserColorChooser,
-  userToast,
 } from '@/components/ui';
+import { userToast } from '@/components/ui/userToast';
 import { InputTitle } from '@/components/ui/Input';
 import { m } from '@/i18n';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,25 +41,21 @@ export function WorkspaceFormEditDialog({
     resolver: zodResolver(UpdateWorkspaceBody),
   });
 
+  const submitDisabled =
+    !form.formState.isDirty || !form.formState.isValid || form.formState.isSubmitting;
+
   const handleSubmit = useCallback(
     async (v: UpdateWorkspaceReq) => {
       try {
         await onSubmit(v);
         setOpen(false);
-        userToast({
-          title: workspace ? 'Workspace saved' : 'Workspace created',
-          description: workspace
-            ? 'Workspace saved successfully'
-            : 'Workspace created successfully',
-          button: { label: 'Dismiss', onClick: () => {} },
-        });
       } catch (err) {
         // Keep the dialog open so the user can retry without losing input.
         userToast({
-          title: workspace ? 'Could not save workspace' : 'Could not create workspace',
+          title: 'Could not save workspace',
           description:
             err instanceof Error ? err.message : 'Something went wrong. Please try again.',
-          button: { label: 'Dismiss', onClick: () => {} },
+          variant: 'error',
         });
       }
     },
@@ -148,7 +144,7 @@ export function WorkspaceFormEditDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button disabled={!form.formState.isDirty}>
+            <Button disabled={submitDisabled}>
               {!form.formState.isSubmitting && <span>{m.action_save()}</span>}
               {form.formState.isSubmitting && (
                 <span>

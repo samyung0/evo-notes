@@ -1,6 +1,6 @@
 import type { MaterialKind } from '@/api/types';
 
-export type MaterialMode = 'view' | 'study' | 'edit' | 'suggestion';
+export type MaterialMode = 'view' | 'edit' | 'suggestion';
 
 export interface MaterialModeCapabilities {
   canComment: boolean;
@@ -21,12 +21,11 @@ export function materialModePolicy(
   if (capabilities.canEdit) modes.push('edit');
   if (capabilities.canEdit || capabilities.canComment) modes.push('suggestion');
   modes.push('view');
-  if (kind === 'quiz' || kind === 'flashcards') modes.push('study');
 
   return {
     defaultMode:
       kind === 'quiz' || kind === 'flashcards'
-        ? 'study'
+        ? 'view'
         : capabilities.canEdit
           ? 'edit'
           : capabilities.canComment

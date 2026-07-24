@@ -43,22 +43,66 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (body ? JSON.parse(body) : undefined) as T;
 }
 
-/** Multipart upload (real file bytes). Lets the browser set the multipart
- * boundary — never send a JSON Content-Type here. */
-async function upload<T>(path: string, form: FormData): Promise<T> {
+/** Multipart upload (real file bytes). XHR is used so callers can report
+ * byte-level progress and cancel an in-flight request. */
+async function upload<T>(
+  path: string,
+  form: FormData,
+  onProgress?: (pct: number) => void,
+  signal?: AbortSignal
+): Promise<T> {
   const auth = await authHeaders();
-  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: auth, body: form });
-  if (!res.ok) {
-    let detail = '';
-    try {
-      detail = (await res.json())?.message ?? '';
-    } catch {
-      /* ignore */
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const abort = () => xhr.abort();
+    const cleanup = () => signal?.removeEventListener('abort', abort);
+    const fail = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const succeed = (value: T) => {
+      cleanup();
+      onProgress?.(100);
+      resolve(value);
+    };
+
+    xhr.open('POST', `${API_BASE}${path}`);
+    for (const [name, value] of Object.entries(auth)) xhr.setRequestHeader(name, value);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        let detail = '';
+        try {
+          detail = (JSON.parse(xhr.responseText) as { message?: string })?.message ?? '';
+        } catch {
+          /* ignore */
+        }
+        fail(new ApiError(xhr.status, xhr.statusText, detail || undefined));
+        return;
+      }
+      if (xhr.status === 204 || !xhr.responseText) {
+        succeed(undefined as T);
+        return;
+      }
+      try {
+        succeed(JSON.parse(xhr.responseText) as T);
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error('Invalid JSON response'));
+      }
+    };
+    xhr.onerror = () => fail(new Error('Upload failed: network error'));
+    xhr.onabort = () => fail(new DOMException('Upload cancelled', 'AbortError'));
+    if (signal) {
+      if (signal.aborted) {
+        fail(new DOMException('Upload cancelled', 'AbortError'));
+        return;
+      }
+      signal.addEventListener('abort', abort, { once: true });
     }
-    throw new ApiError(res.status, res.statusText, detail || undefined);
-  }
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+    xhr.send(form);
+  });
 }
 
 /** Upload bytes to a storage-provider URL without adding API auth headers.
@@ -109,7 +153,12 @@ type RequestOptions = Pick<RequestInit, 'signal'>;
 
 export const api = {
   get: <T>(path: string, options?: RequestOptions) => request<T>(path, options),
-  upload: <T>(path: string, form: FormData) => upload<T>(path, form),
+  upload: <T>(
+    path: string,
+    form: FormData,
+    onProgress?: (pct: number) => void,
+    signal?: AbortSignal
+  ) => upload<T>(path, form, onProgress, signal),
   putFile,
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>(path, {
@@ -140,6 +189,7 @@ export const qk = {
   notifications: ['notifications'] as const,
   billing: ['billing'] as const,
   integrations: ['integrations'] as const,
+  sourceUploadPolicy: ['source-upload-policy'] as const,
   workspaces: (params?: unknown) => ['workspaces', params ?? null] as const,
   workspace: (id: string) => ['workspace', id] as const,
   workspaceStats: (id: string) => ['workspace', id, 'stats'] as const,

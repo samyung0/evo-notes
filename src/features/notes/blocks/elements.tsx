@@ -21,10 +21,9 @@ import { Mermaid } from '@/features/materials/Mermaid';
 import {
   QuizOptionView,
   QuizQuestionHeader,
-  StudyBlockTimeLimit,
   quizOptionClassName,
   type QuizOptionRole,
-} from '@/features/materials/StudyBlockViews';
+} from '@/features/materials/QuizBlock';
 import {
   flashcardsElementToCards,
   flashcardsNodeFromFence,
@@ -76,12 +75,15 @@ function StudyBlockRoot({
 }) {
   const editor = useEditorRef();
   const readOnly = useReadOnly();
-  const active = useEditorSelector((currentEditor) => {
-    const selection = currentEditor.selection;
-    const path = currentEditor.api.findPath(props.element);
-    if (!selection || !path || !isCollapsed(selection)) return false;
-    return isDescendantPath(path, selection.anchor.path);
-  }, [props.element]);
+  const active = useEditorSelector(
+    (currentEditor) => {
+      const selection = currentEditor.selection;
+      const path = currentEditor.api.findPath(props.element);
+      if (!selection || !path || !isCollapsed(selection)) return false;
+      return isDescendantPath(path, selection.anchor.path);
+    },
+    [props.element]
+  );
 
   const runBlockAction = (action: 'duplicate' | 'delete') => {
     const at = editor.api.findPath(props.element);
@@ -180,7 +182,7 @@ function StudyBlockToolbar({
         contentEditable={false}
         data-plate-prevent-deselect
         data-study-block-toolbar
-        className="z-50 flex items-center gap-0.5 rounded-card border border-line bg-surface p-1 shadow-pop"
+        className="z-50 flex items-center gap-0.5 rounded-lg border border-line bg-surface p-1 shadow-pop"
         onMouseDown={(event) => event.preventDefault()}
       >
         {onEdit && (
@@ -243,9 +245,7 @@ function isCollapsed(selection: {
 }
 
 function isDescendantPath(parent: number[], child: number[]): boolean {
-  return (
-    child.length > parent.length && parent.every((part, index) => child[index] === part)
-  );
+  return child.length > parent.length && parent.every((part, index) => child[index] === part);
 }
 
 function stripElementIds(node: MaterialNode): MaterialNode {
@@ -352,11 +352,7 @@ export function QuizElement(props: PlateElementProps) {
       replaceElement(editor, props.element, quizNodeFromFence(code, element.id));
     });
   }
-  return (
-    <StudyBlockRoot props={props} onEdit={dialogs ? edit : undefined}>
-      <StudyBlockTimeLimit minutes={element.timeLimitMin} />
-    </StudyBlockRoot>
-  );
+  return <StudyBlockRoot props={props} onEdit={dialogs ? edit : undefined} />;
 }
 
 export function FlashcardsElement(props: PlateElementProps) {
@@ -368,9 +364,7 @@ export function FlashcardsElement(props: PlateElementProps) {
       replaceElement(editor, props.element, flashcardsNodeFromFence(code, element.id));
     });
   }
-  return (
-    <StudyBlockRoot props={props} onEdit={dialogs ? edit : undefined} className="gap-2" />
-  );
+  return <StudyBlockRoot props={props} onEdit={dialogs ? edit : undefined} className="gap-2" />;
 }
 
 export function MermaidElement(props: PlateElementProps) {
@@ -430,10 +424,7 @@ export function QuizOptionElement(props: PlateElementProps) {
   const pathIndex = path?.[path.length - 1];
   const optionNumber = typeof pathIndex === 'number' ? pathIndex : undefined;
   return (
-    <PlateElement
-      {...props}
-      className={quizOptionClassName(Boolean(correct), element.role)}
-    >
+    <PlateElement {...props} className={quizOptionClassName(Boolean(correct), element.role)}>
       <QuizOptionView
         correct={Boolean(correct)}
         role={element.role}

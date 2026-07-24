@@ -1,5 +1,5 @@
 import { isApiError } from '@/api/client';
-import { userToast } from '@/components/ui';
+import { userToast } from '@/components/ui/userToast';
 
 /** Safe same-origin return path for post-auth redirect. */
 export function signInHref(returnTo = `${window.location.pathname}${window.location.search}`) {
@@ -23,8 +23,8 @@ export function toastCloneError(err: unknown, kind: 'workspace' | 'quiz' | 'deck
   }
   userToast({
     title: 'Could not clone',
-    description: err instanceof Error ? err.message : 'Please try again.',
-    button: { label: 'Dismiss', onClick: () => {} },
+    description: err instanceof Error ? err.message : 'Something went wrong. Please try again.',
+    variant: 'error',
   });
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, Icon, IconName, Text, userToast } from '@/components/ui';
+import { Button, Icon, IconName, Text } from '@/components/ui';
+import { userToast } from '@/components/ui/userToast';
 import { useGenerate } from '@/api/hooks';
 import type { Chapter, Deck, GenerateOptions, Material, Quiz, SourceFile } from '@/api/types';
 import { m } from '@/i18n';
@@ -49,7 +50,7 @@ export function GeneratePanel({
       userToast({
         title: 'Could not generate material',
         description: error instanceof Error ? error.message : 'Something went wrong.',
-        button: { label: 'Dismiss', onClick: () => {} },
+        variant: 'error',
       });
     } finally {
       onGeneratingChange?.(null);

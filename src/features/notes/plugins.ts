@@ -61,7 +61,11 @@ import {
   VideoPlugin,
 } from '@platejs/media/react';
 import { MentionInputPlugin, MentionPlugin } from '@platejs/mention/react';
-import { BlockMenuPlugin, BlockSelectionPlugin } from '@platejs/selection/react';
+import {
+  BlockMenuPlugin,
+  BlockSelectionPlugin,
+  CursorOverlayPlugin,
+} from '@platejs/selection/react';
 import { SlashInputPlugin, SlashPlugin } from '@platejs/slash-command/react';
 import {
   TableCellHeaderPlugin,
@@ -75,8 +79,8 @@ import {
   createSlatePlugin,
   createTextSubstitutionInputRule,
   ExitBreakPlugin,
+  isHotkey,
   KEYS,
-  TrailingBlockPlugin,
   type SlateEditor,
   type TElement,
 } from 'platejs';
@@ -90,9 +94,15 @@ import { createElement } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { buildAiPlugins } from './ai/aiPlugins';
+import { openAiMenu } from './ai/aiMenuState';
 import { BlockContextMenu, BlockDraggable } from './BlockInteractions';
+import { BlockSelectionBelowRootNodes, EditorCursorOverlay } from './BlockSelection';
 import { customBlockPlugins } from './blocks/plugins';
-import { buildCollaborationPlugins, type EditorCollaborationOptions } from './Collaboration';
+import { type EditorCollaborationOptions } from './Collaboration';
+import {
+  buildCollaborationPlugins,
+  suggestionSafeTrailingBlockPlugin,
+} from './collaborationPlugins';
 import { canCreateExternalEditorAssets, type NoteEditorMode } from './editorMode';
 import { LinkFloatingToolbar } from './LinkFloatingToolbar';
 import { noteMarkdownPlugin } from './markdown';
@@ -395,18 +405,22 @@ function buildBlockInteractionKit(mode: NoteEditorMode, allowExternalAssets: boo
   return [
     BlockSelectionPlugin.configure(({ editor }) => ({
       options: {
-        // Keep Mod+A's standard text-selection behavior. Block selection's
-        // custom select-all conflicts with nested editors such as tables,
-        // columns, and code blocks.
-        disableSelectAll: true,
         enableContextMenu: true,
+        // Nested structures keep normal text selection; their top-level
+        // ancestors (table, column_group, code_block) are block-selectable.
         isSelectable: (element) =>
           ![
             editor.getType(KEYS.column),
             editor.getType(KEYS.codeLine),
             editor.getType(KEYS.td),
           ].includes(element.type),
+        ...(allowExternalAssets && {
+          onKeyDownSelecting: (keyEditor: SlateEditor, event: KeyboardEvent) => {
+            if (isHotkey('mod+j')(event)) openAiMenu(keyEditor);
+          },
+        }),
       },
+      render: { belowRootNodes: BlockSelectionBelowRootNodes as AnyPlugin },
     })),
     BlockMenuPlugin.configure({ render: { aboveEditable: BlockContextMenu } }),
     DndPlugin.configure({
@@ -501,14 +515,19 @@ export interface BuildPluginsOptions extends EditorCollaborationOptions {
   allowExternalAssets: boolean;
   onSave: () => void;
 }
-
-// TODO: fix right click to select block, sometimes the browser default right click takes over (e.g. when I clicked in a text block and the blinking cursor was in the text, the browser right click menu took over instead of the block context menu)
-
 /** Full playground registry. Preferences filter commands only; no document
  * parser or renderer plugin is ever unloaded. */
 export function buildPlugins(options: BuildPluginsOptions): AnyPlugin[] {
   return [
-    ...(options.allowExternalAssets ? buildAiPlugins(options.workspaceId) : []),
+    ...(options.allowExternalAssets
+      ? buildAiPlugins(options.workspaceId)
+      : // The AI plugin set registers its own CursorOverlay variant; non-AI
+        // editors still need the overlay for selection feedback in dialogs.
+        [
+          CursorOverlayPlugin.configure({
+            render: { afterEditable: EditorCursorOverlay },
+          }),
+        ]),
     ...MaterialKit,
     ...buildCollaborationPlugins(options),
     ...SlashKit,
@@ -521,7 +540,7 @@ export function buildPlugins(options: BuildPluginsOptions): AnyPlugin[] {
         insertBefore: { keys: 'mod+shift+enter' },
       },
     }),
-    TrailingBlockPlugin,
+    suggestionSafeTrailingBlockPlugin,
     BlockPlaceholderPlugin.configure({
       options: {
         className:

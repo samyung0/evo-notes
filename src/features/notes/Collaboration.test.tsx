@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createPlateEditor } from 'platejs/react';
 import { BaseSuggestionPlugin } from '@platejs/suggestion';
-import { buildCollaborationPlugins } from './Collaboration';
+import {
+  buildCollaborationPlugins,
+  suggestionSafeTrailingBlockPlugin,
+} from './collaborationPlugins';
 
-function createSuggestingEditor() {
+function createSuggestingEditor(value?: Array<{ type: string; children: Array<{ text: string }> }>) {
   return createPlateEditor({
     plugins: buildCollaborationPlugins({
       currentUserId: 'u_commenter',
@@ -11,11 +14,21 @@ function createSuggestingEditor() {
       users: {},
       mode: 'suggestion',
     }),
-    value: [{ type: 'p', children: [{ text: 'Original sentence' }] }],
+    value: value ?? [{ type: 'p', children: [{ text: 'Original sentence' }] }],
   });
 }
 
 describe('buildCollaborationPlugins suggestion mode', () => {
+  it('keeps the block discussion button renderer alongside runtime options', () => {
+    const editor = createSuggestingEditor();
+    const plugin = editor.getPlugin({ key: 'evo-discussions' }) as {
+      node?: { aboveComponent?: unknown };
+      render?: { aboveNodes?: unknown };
+    };
+
+    expect(plugin.node?.aboveComponent ?? plugin.render?.aboveNodes).toBeTruthy();
+  });
+
   it('keeps the comment renderer and shortcut in the resolved plugin', () => {
     // Stable comment behavior must not live in Plate's single `.configure()`
     // slot, or a future runtime options configuration will replace it.
@@ -79,5 +92,56 @@ describe('buildCollaborationPlugins suggestion mode', () => {
     expect(removed?.suggestion).toBe(true);
     const data = editor.getApi(BaseSuggestionPlugin).suggestion.dataList(removed as never);
     expect(data.at(-1)).toMatchObject({ type: 'remove', userId: 'u_commenter' });
+  });
+
+  it('does not mark a value reset as a whole-document suggestion', () => {
+    // Regression: replacing the document (draft restore, remote refresh) while
+    // isSuggesting was on recorded "delete everything + re-insert everything".
+    const editor = createSuggestingEditor();
+    editor.getApi(BaseSuggestionPlugin).suggestion.withoutSuggestions(() => {
+      editor.tf.setValue([{ type: 'p', children: [{ text: 'Fresh content' }] }]);
+    });
+
+    const collectMarked = (nodes: unknown[]): unknown[] =>
+      nodes.flatMap((node) => {
+        if (!node || typeof node !== 'object') return [];
+        const record = node as Record<string, unknown>;
+        const own =
+          record.suggestion || Object.keys(record).some((key) => key.startsWith('suggestion_'))
+            ? [record]
+            : [];
+        return Array.isArray(record.children) ? [...own, ...collectMarked(record.children)] : own;
+      });
+
+    expect(collectMarked(editor.children)).toEqual([]);
+  });
+});
+
+describe('suggestionSafeTrailingBlockPlugin', () => {
+  it('does not mark the auto-appended trailing paragraph as a suggestion', () => {
+    // Regression: every suggestion-mode edit appeared to append a phantom
+    // final line because TrailingBlockPlugin's insert ran as a user edit.
+    const editor = createPlateEditor({
+      plugins: [
+        ...buildCollaborationPlugins({
+          currentUserId: 'u_commenter',
+          discussions: [],
+          users: {},
+          mode: 'suggestion',
+        }),
+        suggestionSafeTrailingBlockPlugin,
+      ],
+      // A trailing non-paragraph block forces the plugin to append one.
+      value: [{ type: 'h1', children: [{ text: 'Title' }] }],
+    });
+
+    editor.tf.normalize({ force: true });
+
+    const last = editor.children.at(-1) as Record<string, unknown>;
+    expect(last.type).toBe('p');
+    expect(last.suggestion).toBeUndefined();
+    expect(Object.keys(last).some((key) => key.startsWith('suggestion_'))).toBe(false);
+    const leaf = (last.children as Record<string, unknown>[])[0];
+    expect(leaf.suggestion).toBeUndefined();
   });
 });

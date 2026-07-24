@@ -3,9 +3,10 @@ import { useEditorRef } from 'platejs/react';
 import { IconButton, Spinner } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { useVoiceInput } from './useVoiceInput';
+import { ToolbarButton } from '../ToolBarButton';
+import { Mic } from 'lucide-react';
 
-/** Mic toggle that dictates into the note at the cursor. Records while active,
- * then inserts the transcript. */
+/** Mic toggle that dictates into the note at the cursor. Records while active, then save as audio file */
 export function VoiceButton() {
   const editor = useEditorRef();
   const insert = useCallback(
@@ -19,19 +20,19 @@ export function VoiceButton() {
 
   if (busy) {
     return (
-      <span className="inline-flex size-8 items-center justify-center" title="Transcribing…">
+      <span className="inline-flex size-8 items-center justify-center" title="Saving Audio...">
         <Spinner />
       </span>
     );
   }
   return (
-    <IconButton
-      icon="microphone"
-      variant={recording ? 'accent' : 'ghost'}
-      size="sm"
+    <ToolbarButton
       label={recording ? 'Stop recording' : 'Dictate'}
       onClick={toggle}
-      className={cn(recording && 'animate-pulse')}
-    />
+      active={recording}
+      className={cn('p-0', recording && 'animate-pulse bg-tint-accent-1/70')}
+    >
+      <Mic />
+    </ToolbarButton>
   );
 }

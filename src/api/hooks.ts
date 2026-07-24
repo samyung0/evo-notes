@@ -37,6 +37,7 @@ import type {
   Quiz,
   SearchResult,
   SourceFile,
+  SourceUploadPolicy,
   Tag,
   Task,
   ThinkingCanvas,
@@ -246,6 +247,13 @@ export function useDeleteWorkspace() {
 }
 
 /* ---------------- chapters & files ---------------- */
+export const sourceUploadPolicyQuery = () =>
+  queryOptions({
+    queryKey: qk.sourceUploadPolicy,
+    queryFn: () => api.get<SourceUploadPolicy>('/source-upload-policy'),
+  });
+export const useSourceUploadPolicy = () => useQuery(sourceUploadPolicyQuery());
+
 export const chaptersQuery = (wsId: string) =>
   queryOptions({
     queryKey: qk.chapters(wsId),
@@ -441,6 +449,7 @@ export function useUploadSource(wsId: string) {
       file,
       kind,
       chapterId,
+      chapterName,
       parseMode,
       onUploadProgress,
       signal,
@@ -448,6 +457,7 @@ export function useUploadSource(wsId: string) {
       file: File;
       kind: SourceFile['kind'];
       chapterId?: string | null;
+      chapterName?: string | null;
       /** advanced = Modal MinerU hybrid backend, normal = free MinerU
        * lightweight cloud API, none = store only (no parsing/indexing). */
       parseMode?: 'advanced' | 'normal' | 'none';
@@ -460,8 +470,14 @@ export function useUploadSource(wsId: string) {
         form.append('name', file.name);
         form.append('kind', kind);
         if (chapterId) form.append('chapterId', chapterId);
+        if (chapterName) form.append('chapterName', chapterName);
         if (parseMode) form.append('parseMode', parseMode);
-        return api.upload<SourceFile>(`/workspaces/${wsId}/sources`, form);
+        return api.upload<SourceFile>(
+          `/workspaces/${wsId}/sources`,
+          form,
+          onUploadProgress,
+          signal
+        );
       }
       return api
         .post<{
@@ -474,6 +490,7 @@ export function useUploadSource(wsId: string) {
           name: file.name,
           kind,
           chapterId: chapterId ?? null,
+          chapterName: chapterName ?? null,
           parseMode,
           sizeBytes: file.size,
           contentType: file.type || 'application/octet-stream',
@@ -636,9 +653,7 @@ export function useUpdateMaterial(wsId: string) {
               ...current,
               ...(patch.title === undefined ? {} : { title: patch.title }),
               ...(patch.content === undefined ? {} : { content: patch.content }),
-              ...(patch.scopeChapters === undefined
-                ? {}
-                : { scopeChapters: patch.scopeChapters }),
+              ...(patch.scopeChapters === undefined ? {} : { scopeChapters: patch.scopeChapters }),
               ...(patch.scopeFileIds === undefined ? {} : { scopeFileIds: patch.scopeFileIds }),
               revision: result.revision,
               contentBytes: result.contentBytes,

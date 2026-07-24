@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { PageHeader, PanelWithInvertedRadius } from '@/components/app/layout';
-import { Button, Skeleton, Text, userToast } from '@/components/ui';
+import { Button, Skeleton, Text } from '@/components/ui';
+import { userToast } from '@/components/ui/userToast';
 import { useQuiz, useUpdateQuiz } from '@/api/hooks';
 import { QuizForm } from '@/features/quizzes/QuizForm';
 import type { Question } from '@/api/types';
@@ -33,17 +34,12 @@ export default function QuizEdit() {
   async function save() {
     try {
       await update.mutateAsync({ id: quizId, name, questions });
-      userToast({
-        title: 'Quiz saved',
-        description: 'Your changes were saved.',
-        button: { label: 'Dismiss', onClick: () => {} },
-      });
       back();
     } catch (err) {
       userToast({
         title: 'Could not save quiz',
         description: err instanceof Error ? err.message : 'Something went wrong.',
-        button: { label: 'Dismiss', onClick: () => {} },
+        variant: 'error',
       });
     }
   }

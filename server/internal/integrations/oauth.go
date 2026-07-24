@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"strings"
+
+	"github.com/evonotes/server/internal/sourceupload"
 )
 
 // Providers supported for file import. OAuth token management lives in Clerk
@@ -86,24 +87,5 @@ func DownloadMicrosoftFile(accessToken, itemID string) ([]byte, string, error) {
 }
 
 func KindFromName(name string) string {
-	switch strings.ToLower(path.Ext(name)) {
-	case ".pdf":
-		return "pdf"
-	case ".doc", ".docx":
-		return "doc"
-	case ".md", ".markdown":
-		return "md"
-	case ".png", ".jpg", ".jpeg", ".jp2", ".gif", ".webp", ".bmp", ".svg", ".avif":
-		return "image"
-	case ".xls", ".xlsx", ".csv":
-		return "sheet"
-	case ".ppt", ".pptx":
-		return "slides"
-	case ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v":
-		return "video"
-	case ".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac":
-		return "audio"
-	default:
-		return "txt"
-	}
+	return sourceupload.KindFromName(name)
 }

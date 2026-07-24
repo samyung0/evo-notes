@@ -13,8 +13,8 @@ import {
   Spinner,
   Tabs,
   Text,
-  userToast,
 } from '@/components/ui';
+import { userToast } from '@/components/ui/userToast';
 import { cn } from '@/lib/cn';
 import { userColorPair } from '@/lib/userColor';
 import {
@@ -101,7 +101,7 @@ function MaterialListItem({
 }) {
   const [moveOpen, setMoveOpen] = useState(false);
   const items = [
-    { label: 'Move to chapter…', icon: 'files' as IconName, onClick: () => setMoveOpen(true) },
+    { label: 'Move file', icon: 'files' as IconName, onClick: () => setMoveOpen(true) },
     ...(onDelete
       ? [{ label: m.action_delete(), icon: 'trash' as IconName, danger: true, onClick: onDelete }]
       : []),
@@ -215,24 +215,20 @@ export default function WorkspaceOpen() {
     const chapterMaterials =
       materials?.filter((material) => material.chapterId === chapterId) ?? [];
     return [
-      ...chapterFiles.map(
-        (file): WorkspaceContentItem => ({
-          type: 'file',
-          id: file.id,
-          position: file.position,
-          createdAt: file.addedAt,
-          data: file,
-        })
-      ),
-      ...chapterMaterials.map(
-        (material): WorkspaceContentItem => ({
-          type: 'material',
-          id: material.id,
-          position: material.position,
-          createdAt: material.createdAt,
-          data: material,
-        })
-      ),
+      ...chapterFiles.map((file): WorkspaceContentItem => ({
+        type: 'file',
+        id: file.id,
+        position: file.position,
+        createdAt: file.addedAt,
+        data: file,
+      })),
+      ...chapterMaterials.map((material): WorkspaceContentItem => ({
+        type: 'material',
+        id: material.id,
+        position: material.position,
+        createdAt: material.createdAt,
+        data: material,
+      })),
     ].sort((a, b) => {
       const positionDiff =
         (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER);
@@ -387,8 +383,7 @@ export default function WorkspaceOpen() {
   }
   function renderContentItem(item: WorkspaceContentItem, chapterId: string | null) {
     const key = `${item.type}:${item.id}`;
-    const draggable =
-      !readOnly && !(item.type === 'file' && item.data.status === 'processing');
+    const draggable = !readOnly && !(item.type === 'file' && item.data.status === 'processing');
     return (
       <div
         key={key}
@@ -511,13 +506,14 @@ export default function WorkspaceOpen() {
                 onClick={() =>
                   cloneWorkspace.mutate(workspaceId, {
                     onSuccess: ({ workspace, ragCloned }) => {
-                      if (!ragCloned) {
-                        userToast({
-                          title: 'Workspace cloned',
-                          description: 'Files copied. Parsed knowledge needs rebuilding.',
-                          button: { label: 'Dismiss', onClick: () => {} },
-                        });
-                      }
+                      // TODO: when is rag cloned?
+                      userToast({
+                        title: 'Workspace cloned successfully',
+                        description: !ragCloned
+                          ? 'Files copied. Parsed knowledge needs rebuilding.'
+                          : '',
+                        variant: 'success',
+                      });
                       navigate({
                         to: '/workspaces/$workspaceId',
                         params: { workspaceId: workspace.id },
@@ -599,10 +595,7 @@ export default function WorkspaceOpen() {
                     {chapters.map((ch, idx) => {
                       const expanded = openChapters[ch.id] ?? true;
                       return (
-                        <div
-                          key={ch.id}
-                          className="rounded-row"
-                        >
+                        <div key={ch.id} className="rounded-row">
                           <div className="group relative flex items-center rounded-row py-1.5 pr-8 hover:bg-surface-hover-bg">
                             <button
                               onClick={() => setOpenChapters((s) => ({ ...s, [ch.id]: !expanded }))}
@@ -666,10 +659,7 @@ export default function WorkspaceOpen() {
                   </div>
 
                   {(unfiled.length > 0 || unfiledMaterials.length > 0 || generating) && (
-                    <div
-                      {...dropZone('unfiled-files', null)}
-                      className="rounded-row"
-                    >
+                    <div {...dropZone('unfiled-files', null)} className="rounded-row">
                       <div
                         className={cn(
                           't-label px-1.5 py-1.5 text-fg-muted',

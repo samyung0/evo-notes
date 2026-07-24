@@ -70,7 +70,7 @@ function ColumnFloatingToolbarContent() {
       avoidCollisions={false}
       contentEditable={false}
       onOpenAutoFocus={(event) => event.preventDefault()}
-      className="w-auto max-w-[90vw] min-w-14 flex-row justify-center gap-0.5 overflow-x-auto rounded-card border border-line bg-surface p-1 shadow-pop"
+      className="w-auto max-w-[90vw] min-w-14 flex-row items-center justify-center gap-0.5 overflow-x-auto rounded-lg border border-line bg-surface p-1 shadow-pop"
     >
       {COLUMN_LAYOUTS.map((layout) => {
         const LayoutIcon =
@@ -101,14 +101,6 @@ function ColumnFloatingToolbarContent() {
   );
 }
 
-function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (typeof ref === 'function') {
-    ref(value);
-  } else if (ref) {
-    (ref as MutableRefObject<T | null>).current = value;
-  }
-}
-
 export function Column(props: PlateElementProps) {
   const readOnly = useReadOnly();
   const width = (props.element as { width?: string }).width;
@@ -120,14 +112,6 @@ export function Column(props: PlateElementProps) {
       PathApi.equals(PathApi.parent(dragEntry[1]), PathApi.parent(dropEntry[1])),
   });
   const { dropLine } = useDropLine({ orientation: 'horizontal' });
-  // const composedRef = useCallback(
-  //   (node: HTMLDivElement | null) => {
-  //     assignRef(props.ref, node);
-  //     assignRef(nodeRef, node);
-  //     assignRef(previewRef, node);
-  //   },
-  //   [nodeRef, previewRef, props.ref]
-  // );
 
   return (
     <PlateElement

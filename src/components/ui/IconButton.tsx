@@ -15,9 +15,9 @@ const iconButtonVariants = cva(
         neutral: 'bg-surface text-surface-fg hover:bg-surface-hover-bg',
         gray: 'bg-page text-fg hover:bg-surface-dark',
         'dark-gray': 'bg-surface-dark text-fg hover:bg-surface-dark-hover-bg',
-        ghost: 'bg-transparent text-fg',
-        outline: 'border border-line bg-transparent text-fg hover:bg-surface-hover-bg',
-        'ghost-hover': 'bg-transparent text-fg hover:bg-surface-hover-bg',
+        ghost: 'bg-surface text-fg',
+        outline: 'border border-line bg-surface text-fg hover:bg-surface-hover-bg',
+        'ghost-hover': 'bg-surface text-fg hover:bg-surface-hover-bg',
       },
       size: {
         xs: 'rounded-row [&>svg]:size-[14px]',

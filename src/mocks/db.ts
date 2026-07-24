@@ -40,6 +40,13 @@ import {
 } from '@/features/materials/document';
 import { isDue, isKnown, newSrsState, reviewSrs } from '@/lib/srs';
 import {
+  buildEditorNoteValue,
+  buildSuggestNoteValue,
+  EDITOR_NOTE,
+  EDITOR_WORKSPACE_ID,
+  SUGGEST_NOTE,
+} from './editorSeed';
+import {
   buildLargePerfDocument,
   buildSmallPerfDocument,
   PERF_LARGE_NOTE,
@@ -1143,6 +1150,51 @@ seedDecks.forEach((d, i) => {
     createdAt: days(5 + i),
   });
 });
+/* ---------------- editor matrix fixtures (e2e/editor) ---------------- */
+if (import.meta.env.VITE_E2E_EDITOR_SEED === 'true') {
+  materials.push(
+    {
+      id: EDITOR_NOTE.id,
+      workspaceId: EDITOR_WORKSPACE_ID,
+      workspaceName: 'Biology 101',
+      role: 'owner',
+      capabilities: ownerCapabilities,
+      kind: 'note',
+      title: EDITOR_NOTE.title,
+      content: createMaterialDocument(buildEditorNoteValue() as MaterialValue),
+      chapterId: null,
+      scopeChapters: [],
+      scopeFileIds: [],
+      privacy: 'private',
+      createdAt: days(1),
+      revision: 1,
+    },
+    {
+      id: SUGGEST_NOTE.id,
+      workspaceId: EDITOR_WORKSPACE_ID,
+      workspaceName: 'Biology 101',
+      // Commenter capabilities: the note opens in suggestion mode, mirroring
+      // how a shared commenter sees it (materialModePolicy defaultMode).
+      role: 'commenter',
+      capabilities: {
+        canView: true,
+        canEdit: false,
+        canComment: true,
+        canManageMembers: false,
+      },
+      kind: 'note',
+      title: SUGGEST_NOTE.title,
+      content: createMaterialDocument(buildSuggestNoteValue() as MaterialValue),
+      chapterId: null,
+      scopeChapters: [],
+      scopeFileIds: [],
+      privacy: 'private',
+      createdAt: days(1),
+      revision: 1,
+    }
+  );
+}
+
 /* ---------------- perf harness fixtures (e2e/perf) ---------------- */
 if (import.meta.env.VITE_PERF_SEED === 'true') {
   for (const [note, content] of [

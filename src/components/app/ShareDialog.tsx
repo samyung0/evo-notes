@@ -3,7 +3,7 @@ import type { Privacy, WorkspaceRole } from '@/api/types';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog, SimpleDialog } from '@/components/ui/Dialog';
 import { Icon, type IconName } from '@/components/ui/Icon';
-import { userToast } from '@/components/ui/Sonner';
+import { userToast } from '@/components/ui/userToast';
 import {
   Select,
   SelectContent,
@@ -18,8 +18,7 @@ import { InputTitle } from '../ui';
 type SharedRole = Exclude<WorkspaceRole, 'owner'>;
 type SavingField = 'privacy' | 'shareRole';
 type PendingDangerousChange =
-  | { kind: 'privacy'; value: Privacy }
-  | { kind: 'shareRole'; value: SharedRole };
+  { kind: 'privacy'; value: Privacy } | { kind: 'shareRole'; value: SharedRole };
 
 const PRIVACY_OPTIONS: { value: Privacy; label: string; icon: IconName; hint: string }[] = [
   { value: 'private', label: 'Private', icon: 'lock', hint: 'Only you can access.' },
@@ -60,10 +59,8 @@ function isPublicEditor(privacy: Privacy, shareRole: SharedRole | undefined): bo
 
 function toastShareSuccess(kind: SavingField) {
   userToast({
-    title: 'Sharing updated',
-    description:
-      kind === 'privacy' ? 'Visibility settings saved.' : 'Link permissions saved.',
-    button: { label: 'Dismiss', onClick: () => {} },
+    title: 'Sharing updated successfully',
+    variant: 'success',
   });
 }
 
@@ -71,7 +68,7 @@ function toastShareError(err: unknown, kind: SavingField) {
   userToast({
     title: kind === 'privacy' ? 'Could not update visibility' : 'Could not update permissions',
     description: err instanceof Error ? err.message : 'Something went wrong. Please try again.',
-    button: { label: 'Dismiss', onClick: () => {} },
+    variant: 'error',
   });
 }
 

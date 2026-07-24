@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/evonotes/server/internal/sourceupload"
 )
 
 var (
@@ -16,6 +18,7 @@ type UploadSession struct {
 	ID           string
 	WorkspaceID  string
 	ChapterID    *string
+	ChapterName  string
 	ObjectPath   string
 	FinalPath    string
 	Name         string
@@ -32,6 +35,7 @@ type NewUploadSession struct {
 	ID           string
 	WorkspaceID  string
 	ChapterID    *string
+	ChapterName  string
 	ObjectPath   string
 	FinalPath    string
 	Name         string
@@ -44,10 +48,10 @@ type NewUploadSession struct {
 
 func (s *Store) CreateUploadSession(ctx context.Context, in NewUploadSession) (UploadSession, error) {
 	_, err := s.pool.Exec(ctx, `INSERT INTO upload_sessions
-		(id, workspace_id, chapter_id, object_path, final_path, name, kind, content_type, declared_size, parse_mode, expires_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-		in.ID, in.WorkspaceID, in.ChapterID, in.ObjectPath, in.FinalPath, in.Name,
-		in.Kind, in.ContentType, in.DeclaredSize, in.ParseMode, in.ExpiresAt)
+		(id, workspace_id, chapter_id, chapter_name, object_path, final_path, name, kind, content_type, declared_size, parse_mode, expires_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		in.ID, in.WorkspaceID, in.ChapterID, in.ChapterName, in.ObjectPath, in.FinalPath,
+		in.Name, in.Kind, in.ContentType, in.DeclaredSize, in.ParseMode, in.ExpiresAt)
 	if err != nil {
 		return UploadSession{}, err
 	}
@@ -56,13 +60,13 @@ func (s *Store) CreateUploadSession(ctx context.Context, in NewUploadSession) (U
 
 func scanUploadSession(row interface{ Scan(...any) error }) (UploadSession, error) {
 	var u UploadSession
-	err := row.Scan(&u.ID, &u.WorkspaceID, &u.ChapterID, &u.ObjectPath, &u.FinalPath,
+	err := row.Scan(&u.ID, &u.WorkspaceID, &u.ChapterID, &u.ChapterName, &u.ObjectPath, &u.FinalPath,
 		&u.Name, &u.Kind, &u.ContentType, &u.DeclaredSize, &u.ParseMode,
 		&u.Status, &u.FileID, &u.ExpiresAt)
 	return u, err
 }
 
-const uploadSessionCols = `id, workspace_id, chapter_id, object_path, final_path,
+const uploadSessionCols = `id, workspace_id, chapter_id, chapter_name, object_path, final_path,
 	name, kind, content_type, declared_size, parse_mode, status, file_id, expires_at`
 
 func (s *Store) GetUploadSession(ctx context.Context, id string) (UploadSession, error) {
@@ -102,10 +106,14 @@ func (s *Store) FinalizeUploadSession(ctx context.Context, uploadID, sourceETag,
 		return File{}, ErrUploadExpired
 	}
 
+	chapterID, err := resolveUploadChapterID(ctx, tx, u.WorkspaceID, u.ChapterID, u.ChapterName)
+	if err != nil {
+		return File{}, err
+	}
 	fileID := uid("f")
 	fileURL := "/api/files/" + fileID + "/raw"
 	now := time.Now().UTC()
-	ready := u.ParseMode == "none" && u.Kind != "txt" && u.Kind != "md"
+	ready := u.ParseMode == "none" && !sourceupload.IsTextKind(u.Kind)
 	status := "processing"
 	if ready {
 		status = "ready"
@@ -113,7 +121,7 @@ func (s *Store) FinalizeUploadSession(ctx context.Context, uploadID, sourceETag,
 	_, err = tx.Exec(ctx, `INSERT INTO files
 		(id, workspace_id, chapter_id, name, kind, size_kb, added_at, status, parser, engine, blob_path, url, source_etag)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-		fileID, u.WorkspaceID, u.ChapterID, u.Name, u.Kind, int(u.DeclaredSize/1024),
+		fileID, u.WorkspaceID, chapterID, u.Name, u.Kind, int(u.DeclaredSize/1024),
 		now, status, parser, engine, u.FinalPath, fileURL, sourceETag)
 	if err != nil {
 		return File{}, err
@@ -142,7 +150,7 @@ func (s *Store) FinalizeUploadSession(ctx context.Context, uploadID, sourceETag,
 		return File{}, err
 	}
 	return File{
-		ID: fileID, WorkspaceID: u.WorkspaceID, ChapterID: u.ChapterID,
+		ID: fileID, WorkspaceID: u.WorkspaceID, ChapterID: chapterID,
 		Name: u.Name, Kind: FileKind(u.Kind), SizeKb: int(u.DeclaredSize / 1024),
 		AddedAt: now, Status: FileStatus(status), URL: &fileURL,
 	}, nil

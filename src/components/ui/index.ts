@@ -18,6 +18,17 @@ export {
   SimpleDialog,
 } from './Dialog';
 export {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from './ContextMenu';
+export {
   Drawer,
   DrawerClose,
   DrawerContent,
@@ -60,7 +71,6 @@ export {
   SelectTrigger,
   SelectValue,
 } from './Select';
-export { userToast, type ToastProps } from './Sonner';
 export { Switch } from './Switch';
 export { Tabs } from './Tabs';
 export { TagSelect } from './TagSelect';

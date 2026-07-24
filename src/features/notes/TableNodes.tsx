@@ -144,7 +144,7 @@ function TableFloatingToolbarContent({ multiCell }: { multiCell: boolean }) {
       avoidCollisions={false}
       contentEditable={false}
       onOpenAutoFocus={(event) => event.preventDefault()}
-      className="w-auto max-w-[90vw] min-w-14 flex-row justify-center gap-0.5 overflow-x-auto rounded-card border border-line bg-surface p-1 shadow-pop"
+      className="w-auto max-w-[90vw] min-w-14 flex-row items-center justify-center gap-0.5 overflow-x-auto rounded-lg border border-line bg-surface p-1 shadow-pop"
     >
       {canMerge && (
         <FloatingActionButton label="Merge cells" onClick={() => action(() => tf.table.merge())}>
@@ -245,10 +245,7 @@ export function TableRowElement({ children, ...props }: PlateElementProps) {
       )}
     >
       {!readOnly && (
-        <td
-          className="w-2 min-w-2 max-w-2 select-none p-0"
-          contentEditable={false}
-        >
+        <td className="w-2 max-w-2 min-w-2 p-0 select-none" contentEditable={false}>
           <button
             ref={draggable.handleRef}
             type="button"

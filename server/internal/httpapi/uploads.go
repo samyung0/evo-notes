@@ -19,6 +19,7 @@ type createUploadRequest struct {
 	Name        string  `json:"name"`
 	Kind        string  `json:"kind"`
 	ChapterID   *string `json:"chapterId"`
+	ChapterName string  `json:"chapterName"`
 	ParseMode   string  `json:"parseMode"`
 	SizeBytes   int64   `json:"sizeBytes"`
 	ContentType string  `json:"contentType"`
@@ -40,8 +41,17 @@ func (a *api) createSourceUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
+	in.ChapterName = strings.TrimSpace(in.ChapterName)
 	if in.Name == "" || len(in.Name) > 512 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "file name is required and must be at most 512 characters"})
+		return
+	}
+	if len(in.ChapterName) > 255 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "chapter name must be at most 255 characters"})
+		return
+	}
+	if in.ChapterID != nil && in.ChapterName != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "chapterId and chapterName cannot both be set"})
 		return
 	}
 	if in.Kind == "" {
@@ -87,7 +97,7 @@ func (a *api) createSourceUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session, err := a.s.CreateUploadSession(r.Context(), store.NewUploadSession{
-		ID: uploadID, WorkspaceID: wsID, ChapterID: in.ChapterID,
+		ID: uploadID, WorkspaceID: wsID, ChapterID: in.ChapterID, ChapterName: in.ChapterName,
 		ObjectPath: incoming, FinalPath: finalPath, Name: in.Name, Kind: in.Kind,
 		ContentType: in.ContentType, DeclaredSize: in.SizeBytes,
 		ParseMode: in.ParseMode, ExpiresAt: signed.ExpiresAt,

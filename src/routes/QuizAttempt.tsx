@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { PanelWithInvertedRadius } from '@/components/app/layout';
 import { PrivateOrUnavailable } from '@/components/app/PrivateOrUnavailable';
-import { Button, Icon, ProgressBar, Skeleton, Text, userToast } from '@/components/ui';
+import { Button, Icon, ProgressBar, Skeleton, Text } from '@/components/ui';
+import { userToast } from '@/components/ui/userToast';
 import { useCloneQuiz, useQuiz, useSubmitAttempt } from '@/api/hooks';
 import { isApiError } from '@/api/client';
 import { toastCloneError, toastSignInRequired } from '@/lib/authToasts';
@@ -93,7 +94,7 @@ export default function QuizAttempt() {
           userToast({
             title: 'Could not save attempt',
             description: err instanceof Error ? err.message : 'Please try again.',
-            button: { label: 'Dismiss', onClick: () => {} },
+            variant: 'error',
           });
         },
       }

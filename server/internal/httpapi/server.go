@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -22,16 +21,17 @@ import (
 	"github.com/evonotes/server/internal/billing"
 	"github.com/evonotes/server/internal/blob"
 	"github.com/evonotes/server/internal/pipeline"
+	"github.com/evonotes/server/internal/sourceupload"
 	"github.com/evonotes/server/internal/store"
 )
 
 // Config holds gateway settings for auth and billing. Provider OAuth
 // (Google/Microsoft/Notion) is managed entirely by Clerk.
 type Config struct {
-	ClerkSecretKey      string
-	ClerkWebhookSecret  string
-	AuthDisabled        bool
-	DevUserID           string
+	ClerkSecretKey     string
+	ClerkWebhookSecret string
+	AuthDisabled       bool
+	DevUserID          string
 	// E2EAuth enables X-E2E-User-Id identity headers (disposable E2E only).
 	E2EAuth             bool
 	E2ESecret           string
@@ -74,13 +74,13 @@ func New(s *store.Store, b blob.Store, pipe *pipeline.Client, rdb *redis.Client,
 		AllowCredentials: false,
 	}))
 	r.Use(auth.Middleware(auth.Config{
-		SecretKey: cfg.ClerkSecretKey,
-		Disabled:  cfg.AuthDisabled,
-		DevUserID: cfg.DevUserID,
-		E2EAuth:   cfg.E2EAuth,
-		E2ESecret: cfg.E2ESecret,
+		SecretKey:  cfg.ClerkSecretKey,
+		Disabled:   cfg.AuthDisabled,
+		DevUserID:  cfg.DevUserID,
+		E2EAuth:    cfg.E2EAuth,
+		E2ESecret:  cfg.E2ESecret,
 		E2EUserIDs: cfg.E2EUserIDs,
-		Store:     s,
+		Store:      s,
 		PublicReadPrefix: []string{
 			"/api/workspaces/",
 			"/api/files/",
@@ -212,68 +212,21 @@ func (a *api) addSource(w http.ResponseWriter, r *http.Request) {
 // uploads at 100 MB); normal uses the free MinerU lightweight cloud API
 // (their hard limits: 10 MB / 20 pages, page count enforced by MinerU).
 const (
-	parseModeAdvanced = "advanced"
-	parseModeNormal   = "normal"
-	parseModeNone     = "none"
+	parseModeAdvanced = sourceupload.ParseModeAdvanced
+	parseModeNormal   = sourceupload.ParseModeNormal
+	parseModeNone     = sourceupload.ParseModeNone
 
-	advancedMaxBytes = 100 << 20
-	normalMaxBytes   = 10 << 20
-	uploadMaxBytes   = advancedMaxBytes + (4 << 20) // multipart overhead headroom
+	advancedMaxBytes = sourceupload.AdvancedMaxBytes
+	normalMaxBytes   = sourceupload.NormalMaxBytes
+	uploadMaxBytes   = sourceupload.UploadMaxBytes // multipart overhead headroom
 )
 
-// normalParseExts mirrors the MinerU lightweight API's supported types:
-// PDF, images (png/jpg/jpeg/jp2/webp/gif/bmp), docx, pptx, xlsx.
-var normalParseExts = map[string]bool{
-	".pdf": true, ".png": true, ".jpg": true, ".jpeg": true, ".jp2": true,
-	".webp": true, ".gif": true, ".bmp": true, ".docx": true, ".pptx": true, ".xlsx": true,
-}
-
-// advancedParseExts mirrors the Modal MinerU service allowlist
-// (pipeline/pipeline/rag/modal_parser.py _MODAL_SUFFIXES).
-var advancedParseExts = map[string]bool{
-	".pdf": true, ".doc": true, ".docx": true, ".ppt": true, ".pptx": true,
-	".xls": true, ".xlsx": true, ".png": true, ".jpg": true, ".jpeg": true,
-	".jp2": true, ".webp": true, ".gif": true, ".bmp": true,
-}
-
-// defaultParseMode picks the mode used when a client doesn't specify one:
-// advanced for anything Modal can parse, none for unparseable formats.
-// Text kinds (txt/md) are ingested directly by the worker either way.
 func defaultParseMode(name, kind string) string {
-	if kind == "txt" || kind == "md" {
-		return parseModeAdvanced // ignored by the worker; keeps a job enqueued
-	}
-	if advancedParseExts[strings.ToLower(filepath.Ext(name))] {
-		return parseModeAdvanced
-	}
-	return parseModeNone
+	return sourceupload.DefaultParseMode(name, kind)
 }
 
 func validateParseMode(mode, name, kind string, size int64) error {
-	if kind == "txt" || kind == "md" {
-		return nil // inserted as raw text; parse mode is irrelevant
-	}
-	ext := strings.ToLower(filepath.Ext(name))
-	switch mode {
-	case parseModeAdvanced:
-		if !advancedParseExts[ext] {
-			return fmt.Errorf("advanced parsing does not support %s files", ext)
-		}
-		if size > advancedMaxBytes {
-			return fmt.Errorf("advanced parsing supports files up to 100 MB")
-		}
-	case parseModeNormal:
-		if !normalParseExts[ext] {
-			return fmt.Errorf("normal parsing does not support %s files", ext)
-		}
-		if size > normalMaxBytes {
-			return fmt.Errorf("normal parsing supports files up to 10 MB")
-		}
-	case parseModeNone:
-	default:
-		return fmt.Errorf("unknown parse mode %q", mode)
-	}
-	return nil
+	return sourceupload.Validate(name, kind, mode, size)
 }
 
 func (a *api) uploadSource(w http.ResponseWriter, r *http.Request) {
@@ -305,6 +258,22 @@ func (a *api) uploadSource(w http.ResponseWriter, r *http.Request) {
 	if c := r.FormValue("chapterId"); c != "" {
 		chapterID = &c
 	}
+	chapterName := strings.TrimSpace(r.FormValue("chapterName"))
+	if len(chapterName) > 255 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "chapter name must be at most 255 characters"})
+		return
+	}
+	if chapterID != nil && chapterName != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "chapterId and chapterName cannot both be set"})
+		return
+	}
+	if chapterID != nil {
+		chapterWorkspace, err := a.s.ChapterWorkspaceID(r.Context(), *chapterID)
+		if err != nil || chapterWorkspace != id(r) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": "chapter does not belong to this workspace"})
+			return
+		}
+	}
 	parseMode := r.FormValue("parseMode")
 	if parseMode == "" {
 		parseMode = defaultParseMode(name, kind)
@@ -319,8 +288,8 @@ func (a *api) uploadSource(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, err)
 		return
 	}
-	if parseMode == parseModeNone && kind != "txt" && kind != "md" {
-		res, err := a.s.CreateSourceReady(r.Context(), id(r), name, kind, chapterID, int(size/1024), blobPath)
+	if parseMode == parseModeNone && !sourceupload.IsTextKind(kind) {
+		res, err := a.s.CreateSourceReady(r.Context(), id(r), name, kind, chapterID, chapterName, int(size/1024), blobPath)
 		if err != nil {
 			a.fail(w, err)
 			return
@@ -328,7 +297,7 @@ func (a *api) uploadSource(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 201, res)
 		return
 	}
-	res, _, err := a.s.CreateSourceWithJob(r.Context(), id(r), name, kind, chapterID, int(size/1024), blobPath, a.parser, a.engine, parseMode)
+	res, _, err := a.s.CreateSourceWithJob(r.Context(), id(r), name, kind, chapterID, chapterName, int(size/1024), blobPath, a.parser, a.engine, parseMode)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -368,26 +337,7 @@ func (a *api) getFileRaw(w http.ResponseWriter, r *http.Request) {
 }
 
 func kindFromName(name string) string {
-	switch strings.ToLower(filepath.Ext(name)) {
-	case ".pdf":
-		return "pdf"
-	case ".doc", ".docx":
-		return "doc"
-	case ".md", ".markdown":
-		return "md"
-	case ".png", ".jpg", ".jpeg", ".jp2", ".gif", ".webp", ".bmp", ".svg", ".avif":
-		return "image"
-	case ".xls", ".xlsx", ".csv":
-		return "sheet"
-	case ".ppt", ".pptx":
-		return "slides"
-	case ".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v":
-		return "video"
-	case ".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac":
-		return "audio"
-	default:
-		return "txt"
-	}
+	return sourceupload.KindFromName(name)
 }
 
 func contentType(kind string) string {

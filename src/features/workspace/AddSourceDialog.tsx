@@ -1,13 +1,13 @@
 import { USE_MSW } from '@/api/auth';
 import { api } from '@/api/client';
 import {
-  useAddChapter,
   useChapters,
   useImportSources,
   useIntegrations,
+  useSourceUploadPolicy,
   useUploadSource,
 } from '@/api/hooks';
-import type { Chapter, FileKind, SourceFile } from '@/api/types';
+import type { Chapter, SourceFile, SourceUploadPolicy } from '@/api/types';
 import {
   Button,
   ConfirmDialog,
@@ -28,403 +28,22 @@ import {
   Spinner,
   Tabs,
   Text,
-  userToast,
 } from '@/components/ui';
+import { userToast } from '@/components/ui/userToast';
 import { m } from '@/i18n';
 import { cn } from '@/lib/cn';
 import { useProviderConnect } from '@/lib/useProviderConnect';
 import { useDialogs } from '@/stores/dialogs';
-import { useRef, useState } from 'react';
-
-const KIND_BY_EXT: Record<string, FileKind> = {
-  pdf: 'pdf',
-  doc: 'doc',
-  docx: 'doc',
-  md: 'md',
-  markdown: 'md',
-  mdx: 'md',
-  txt: 'txt',
-  png: 'image',
-  jpg: 'image',
-  jpeg: 'image',
-  jp2: 'image',
-  webp: 'image',
-  gif: 'image',
-  bmp: 'image',
-  svg: 'image',
-  avif: 'image',
-  xls: 'sheet',
-  xlsx: 'sheet',
-  csv: 'sheet',
-  ppt: 'slides',
-  pptx: 'slides',
-  mp4: 'video',
-  webm: 'video',
-  mov: 'video',
-  mkv: 'video',
-  avi: 'video',
-  m4v: 'video',
-  mp3: 'audio',
-  wav: 'audio',
-  m4a: 'audio',
-  ogg: 'audio',
-  flac: 'audio',
-  aac: 'audio',
-  json: 'json',
-  map: 'json',
-};
-
-const TEXT_EXT = [
-  '3dml',
-  'appcache',
-  'asm',
-  'c',
-  'cc',
-  'coffee',
-  'conf',
-  'cpp',
-  'css',
-  'csv',
-  'curl',
-  'cxx',
-  'dcurl',
-  'def',
-  'dic',
-  'dsc',
-  'etx',
-  'f',
-  'f77',
-  'f90',
-  'flx',
-  'fly',
-  'for',
-  'ged',
-  'gv',
-  'h',
-  'hbs',
-  'hh',
-  'htm',
-  'html',
-  'htc',
-  'ics',
-  'ifb',
-  'in',
-  'ini',
-  'jad',
-  'jade',
-  'java',
-  'js',
-  'jsx',
-  'less',
-  'list',
-  'litcoffee',
-  'log',
-  'lua',
-  'man',
-  'manifest',
-  'markdown',
-  'mcurl',
-  'md',
-  'mdx',
-  'me',
-  'mjs',
-  'mkd',
-  'mml',
-  'ms',
-  'n3',
-  'nfo',
-  'opml',
-  'org',
-  'p',
-  'pas',
-  'pde',
-  'roff',
-  'rtf',
-  'rtx',
-  's',
-  'sass',
-  'scss',
-  'scurl',
-  'sgm',
-  'sgml',
-  'shex',
-  'shtml',
-  'slim',
-  'slm',
-  'spdx',
-  'spot',
-  'styl',
-  'stylus',
-  'sub',
-  't',
-  'text',
-  'tr',
-  'ts',
-  'tsv',
-  'tsx',
-  'ttl',
-  'txt',
-  'uri',
-  'uris',
-  'urls',
-  'uu',
-  'vcard',
-  'vcf',
-  'vcs',
-  'vtt',
-  'wgsl',
-  'wml',
-  'wmls',
-  'xml',
-  'yaml',
-  'yml',
-  'C',
-  'PL',
-  'adb',
-  'ads',
-  'al',
-  'asc',
-  'asd',
-  'ass',
-  'automount',
-  'bib',
-  'c++',
-  'cbl',
-  'cl',
-  'cls',
-  'cmake',
-  'cob',
-  'cr',
-  'cs',
-  'csvs',
-  'd',
-  'dart',
-  'dcl',
-  'device',
-  'di',
-  'diff',
-  'dot',
-  'dsl',
-  'dtd',
-  'dtx',
-  'e',
-  'eif',
-  'el',
-  'ent',
-  'erl',
-  'es',
-  'ex',
-  'exs',
-  'f95',
-  'fasl',
-  'feature',
-  'fo',
-  'gcode',
-  'gcrd',
-  'gedcom',
-  'go',
-  'gradle',
-  'groovy',
-  'gs',
-  'gsh',
-  'gvp',
-  'gvy',
-  'gy',
-  'h++',
-  'hp',
-  'hpp',
-  'hs',
-  'hxx',
-  'ico',
-  'idl',
-  'ime',
-  'imy',
-  'ins',
-  'iptables',
-  'jsm',
-  'ksy',
-  'kt',
-  'latex',
-  'ldif',
-  'lhs',
-  'lisp',
-  'ltx',
-  'ly',
-  'lyx',
-  'm',
-  'mak',
-  'mc2',
-  'mk',
-  'ml',
-  'mli',
-  'mm',
-  'mo',
-  'moc',
-  'mof',
-  'mount',
-  'mrl',
-  'mrml',
-  'mup',
-  'not',
-  'ocl',
-  'ooc',
-  'owl',
-  'patch',
-  'path',
-  'perl',
-  'pl',
-  'pm',
-  'po',
-  'pod',
-  'pot',
-  'py',
-  'py3',
-  'py3x',
-  'pyi',
-  'pyx',
-  'qml',
-  'qmlproject',
-  'qmltypes',
-  'rdf',
-  'rdfs',
-  'reg',
-  'rej',
-  'rng',
-  'ros',
-  'rs',
-  'rss',
-  'rst',
-  'rt',
-  'sage',
-  'sc',
-  'scala',
-  'scm',
-  'scope',
-  'service',
-  'sfv',
-  'sh',
-  'slice',
-  'slk',
-  'socket',
-  'spec',
-  'sql',
-  'ss',
-  'ssa',
-  'sty',
-  'sv',
-  'svh',
-  'swap',
-  'sylk',
-  't2t',
-  'target',
-  'tcl',
-  'tex',
-  'texi',
-  'texinfo',
-  'timer',
-  'tk',
-  'twig',
-  'uil',
-  'uue',
-  'v',
-  'vala',
-  'vapi',
-  'vbs',
-  'vct',
-  'vhd',
-  'vhdl',
-  'wsgi',
-  'xbl',
-  'xmi',
-  'xsd',
-  'xslfo',
-  'ymp',
-];
-
-function getFileKind(name: string): FileKind {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (Object.prototype.hasOwnProperty.call(KIND_BY_EXT, ext)) return KIND_BY_EXT[ext];
-  if (TEXT_EXT.includes(ext)) return 'txt';
-  return 'unknown';
-}
-
-/* ------------------------------------------------------------ parse modes */
-
-type ParseMode = 'advanced' | 'normal' | 'none';
-
-const ADVANCED_MAX_MB = 100;
-const NORMAL_MAX_MB = 10;
-const NORMAL_MAX_PAGES = 20;
-
-// Advanced = Modal MinerU hybrid backend (pipeline _MODAL_SUFFIXES allowlist).
-const ADVANCED_EXTS = new Set([
-  'pdf',
-  'doc',
-  'docx',
-  'ppt',
-  'pptx',
-  'xls',
-  'xlsx',
-  'png',
-  'jpg',
-  'jpeg',
-  'jp2',
-  'webp',
-  'gif',
-  'bmp',
-]);
-// Normal = free MinerU lightweight cloud API: PDF, images, docx/pptx/xlsx
-// only, ≤ 10 MB and ≤ 20 pages (page count enforced by the API).
-const NORMAL_EXTS = new Set([
-  'pdf',
-  'png',
-  'jpg',
-  'jpeg',
-  'jp2',
-  'webp',
-  'gif',
-  'bmp',
-  'docx',
-  'pptx',
-  'xlsx',
-]);
-// Plain text is indexed directly by the worker — no parse step involved.
-const TEXT_KINDS = new Set<FileKind>(['txt', 'md', 'json']);
-
-function fileExt(name: string) {
-  return name.includes('.') ? (name.split('.').pop()?.toLowerCase() ?? '') : '';
-}
-
-/** Per-mode disabled reason for a file, or null when the mode is usable.
- * pageCount is best-effort (PDFs only, null while counting / on failure);
- * MinerU enforces its 20-page limit server-side regardless. */
-function parseModeIssues(
-  file: File,
-  pageCount?: number | null
-): { advanced: string | null; normal: string | null } {
-  const ext = fileExt(file.name);
-  return {
-    advanced: !ADVANCED_EXTS.has(ext)
-      ? 'format not supported'
-      : file.size > ADVANCED_MAX_MB * 1024 * 1024
-        ? `over ${ADVANCED_MAX_MB} MB`
-        : null,
-    normal: !NORMAL_EXTS.has(ext)
-      ? 'format not supported'
-      : file.size > NORMAL_MAX_MB * 1024 * 1024
-        ? `over ${NORMAL_MAX_MB} MB`
-        : pageCount != null && pageCount > NORMAL_MAX_PAGES
-          ? `over ${NORMAL_MAX_PAGES} pages`
-          : null,
-  };
-}
-
-function defaultParseMode(file: File, pageCount?: number | null): ParseMode {
-  const issues = parseModeIssues(file, pageCount);
-  if (!issues.normal) return 'normal';
-  if (!issues.advanced) return 'advanced';
-  return 'none';
-}
+import { useEffect, useRef, useState } from 'react';
+import {
+  aggregateUploadPct,
+  defaultParseMode,
+  fileExt,
+  getFileKind,
+  isTextKind,
+  parseModeIssues,
+  type ParseMode,
+} from './sourceUpload';
 
 /** Count a PDF's pages with pdfjs (already bundled via react-pdf, loaded on
  * demand). Returns null for non-PDFs and unreadable/encrypted files. */
@@ -495,11 +114,13 @@ const CREATE_CHAPTER = '__create__';
 function ChapterSelect({
   chapters,
   value,
+  chapterName,
   onChange,
   onCreateRequest,
 }: {
   chapters: Chapter[];
   value: string | null;
+  chapterName?: string | null;
   onChange: (v: string | null) => void;
   onCreateRequest?: () => void;
 }) {
@@ -516,7 +137,11 @@ function ChapterSelect({
     >
       <SelectTrigger size="sm" variant="underline" className="w-fit">
         <div className="w-fit max-w-36 min-w-28">
-          <SelectValue></SelectValue>
+          {chapterName ? (
+            <span className="line-clamp-1 translate-y-px">{chapterName}</span>
+          ) : (
+            <SelectValue />
+          )}
         </div>
       </SelectTrigger>
       <SelectContent className="max-w-47">
@@ -553,6 +178,7 @@ interface PendingFile {
   file: File;
   kind: SourceFile['kind'];
   chapterId: string | null;
+  chapterName: string | null;
   parseMode: ParseMode;
   /** PDF page count via pdfjs; undefined = still counting, null = unknown. */
   pageCount?: number | null;
@@ -561,14 +187,16 @@ interface PendingFile {
 
 function ParseModeSelect({
   pending,
+  policy,
   onChange,
 }: {
   pending: PendingFile;
+  policy: SourceUploadPolicy;
   onChange: (mode: ParseMode) => void;
 }) {
   if (pending.kind === 'unknown') return;
-  if (TEXT_KINDS.has(pending.kind)) return;
-  const issues = parseModeIssues(pending.file, pending.pageCount);
+  if (isTextKind(pending.kind, policy)) return;
+  const issues = parseModeIssues(pending.file, pending.kind, policy, pending.pageCount);
   if (issues.advanced && issues.normal) return;
   return (
     <Select value={pending.parseMode} onValueChange={(v) => onChange(v as ParseMode)}>
@@ -592,8 +220,6 @@ function ParseModeSelect({
   );
 }
 
-// TODO: two-pass upload: check storage size againts upload request on first pass and validate (make sure that the file format etc is valid for normal (ocr) or advanced (vlm) parsing)
-// TODO: show file upload progress on confirm upload
 function UploadFiles({
   workspaceId,
   onClose,
@@ -604,7 +230,7 @@ function UploadFiles({
   className?: string;
 }) {
   const uploadSource = useUploadSource(workspaceId);
-  const addChapter = useAddChapter(workspaceId);
+  const { data: uploadPolicy } = useSourceUploadPolicy();
   const { data: chapters } = useChapters(workspaceId);
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadControllers = useRef(new Map<string, AbortController>());
@@ -615,15 +241,47 @@ function UploadFiles({
   const [newChapterName, setNewChapterName] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  useEffect(
+    () => () => {
+      for (const controller of uploadControllers.current.values()) controller.abort();
+    },
+    []
+  );
+
   function handleFiles(list: FileList | null) {
     if (!list?.length) return;
-    const added = Array.from(list).map((f, i) => ({
-      key: `${Date.now()}-${i}-${f.name}`,
-      file: f,
-      kind: getFileKind(f.name),
-      chapterId: null,
-      parseMode: defaultParseMode(f),
-    }));
+    if (!uploadPolicy) {
+      userToast({
+        title: `Upload formats are still loading`,
+        description: `Please try again in a moment.`,
+        variant: 'error',
+      });
+      return;
+    }
+    const candidates = Array.from(list).map((f, i) => {
+      const kind = getFileKind(f.name, uploadPolicy);
+      return {
+        key: `${Date.now()}-${i}-${f.name}`,
+        file: f,
+        kind,
+        chapterId: null,
+        chapterName: null,
+        parseMode: defaultParseMode(f, kind, uploadPolicy),
+      };
+    });
+    const added = candidates.filter((file) => file.kind !== 'unknown');
+    const rejected = candidates.filter((file) => file.kind === 'unknown');
+    if (rejected.length) {
+      userToast({
+        title: `Unsupported file format`,
+        description: rejected.map((file) => file.file.name).join(', '),
+        variant: 'error',
+      });
+    }
+    if (!added.length) {
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
     setFiles((prev) => [...prev, ...added]);
     if (inputRef.current) inputRef.current.value = '';
     // Count PDF pages in the background; if the count invalidates the row's
@@ -635,8 +293,11 @@ function UploadFiles({
           prev.map((f) => {
             if (f.key !== row.key) return f;
             const next: PendingFile = { ...f, pageCount: n };
-            if (f.parseMode !== 'none' && parseModeIssues(f.file, n)[f.parseMode]) {
-              next.parseMode = defaultParseMode(f.file, n);
+            if (
+              f.parseMode !== 'none' &&
+              parseModeIssues(f.file, f.kind, uploadPolicy, n)[f.parseMode]
+            ) {
+              next.parseMode = defaultParseMode(f.file, f.kind, uploadPolicy, n);
             }
             return next;
           })
@@ -649,30 +310,27 @@ function UploadFiles({
     setFiles((prev) => prev.map((f) => (f.key === key ? { ...f, ...patch } : f)));
   }
 
-  // TODO: dont create the chapter in the dialog directly, send alongside the file to create in the backend
-  async function confirmCreateChapter(key: string) {
+  function confirmCreateChapter(key: string) {
     const name = newChapterName.trim();
     if (!name) return;
-    try {
-      // Reuse an existing chapter with the same name instead of duplicating.
-      const existing = chapters?.find((c) => c.name.toLowerCase() === name.toLowerCase());
-      const chapter = existing ?? (await addChapter.mutateAsync(name));
-      patchFile(key, { chapterId: chapter.id });
-      setCreatingKey(null);
-      setNewChapterName('');
-    } catch {
-      userToast({
-        title: `Some files failed to upload`,
-        button: { label: 'Dismiss', onClick: () => {} },
-      });
-    }
+    // Reuse an existing chapter when it is already loaded. New names travel
+    // with the upload and are resolved atomically by the backend.
+    const existing = chapters?.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    patchFile(key, {
+      chapterId: existing?.id ?? null,
+      chapterName: existing ? null : name,
+    });
+    setCreatingKey(null);
+    setNewChapterName('');
   }
 
   const handleUpload = async () => {
     if (isSubmitting || files.length === 0) return;
     setIsSubmitting(true);
+    const batch = [...files];
+    setFiles((prev) => prev.map((file) => ({ ...file, uploadPct: 0 })));
     const results = await Promise.allSettled(
-      files.map((f) => {
+      batch.map((f) => {
         const controller = new AbortController();
         uploadControllers.current.set(f.key, controller);
         return uploadSource
@@ -680,23 +338,27 @@ function UploadFiles({
             file: f.file,
             kind: f.kind,
             chapterId: f.chapterId,
+            chapterName: f.chapterName,
             parseMode: f.parseMode,
             signal: controller.signal,
             onUploadProgress: (uploadPct) => patchFile(f.key, { uploadPct }),
-          })
-          .then(() => {
-            setFiles((prev) => prev.filter((pf) => pf.key !== f.key));
           })
           .finally(() => uploadControllers.current.delete(f.key));
       })
     );
     setIsSubmitting(false);
     if (results.every((r) => r.status === 'fulfilled')) {
+      setFiles([]);
+      setConfirmOpen(false);
       onClose?.();
     } else {
+      const succeededKeys = new Set(
+        batch.filter((_, index) => results[index]?.status === 'fulfilled').map((file) => file.key)
+      );
+      setFiles((prev) => prev.filter((file) => !succeededKeys.has(file.key)));
       userToast({
         title: `Some files failed to upload`,
-        button: { label: 'Dismiss', onClick: () => {} },
+        variant: 'error',
       });
     }
   };
@@ -706,10 +368,17 @@ function UploadFiles({
     if (totalBytes < 1024 * 1024) return `${(totalBytes / 1024).toFixed(1)} KB`;
     return `${(totalBytes / 1024 / 1024).toFixed(1)} MB`;
   };
+  const normalParse = uploadPolicy?.parseModes.find((mode) => mode.mode === 'normal');
+  const advancedParse = uploadPolicy?.parseModes.find((mode) => mode.mode === 'advanced');
+  const aggregateProgress = aggregateUploadPct(
+    files.map((file) => ({ size: file.file.size, uploadPct: file.uploadPct }))
+  );
+  const completedUploads = files.filter((file) => file.uploadPct === 100).length;
 
   return (
     <div className={cn('flex flex-col gap-4', className)}>
       <button
+        disabled={!uploadPolicy}
         onClick={() => inputRef.current?.click()}
         className={cn(
           'flex flex-col items-center gap-2 rounded-card border-2 border-dashed border-line px-6 py-8 transition-colors hover:bg-surface-hover-bg',
@@ -725,6 +394,7 @@ function UploadFiles({
         type="file"
         multiple
         hidden
+        accept={uploadPolicy?.accept}
         onChange={(e) => handleFiles(e.target.files)}
       />
 
@@ -780,7 +450,7 @@ function UploadFiles({
                             variant="ghost-hover"
                             label="Create chapter"
                             className="p-1.5"
-                            disabled={!newChapterName.trim() || addChapter.isPending}
+                            disabled={!newChapterName.trim()}
                             onClick={() => void confirmCreateChapter(f.key)}
                           />
                           <IconButton
@@ -796,7 +466,8 @@ function UploadFiles({
                         <ChapterSelect
                           chapters={chapters ?? []}
                           value={f.chapterId}
-                          onChange={(v) => patchFile(f.key, { chapterId: v })}
+                          chapterName={f.chapterName}
+                          onChange={(v) => patchFile(f.key, { chapterId: v, chapterName: null })}
                           onCreateRequest={() => {
                             setCreatingKey(f.key);
                             setNewChapterName('');
@@ -805,10 +476,13 @@ function UploadFiles({
                       )}
                     </div>
                     <div className="min-w-0">
-                      <ParseModeSelect
-                        pending={f}
-                        onChange={(mode) => patchFile(f.key, { parseMode: mode })}
-                      />
+                      {uploadPolicy && (
+                        <ParseModeSelect
+                          pending={f}
+                          policy={uploadPolicy}
+                          onChange={(mode) => patchFile(f.key, { parseMode: mode })}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -822,26 +496,43 @@ function UploadFiles({
       )}
 
       <p className="t-meta pt-3 text-fg-muted">
-        OCR parsing (default) supports English and Chinese documents only (up to {NORMAL_MAX_MB} MB
-        / 20 pages). VLM parsing accepts files up to {ADVANCED_MAX_MB} MB.
+        OCR parsing (default) supports English and Chinese documents only (up to{' '}
+        {normalParse ? Math.round(normalParse.maxBytes / 1024 / 1024) : 10} MB /{' '}
+        {normalParse?.maxPages ?? 20} pages). VLM parsing accepts files up to{' '}
+        {advancedParse ? Math.round(advancedParse.maxBytes / 1024 / 1024) : 100} MB.
       </p>
       <ConfirmDialog
         open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
+        onClose={() => {
+          if (!isSubmitting) setConfirmOpen(false);
+        }}
         onConfirm={handleUpload}
         danger={false}
+        closeOnConfirm={false}
         isSubmitting={isSubmitting}
-        disabled={files.length === 0 || isSubmitting}
+        disabled={!uploadPolicy || files.length === 0 || isSubmitting}
         title={`Confirm Upload?`}
         body={`This will upload ${files.length} files, total size ${formatFileSizes()}.`}
-      />
+      >
+        {isSubmitting && (
+          <div className="mt-3 flex flex-col gap-1.5">
+            <ProgressBar value={aggregateProgress} showLabel />
+            <p className="t-meta text-fg-muted">
+              Uploading {completedUploads} of {files.length} files…
+            </p>
+          </div>
+        )}
+      </ConfirmDialog>
       <DialogFooter>
         <DialogClose asChild>
-          <Button variant="ghost-hover" onClick={onClose}>
+          <Button variant="ghost-hover" disabled={isSubmitting} onClick={onClose}>
             Cancel
           </Button>
         </DialogClose>
-        <Button disabled={files.length === 0 || isSubmitting} onClick={() => setConfirmOpen(true)}>
+        <Button
+          disabled={!uploadPolicy || files.length === 0 || isSubmitting}
+          onClick={() => setConfirmOpen(true)}
+        >
           <span>{m.action_upload()}</span>
         </Button>
       </DialogFooter>
@@ -884,7 +575,7 @@ function ImportFiles({
       userToast({
         title: `Could not connect ${provider}`,
         description: err instanceof Error ? err.message : `Something went wrong. Please try again.`,
-        button: { label: 'Dismiss', onClick: () => {} },
+        variant: 'error',
       });
     }
   }

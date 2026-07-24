@@ -29,10 +29,12 @@ import {
   quizNode,
   type FlashcardsElement,
 } from '@/features/materials/document';
+import { getFileKind } from '@/features/workspace/sourceUpload';
 import { isKnown, newSrsState } from '@/lib/srs';
 import { delay, http, HttpResponse } from 'msw';
 import * as db from './db';
 import { uid } from './db';
+import { sourceUploadPolicy } from './sourceUploadPolicy';
 
 /** Map a material's storage kind to the legacy left-panel ref type. */
 const refType = (kind: Material['kind']): MaterialRefType =>
@@ -821,6 +823,10 @@ export const handlers = [
     suggestion.updatedAt = suggestion.reviewedAt;
     return HttpResponse.json(suggestion);
   }),
+  http.get('/api/source-upload-policy', async () => {
+    await latency();
+    return HttpResponse.json(sourceUploadPolicy);
+  }),
   http.post('/api/workspaces/:id/sources', async ({ params, request }) => {
     await delay(500);
     // Real uploads are multipart (file bytes); fall back to JSON for any
@@ -828,22 +834,60 @@ export const handlers = [
     let name = '';
     let kind: SourceKindFix = 'pdf';
     let chapterId: string | null = null;
+    let chapterName: string | null = null;
     const ct = request.headers.get('content-type') ?? '';
     if (ct.includes('multipart/form-data')) {
       const form = await request.formData();
       const file = form.get('file');
       name = String(form.get('name') || (file instanceof File ? file.name : '') || 'Untitled');
-      kind = (String(form.get('kind') || '') || 'pdf') as SourceKindFix;
+      kind = (String(form.get('kind') || '') ||
+        getFileKind(name, sourceUploadPolicy)) as SourceKindFix;
       chapterId = (form.get('chapterId') as string) || null;
+      chapterName = (form.get('chapterName') as string) || null;
     } else {
       const body = (await request.json()) as {
         name: string;
         kind: SourceKindFix;
         chapterId?: string | null;
+        chapterName?: string | null;
       };
       name = body.name;
-      kind = body.kind ?? 'pdf';
+      kind = body.kind ?? getFileKind(name, sourceUploadPolicy);
       chapterId = body.chapterId ?? null;
+      chapterName = body.chapterName ?? null;
+    }
+    const expectedKind = getFileKind(name, sourceUploadPolicy);
+    if (chapterId && chapterName?.trim()) {
+      return HttpResponse.json(
+        { message: 'chapterId and chapterName cannot both be set' },
+        { status: 400 }
+      );
+    }
+    if (expectedKind === 'unknown' || kind !== expectedKind) {
+      return HttpResponse.json({ message: 'unsupported source file type' }, { status: 400 });
+    }
+    if (!chapterId && chapterName?.trim()) {
+      const normalizedName = chapterName.trim().toLowerCase();
+      const existing = db.chapters.find(
+        (chapter) =>
+          chapter.workspaceId === params.id && chapter.name.trim().toLowerCase() === normalizedName
+      );
+      if (existing) {
+        chapterId = existing.id;
+      } else {
+        const order = db.chapters.filter((chapter) => chapter.workspaceId === params.id).length;
+        const chapter: Chapter = {
+          id: uid('ch'),
+          workspaceId: String(params.id),
+          name: chapterName.trim(),
+          order,
+          fileIds: [],
+        };
+        db.chapters.push(chapter);
+        const ws = db.workspaces.find((workspace) => workspace.id === params.id);
+        if (ws) ws.chapterCount += 1;
+        chapterId = chapter.id;
+      }
     }
     const f: (typeof db.files)[number] = {
       id: uid('f'),

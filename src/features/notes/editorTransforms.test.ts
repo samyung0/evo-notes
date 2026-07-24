@@ -4,7 +4,7 @@ import { common, createLowlight } from 'lowlight';
 import { KEYS } from 'platejs';
 import { createPlateEditor } from 'platejs/react';
 import { describe, expect, it } from 'vitest';
-import { toggleEditorBlock } from './editorTransforms';
+import { clearEditorFormatting, toggleEditorBlock } from './editorTransforms';
 
 function createCodeEditor(text = 'console.log()') {
   const lowlight = createLowlight(common);
@@ -62,5 +62,60 @@ describe('toggleEditorBlock', () => {
 
     expect(classNames).toContain('hljs-variable language_');
     expect(classNames).toContain('hljs-title function_');
+  });
+});
+
+describe('clearEditorFormatting', () => {
+  it('strips every mark from an expanded selection', () => {
+    // Regression: editor.tf.removeMarks() without keys only clears pending
+    // caret marks, so the toolbar's "Clear formatting" did nothing.
+    const editor = createPlateEditor({
+      value: [
+        {
+          type: KEYS.p,
+          children: [
+            { text: 'bold', bold: true },
+            { text: ' and ', italic: true, underline: true },
+            { text: 'colored', color: '#ff0000', highlight: true },
+          ],
+        },
+      ],
+    });
+    editor.tf.select({
+      anchor: { path: [0, 0], offset: 0 },
+      focus: { path: [0, 2], offset: 'colored'.length },
+    });
+
+    clearEditorFormatting(editor);
+
+    const leaves = (editor.children[0] as { children: Record<string, unknown>[] }).children;
+    for (const leaf of leaves) {
+      expect(Object.keys(leaf)).toEqual(['text']);
+    }
+    expect(leaves.map((leaf) => leaf.text).join('')).toBe('bold and colored');
+  });
+
+  it('keeps marks outside the selection', () => {
+    const editor = createPlateEditor({
+      value: [
+        {
+          type: KEYS.p,
+          children: [
+            { text: 'keep', bold: true },
+            { text: ' drop', bold: true },
+          ],
+        },
+      ],
+    });
+    editor.tf.select({
+      anchor: { path: [0, 0], offset: 'keep'.length },
+      focus: { path: [0, 1], offset: ' drop'.length },
+    });
+
+    clearEditorFormatting(editor);
+
+    const leaves = (editor.children[0] as { children: Record<string, unknown>[] }).children;
+    expect(leaves[0]).toEqual({ text: 'keep', bold: true });
+    expect(leaves[1]).toEqual({ text: ' drop' });
   });
 });

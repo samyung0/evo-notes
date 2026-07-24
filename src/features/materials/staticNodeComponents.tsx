@@ -18,10 +18,9 @@ import { Mermaid } from './Mermaid';
 import {
   QuizOptionView,
   QuizQuestionHeader,
-  StudyBlockTimeLimit,
   quizOptionClassName,
   type QuizOptionRole,
-} from './StudyBlockViews';
+} from './QuizBlock';
 import type {
   FlashcardElement as FlashcardNode,
   MermaidElement as MermaidNode,
@@ -324,10 +323,8 @@ function BlockShell({
 }
 
 function QuizElement(props: SlateElementProps) {
-  const timeLimitMin = (props.element as { timeLimitMin?: number }).timeLimitMin;
   return (
     <SlateElement {...props} className={STUDY_BLOCK_LIST_CLASS}>
-      <StudyBlockTimeLimit minutes={timeLimitMin} />
       {props.children}
     </SlateElement>
   );

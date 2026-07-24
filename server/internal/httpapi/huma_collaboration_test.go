@@ -25,6 +25,7 @@ func TestCollaborationContractsAreRegistered(t *testing.T) {
 		"/api/material-suggestions/{id}:",
 		"/api/materials/{id}/discussions:",
 		"/api/discussions/{id}/comments:",
+		"/api/source-upload-policy:",
 		"expectedRevision:",
 		"expectedBaseRevision:",
 		"finalizedContent:",
@@ -35,6 +36,8 @@ func TestCollaborationContractsAreRegistered(t *testing.T) {
 		"originalFragment:",
 		"proposedFragment:",
 		"contentBytes:",
+		"allowNoExtension:",
+		"parseModes:",
 	} {
 		if !strings.Contains(text, expected) {
 			t.Errorf("OpenAPI contract missing %q", expected)

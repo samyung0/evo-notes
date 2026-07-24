@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toUnitLess } from '@platejs/basic-styles';
 import { FontSizePlugin } from '@platejs/basic-styles/react';
 import { encodeUrlIfNeeded, validateUrl } from '@platejs/link';
@@ -39,6 +39,7 @@ import {
   List,
   ListChecks,
   ListOrdered,
+  MessageSquarePlus,
   Minus,
   PaintBucket,
   Pilcrow,
@@ -78,13 +79,11 @@ import {
   PopoverContent,
   PopoverTrigger,
   Switch,
-  userToast,
 } from '@/components/ui';
+import { userToast } from '@/components/ui/userToast';
 import { cn } from '@/lib/cn';
 import { useNoteBlockDialogs } from './blocks/dialogContext';
-import { customBlockNode } from './blocks/shared';
 import { openAiMenu } from './ai/aiMenuState';
-import { CommentToolbarActions } from './Collaboration';
 import {
   downloadEditorFile,
   downloadEditorText,
@@ -94,59 +93,24 @@ import {
   importJsonDocument,
   importMarkdownDocument,
 } from './documentAdapters';
-import { toggleEditorBlock } from './editorTransforms';
+import { clearEditorFormatting, toggleEditorBlock } from './editorTransforms';
 import { insertMediaPlaceholder } from './MediaNodes';
 import { MaterialKit } from './plugins';
 import { type WidgetGroupId, useNoteEditorPrefs, WIDGET_GROUPS } from './noteEditorPrefs';
 import { useEditorRuntime } from './EditorRuntime';
 import { canCreateExternalEditorAssets } from './editorMode';
-import { insertEditorNode } from './insertEditorNode';
 import { cloneLinkSelection, type LinkSelection, upsertLinkAtSelection } from './linkEditor';
 import { getHiddenToolbarGroupIndexes } from './responsiveToolbar';
+import { ToolbarButton } from './ToolBarButton';
+import { EDITOR_COMMANDS, type EditorCommandGroup } from './editorCommands';
+import { isEditorCommandAllowed } from './editorMode';
+import { useCollaborationActions } from './Collaboration';
 
 // TODO: what is this
 // Plate's plugin transforms are intentionally richer than its base editor type.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyEditor = any;
 
-function ToolbarButton({
-  label,
-  children,
-  onClick,
-  active,
-  disabled,
-  className,
-  ...rest
-}: React.ComponentProps<'button'> & {
-  label: string;
-  active?: boolean;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      data-slot="button"
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      disabled={disabled}
-      data-plate-prevent-deselect
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={onClick}
-      className={cn(
-        'relative inline-flex size-8 shrink-0 items-center justify-center gap-1 rounded-row px-0.5 outline-none',
-        'focus-visible:ring-focus hover:bg-surface-hover-bg hover:text-fg focus-visible:ring-2',
-        'disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4',
-        'font-semibold whitespace-nowrap transition-all duration-150 outline-none select-none',
-        active && 'bg-tint-accent-1 text-tint-accent-1-fg',
-        className
-      )}
-      {...rest}
-    >
-      {children}
-    </button>
-  );
-}
 
 function ToolbarGroup({
   children,
@@ -192,13 +156,22 @@ function updateResponsiveToolbar(container: HTMLDivElement) {
   });
 }
 
+const ALL_BLOCK_GROUPS: readonly { id: EditorCommandGroup; label: string }[] = [
+  { id: 'basic', label: 'Basic blocks' },
+  { id: 'lists', label: 'Lists' },
+  { id: 'media', label: 'Media' },
+  { id: 'advanced', label: 'Advanced blocks' },
+  { id: 'inline', label: 'Inline' },
+];
+
 export function NoteToolbar({ right, className }: { right?: React.ReactNode; className?: string }) {
   const editor = useEditorRef() as AnyEditor;
   const toolbarGroupsRef = useRef<HTMLDivElement>(null);
-  const { mode, allowExternalAssets } = useEditorRuntime();
+  const { mode, allowExternalAssets, canComment } = useEditorRuntime();
   const canCreateAssets = canCreateExternalEditorAssets(mode, allowExternalAssets);
   const enabled = useNoteEditorPrefs((state) => state.enabled);
   const dialogs = useNoteBlockDialogs();
+  const collaboration = useCollaborationActions();
   const canUndo = useEditorSelector((ed) => ed.history.undos.length > 0, []);
   const canRedo = useEditorSelector((ed) => ed.history.redos.length > 0, []);
 
@@ -209,6 +182,15 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
   const [linkError, setLinkError] = useState('');
   const [editingLink, setEditingLink] = useState(false);
   const linkSelectionRef = useRef<LinkSelection | null>(null);
+  const allBlockCommands = useMemo(
+    () =>
+      EDITOR_COMMANDS.filter(
+        (command) =>
+          (!command.widget || enabled[command.widget]) &&
+          isEditorCommandAllowed(mode, command, allowExternalAssets)
+      ),
+    [allowExternalAssets, enabled, mode]
+  );
 
   useLayoutEffect(() => {
     const container = toolbarGroupsRef.current;
@@ -232,11 +214,18 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
     editor.tf.focus();
     editor.tf.toggleMark(key);
   };
+  const clearFormatting = () => {
+    editor.tf.focus();
+    clearEditorFormatting(editor);
+  };
   const block = (type: string) => {
     editor.tf.focus();
     toggleEditorBlock(editor, type);
   };
-  const insertNode = (node: unknown) => insertEditorNode(editor, node);
+  const runAllBlockCommand = (command: (typeof EDITOR_COMMANDS)[number]) => {
+    setMoreOpen(false);
+    command.run(editor, dialogs);
+  };
   async function importFile(file: File, kind: ImportKind) {
     const document =
       kind === 'docx'
@@ -314,7 +303,7 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                 <PopoverTrigger asChild>
                   <span>
                     <ToolbarButton
-                      label="More formatting"
+                      label="All blocks"
                       className="w-fit"
                       onClick={() => setMoreOpen(true)}
                     >
@@ -325,75 +314,60 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
-                  className="w-60 border border-line bg-surface p-1 shadow-pop"
+                  data-all-blocks-menu
+                  className="max-h-[min(80vh,38rem)] w-72 overflow-y-auto rounded-card border border-line bg-surface p-1 shadow-pop"
                 >
-                  {enabled.callout && (
-                    <MenuRow
-                      label="Callout"
-                      onClick={() =>
-                        insertNode({
-                          type: KEYS.callout,
-                          variant: 'info',
-                          children: [{ type: KEYS.p, children: [{ text: '' }] }],
-                        })
-                      }
-                    />
-                  )}
-                  {enabled.columns && (
-                    <MenuRow label="Two columns" onClick={() => insertNode(twoColumns())} />
-                  )}
-                  {enabled.math && (
-                    <MenuRow
-                      label="Equation"
-                      onClick={() =>
-                        insertNode({
-                          type: KEYS.equation,
-                          texExpression: '',
-                          children: [{ text: '' }],
-                        })
-                      }
-                    />
-                  )}
-                  {enabled.toc && (
-                    <MenuRow
-                      label="Table of contents"
-                      onClick={() => insertNode({ type: KEYS.toc, children: [{ text: '' }] })}
-                    />
-                  )}
-                  {/* TODO: add in heading 4,5,6,bullet list, numbered list, task list, and column layouts  */}
-                  {enabled.quiz && (
-                    <MenuRow
-                      label="Quiz"
-                      onClick={() =>
-                        dialogs.openQuiz(undefined, (code) =>
-                          insertNode(customBlockNode('quiz', code))
-                        )
-                      }
-                    />
-                  )}
-                  {enabled.flashcards && (
-                    <MenuRow
-                      label="Flashcards"
-                      onClick={() =>
-                        dialogs.openFlashcards(undefined, (code) =>
-                          insertNode(customBlockNode('flashcards', code))
-                        )
-                      }
-                    />
-                  )}
-                  {enabled.mermaid && (
-                    <MenuRow
-                      label="Diagram"
-                      onClick={() =>
-                        insertNode(customBlockNode('mermaid', 'flowchart LR\n  A --> B'))
-                      }
-                    />
-                  )}
-                  <MenuRow label="Code block" onClick={() => block(KEYS.codeBlock)} />
-                  <MenuRow label="Blockquote" onClick={() => block(KEYS.blockquote)} />
-                  <MenuRow label="Subscript" onClick={() => mark(KEYS.sub)} />
-                  <MenuRow label="Superscript" onClick={() => mark(KEYS.sup)} />
-                  <MenuRow label="Clear formatting" onClick={() => editor.tf.removeMarks()} />
+                  {ALL_BLOCK_GROUPS.map((group) => {
+                    const commands = allBlockCommands.filter(
+                      (command) => command.group === group.id
+                    );
+                    if (
+                      !commands.length &&
+                      !(group.id === 'media' && canComment && collaboration)
+                    ) {
+                      return null;
+                    }
+
+                    return (
+                      <section key={group.id} aria-labelledby={`all-blocks-${group.id}`}>
+                        <h3
+                          id={`all-blocks-${group.id}`}
+                          className="px-2 pt-2 pb-1 text-xs font-semibold tracking-wide text-fg-muted first:pt-1"
+                        >
+                          {group.label}
+                        </h3>
+                        {commands.map((command) => {
+                          const Icon = command.icon;
+                          return (
+                            <MenuRow
+                              key={command.id}
+                              label={command.label}
+                              icon={<Icon />}
+                              shortcut={command.shortcut}
+                              onClick={() => runAllBlockCommand(command)}
+                            />
+                          );
+                        })}
+                        {group.id === 'media' && canComment && collaboration && (
+                          <MenuRow
+                            label="Comment"
+                            icon={<MessageSquarePlus />}
+                            shortcut="Ctrl/Cmd+Shift+M"
+                            className="mt-1 border-t border-divider pt-2"
+                            onClick={() => {
+                              setMoreOpen(false);
+                              collaboration.openComment();
+                            }}
+                          />
+                        )}
+                      </section>
+                    );
+                  })}
+                  <div className="mt-1 border-t border-divider pt-1">
+                    <MenuRow label="Subscript" onClick={() => mark(KEYS.sub)} />
+                    <MenuRow label="Superscript" onClick={() => mark(KEYS.sup)} />
+                    <MenuRow label="Clear formatting" onClick={clearFormatting} />
+                  </div>
                 </PopoverContent>
               </Popover>
               <BlockTypeMenu onBlock={block} />
@@ -511,6 +485,13 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
                 </ToolbarButton>
               </ToolbarGroup>
             )}
+            {canComment && collaboration && (
+              <ToolbarGroup>
+                <ToolbarButton label="Comment" onClick={collaboration.openComment}>
+                  <MessageSquarePlus />
+                </ToolbarButton>
+              </ToolbarGroup>
+            )}
             <ToolbarGroup>
               <ToolbarButton label="Outdent" onClick={() => editor.tf.outdent()}>
                 <IndentDecrease />
@@ -520,11 +501,8 @@ export function NoteToolbar({ right, className }: { right?: React.ReactNode; cla
               </ToolbarButton>
             </ToolbarGroup>
           </>
-          <ToolbarGroup>
-            <CommentToolbarActions />
-          </ToolbarGroup>
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">
+        <div className="ml-auto flex shrink-0 items-center pl-2">
           {right}
           <WidgetSettingsDialog />
         </div>
@@ -598,14 +576,14 @@ const DEFAULT_FONT_SIZE = 16;
 const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 96;
 const FONT_SIZE_PRESETS = [8, 9, 10, 12, 14, 16, 18, 24, 30, 36, 48, 60, 72, 96] as const;
-const BLOCK_FONT_SIZES: Record<string, number> = {
-  [KEYS.h1]: 36,
-  [KEYS.h2]: 24,
-  [KEYS.h3]: 20,
-  [KEYS.h4]: 18,
-  [KEYS.h5]: 18,
-  [KEYS.h6]: 16,
-};
+// const BLOCK_FONT_SIZES: Record<string, number> = {
+//   [KEYS.h1]: 36,
+//   [KEYS.h2]: 24,
+//   [KEYS.h3]: 20,
+//   [KEYS.h4]: 18,
+//   [KEYS.h5]: 18,
+//   [KEYS.h6]: 16,
+// };
 
 function clampFontSize(size: number) {
   return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, size));
@@ -858,6 +836,7 @@ function ImportMenu({
         title: 'Import failed',
         description:
           cause instanceof Error ? cause.message : 'The selected file could not be read.',
+        variant: 'error',
       });
     }
   };
@@ -937,7 +916,6 @@ function ExportMenu({ editor }: { editor: AnyEditor }) {
   );
 }
 
-// TODO: change this to toggle mode and remove justify
 function AlignMenu({ editor }: { editor: AnyEditor }) {
   const [open, setOpen] = useState(false);
   const align = (value: string) => editor.tf.setNodes({ align: value });
@@ -963,9 +941,9 @@ function AlignMenu({ editor }: { editor: AnyEditor }) {
         <ToolbarButton label="Align right" onClick={() => align('right')}>
           <AlignRight />
         </ToolbarButton>
-        <ToolbarButton label="Justify" onClick={() => align('justify')}>
+        {/* <ToolbarButton label="Justify" onClick={() => align('justify')}>
           <AlignJustify />
-        </ToolbarButton>
+        </ToolbarButton> */}
       </PopoverContent>
     </Popover>
   );
@@ -1142,11 +1120,14 @@ function MenuRow({
   label,
   onClick,
   icon,
+  shortcut,
   className,
+  onMouseDown,
   ...rest
 }: React.ComponentProps<'button'> & {
   label: string;
   icon?: React.ReactNode;
+  shortcut?: string;
   className?: string;
 }) {
   return (
@@ -1156,23 +1137,22 @@ function MenuRow({
         'flex w-full items-center gap-2 rounded-row px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-hover-bg [&_svg]:size-4',
         className
       )}
+      onMouseDown={(event) => {
+        event.preventDefault();
+        onMouseDown?.(event);
+      }}
       onClick={onClick}
       {...rest}
     >
-      {icon}
-      {label}
+      {icon && <span className="flex size-4 shrink-0 items-center justify-center">{icon}</span>}
+      <span className="min-w-0 flex-1">{label}</span>
+      {shortcut && (
+        <kbd aria-hidden className="ml-auto shrink-0 text-xs text-fg-muted">
+          {shortcut}
+        </kbd>
+      )}
     </button>
   );
-}
-
-function twoColumns() {
-  return {
-    type: KEYS.columnGroup,
-    children: [
-      { type: KEYS.column, width: '50%', children: [{ type: KEYS.p, children: [{ text: '' }] }] },
-      { type: KEYS.column, width: '50%', children: [{ type: KEYS.p, children: [{ text: '' }] }] },
-    ],
-  };
 }
 
 function WidgetSettingsDialog() {
